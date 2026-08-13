@@ -1,0 +1,495 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\QrCode;
+use App\Models\Trip;
+use App\Models\TripLocation;
+use App\Models\Vehicle;
+use App\Models\User;
+use App\Models\Notification;
+use App\Http\Resources\TripResource;
+use App\Services\RouteService;
+use App\Services\AiService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class TripController extends Controller
+{
+    public function __construct(
+        private readonly RouteService $routeService,
+        private readonly AiService $aiService,
+    ) {
+    }
+
+    public function current(Request $request): JsonResponse
+    {
+        $role = $request->user()->roles()->first()->slug;
+
+        $query = Trip::with('passager', 'transporteur', 'vehicle', 'locations');
+
+        if ($role === 'transporteur') {
+            $query->where('transporteur_id', $request->user()->id);
+        } else {
+            $query->where('passager_id', $request->user()->id);
+        }
+
+        $query->where('statut', 'EN_COURS')->latest();
+
+        return response()->json(['trip' => TripResource::make($query->first())]);
+    }
+
+    public function start(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'token' => 'required|string',
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+        ]);
+
+        $qr = $this->resolveQr($data['token']);
+
+        if ($qr === null || ! $qr->actif) {
+            return response()->json(['message' => 'QR Code invalide ou désactivé'], 422);
+        }
+
+        $vehicle = $qr->vehicle()->with('transporteur')->first();
+
+        if ($vehicle->transporteur->statut === 'SUSPENDU') {
+            return response()->json(['message' => 'Le transporteur est suspendu. Trajet impossible.'], 403);
+        }
+
+        // Vérification de proximité GPS : le passager doit se trouver à ±50m du véhicule
+        $proximity = $this->checkProximity($data['latitude'], $data['longitude'], $vehicle);
+
+        if (! $proximity['ok']) {
+            return response()->json([
+                'message' => 'Proximité non vérifiée : vous devez être à proximité immédiate du véhicule pour scanner.',
+                'distance_m' => $proximity['distance_m'],
+                'max_distance_m' => $proximity['max_distance_m'],
+            ], 422);
+        }
+
+        $trip = DB::transaction(function () use ($request, $data, $vehicle, $qr) {
+            $trip = Trip::create([
+                'passager_id' => $request->user()->id,
+                'transporteur_id' => $vehicle->transporteur_id,
+                'vehicle_id' => $vehicle->id,
+                'qr_token' => $qr->token,
+                'start_latitude' => $data['latitude'],
+                'start_longitude' => $data['longitude'],
+                'started_at' => now(),
+                'statut' => 'SCANNE',
+            ]);
+
+            $qr->update(['last_used_at' => now()]);
+
+            Notification::create([
+                'user_id' => $vehicle->transporteur_id,
+                'type' => 'TRAJET',
+                'titre' => 'Passager scanné - En attente de confirmation',
+                'message' => 'Le passager ' . $request->user()->prenom . ' ' . $request->user()->nom . ' a scanné votre QR Code.',
+            ]);
+
+            return $trip;
+        });
+
+        $trip->load('passager', 'transporteur', 'vehicle');
+
+        return response()->json([
+            'message' => 'QR Code scanné. En attente de confirmation d\'embarquement.',
+            'trip' => new TripResource($trip),
+            'proximity' => $proximity,
+            'next_step' => 'confirm_embarquement',
+        ], 201);
+    }
+
+    /**
+     * Confirmation de l'embarquement par le passager ou le transporteur
+     * Passe le statut de SCANNE → CONFIRME
+     */
+    public function confirmEmbarquement(Request $request, int $id): JsonResponse
+    {
+        $trip = Trip::where('id', $id)
+            ->where(function ($q) use ($request) {
+                $q->where('passager_id', $request->user()->id)
+                  ->orWhere('transporteur_id', $request->user()->id);
+            })
+            ->where('statut', 'SCANNE')
+            ->firstOrFail();
+
+        $trip->update(['statut' => 'CONFIRME']);
+
+        $otherUserId = $trip->passager_id === $request->user()->id
+            ? $trip->transporteur_id
+            : $trip->passager_id;
+
+        Notification::create([
+            'user_id' => $otherUserId,
+            'type' => 'TRAJET',
+            'titre' => 'Embarquement confirmé',
+            'message' => 'L\'embarquement a été confirmé. Vous pouvez maintenant définir la destination.',
+        ]);
+
+        return response()->json([
+            'message' => 'Embarquement confirmé. Définissez votre destination.',
+            'trip' => new TripResource($trip->fresh()->load('passager', 'transporteur', 'vehicle')),
+            'next_step' => 'set_destination',
+        ]);
+    }
+
+    /**
+     * Le passager propose une destination
+     * Passe le statut de CONFIRME → DESTINATION_PROPOSEE
+     */
+    public function setDestination(Request $request, int $id): JsonResponse
+    {
+        $trip = $this->ownActiveTrip($request, $id);
+
+        if (! in_array($trip->statut, ['CONFIRME', 'DESTINATION_PROPOSEE'])) {
+            return response()->json(['message' => 'Le trajet doit être confirmé avant de définir une destination'], 422);
+        }
+
+        $data = $request->validate([
+            'destination_address' => 'required|string|max:255',
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+        ]);
+
+        $trip->update([
+            'destination_address' => $data['destination_address'],
+            'destination_latitude' => $data['latitude'],
+            'destination_longitude' => $data['longitude'],
+            'statut' => 'DESTINATION_PROPOSEE',
+        ]);
+
+        // Itinéraire prévu (polyline OSRM, repli ligne droite)
+        $trip->planned_route_polyline = $this->routeService->plannedRoute($trip);
+        $trip->save();
+
+        return response()->json([
+            'message' => 'Destination proposée. Confirmez-vous cette destination ?',
+            'trip' => new TripResource($trip->fresh()->load('passager', 'transporteur', 'vehicle')),
+            'next_step' => 'confirm_destination',
+            'confirmation_required' => true,
+        ]);
+    }
+
+    /**
+     * Confirmation de la destination par le passager
+     * Passe le statut de DESTINATION_PROPOSEE → DESTINATION_CONFIRMEE
+     * Puis démarre réellement le trajet (EN_COURS)
+     */
+    public function confirmDestination(Request $request, int $id): JsonResponse
+    {
+        $trip = $this->ownActiveTrip($request, $id);
+
+        if ($trip->statut !== 'DESTINATION_PROPOSEE') {
+            return response()->json(['message' => 'Aucune destination à confirmer'], 422);
+        }
+
+        $data = $request->validate([
+            'confirmed' => 'required|boolean',
+        ]);
+
+        if (! $data['confirmed']) {
+            return response()->json([
+                'message' => 'Destination non confirmée. Vous pouvez en proposer une nouvelle.',
+                'trip' => new TripResource($trip->fresh()->load('passager', 'transporteur', 'vehicle')),
+            ]);
+        }
+
+        $trip->update([
+            'statut' => 'EN_COURS',
+        ]);
+
+        Notification::create([
+            'user_id' => $trip->transporteur_id,
+            'type' => 'TRAJET',
+            'titre' => 'Trajet démarré',
+            'message' => 'Le trajet vers ' . $trip->destination_address . ' a commencé.',
+        ]);
+
+        return response()->json([
+            'message' => 'Destination confirmée. Trajet en cours.',
+            'trip' => new TripResource($trip->fresh()->load('passager', 'transporteur', 'vehicle')),
+            'next_step' => 'trajet_en_cours',
+        ]);
+    }
+
+    /**
+     * Modifier la destination (remet en DESTINATION_PROPOSEE)
+     */
+    public function updateDestination(Request $request, int $id): JsonResponse
+    {
+        $trip = $this->ownActiveTrip($request, $id);
+
+        if (! in_array($trip->statut, ['DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'])) {
+            return response()->json(['message' => 'Impossible de modifier la destination à ce stade'], 422);
+        }
+
+        $data = $request->validate([
+            'destination_address' => 'required|string|max:255',
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+        ]);
+
+        $trip->update([
+            'destination_address' => $data['destination_address'],
+            'destination_latitude' => $data['latitude'],
+            'destination_longitude' => $data['longitude'],
+            'statut' => 'DESTINATION_PROPOSEE',
+        ]);
+
+        $trip->planned_route_polyline = $this->routeService->plannedRoute($trip);
+        $trip->save();
+
+        return response()->json([
+            'message' => 'Destination modifiée. Confirmez-vous cette nouvelle destination ?',
+            'trip' => new TripResource($trip->fresh()->load('passager', 'transporteur', 'vehicle')),
+            'next_step' => 'confirm_destination',
+            'confirmation_required' => true,
+        ]);
+    }
+
+
+    public function storeLocation(Request $request, int $id): JsonResponse
+    {
+        $trip = $this->ownActiveTrip($request, $id);
+
+        $data = $request->validate([
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+            'vitesse_km_h' => 'nullable|numeric|min:0',
+            'captured_at' => 'required|date',
+        ]);
+
+        TripLocation::create([
+            'trip_id' => $trip->id,
+            'latitude' => $data['latitude'],
+            'longitude' => $data['longitude'],
+            'vitesse_km_h' => $data['vitesse_km_h'] ?? null,
+            'captured_at' => $data['captured_at'],
+        ]);
+
+        return response()->json(['message' => 'Position enregistrée'], 201);
+    }
+
+    public function end(Request $request, int $id): JsonResponse
+    {
+        $trip = $this->ownActiveTrip($request, $id);
+
+        $finished = $this->finalizeTrip($trip, 'MANUEL');
+
+        return response()->json([
+            'message' => 'Trajet terminé',
+            'trip' => new TripResource($finished),
+        ]);
+    }
+
+    public function autoEndInactive(): JsonResponse
+    {
+        // Fin automatique des trajets dont la destination est atteinte depuis plus de 10 minutes
+        $deadline = now()->subMinutes(10);
+        $count = 0;
+
+        Trip::where('statut', 'EN_COURS')
+            ->whereNotNull('destination_latitude')
+            ->get()
+            ->each(function (Trip $trip) use ($deadline, &$count) {
+                $arrivedAt = $trip->locations()
+                    ->orderByDesc('captured_at')
+                    ->value('captured_at');
+
+                // Point de référence : dernière position enregistrée avant le délai
+                $lastActivity = $trip->locations()
+                    ->orderByDesc('captured_at')
+                    ->value('captured_at') ?? $trip->started_at;
+
+                if ($lastActivity->lt($deadline)) {
+                    $this->finalizeTrip($trip, 'AUTO_10MIN');
+                    $count++;
+                }
+            });
+
+        return response()->json(['message' => "$count trajets clôturés automatiquement", 'closed' => $count]);
+    }
+
+    public function history(Request $request): JsonResponse
+    {
+        $role = $request->user()->roles()->first()->slug;
+
+        $query = Trip::with('passager', 'transporteur', 'vehicle')
+            ->where('statut', 'TERMINE');
+
+        if ($role === 'transporteur') {
+            $query->where('transporteur_id', $request->user()->id);
+        } elseif ($role === 'passager') {
+            $query->where('passager_id', $request->user()->id);
+        }
+
+        $trips = $query->latest('ended_at')->paginate(15);
+
+        return response()->json(['trips' => TripResource::collection($trips)]);
+    }
+
+    /**
+     * Récupère un trajet actif du passateur (tous statuts sauf TERMINE/ANNULE)
+     */
+    protected function ownActiveTrip(Request $request, int $id): Trip
+    {
+        $trip = Trip::where('id', $id)
+            ->where('passager_id', $request->user()->id)
+            ->whereNotIn('statut', ['TERMINE', 'ANNULE'])
+            ->firstOrFail();
+
+        return $trip;
+    }
+
+    /**
+     * Récupère un trajet en cours de suivi GPS (statut EN_COURS seulement)
+     */
+    protected function ownTrackingTrip(Request $request, int $id): Trip
+    {
+        $trip = Trip::where('id', $id)
+            ->where('passager_id', $request->user()->id)
+            ->where('statut', 'EN_COURS')
+            ->firstOrFail();
+
+        return $trip;
+    }
+
+    protected function finalizeTrip(Trip $trip, string $method): Trip
+    {
+        $trip->ended_at = now();
+        $trip->statut = 'TERMINE';
+        $trip->end_method = $method;
+
+        $distance = $this->computeDistance($trip);
+        $trip->distance_km = round($distance, 2);
+        $trip->duration_seconds = max(0, $trip->ended_at->diffInSeconds($trip->started_at));
+        $trip->deviation_km = round($this->computeDeviation($trip), 2);
+        $trip->actual_route_polyline = $this->routeService->actualRoute($trip);
+        $trip->deviation_alert = $trip->deviation_km > 0.5;
+
+        $trip->save();
+
+        // Résumé IA du trajet (Point 21) — non bloquant
+        try {
+            $this->aiService->tripSummary($trip);
+        } catch (\Throwable $e) {
+            // jamais bloquant pour la clôture du trajet
+        }
+
+        return $trip->load('passager', 'transporteur', 'vehicle');
+    }
+
+    protected function computeDistance(Trip $trip): float
+    {
+        $coords = [];
+        $coords[] = [(float) $trip->start_latitude, (float) $trip->start_longitude];
+
+        foreach ($trip->locations()->orderBy('captured_at')->get() as $location) {
+            $coords[] = [(float) $location->latitude, (float) $location->longitude];
+        }
+
+        if ($trip->destination_latitude && $trip->destination_longitude) {
+            $coords[] = [(float) $trip->destination_latitude, (float) $trip->destination_longitude];
+        }
+
+        $distance = 0;
+        for ($i = 0; $i < count($coords) - 1; $i++) {
+            $distance += $this->haversine($coords[$i][0], $coords[$i][1], $coords[$i + 1][0], $coords[$i + 1][1]);
+        }
+
+        return $distance;
+    }
+
+    protected function computeDeviation(Trip $trip): float
+    {
+        // Écart entre le point final réel et la destination prévue
+        $last = $trip->locations()->orderByDesc('captured_at')->first();
+        if (! $last) {
+            return 0;
+        }
+
+        return $this->haversine(
+            (float) $last->latitude,
+            (float) $last->longitude,
+            (float) $trip->destination_latitude,
+            (float) $trip->destination_longitude
+        );
+    }
+
+    protected function haversine(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earthRadius = 6371;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+
+        $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+
+        return $earthRadius * 2 * atan2(sqrt($a), sqrt(1 - $a));
+    }
+
+    /**
+     * Vérifie que le passager est à proximité immédiate du véhicule (±50m).
+     * Si le véhicule n'a pas encore partagé sa position, la vérification est
+     * considérée comme non-bloquante (MVP) mais signalée comme non vérifiée.
+     */
+    protected function checkProximity(float $passagerLat, float $passagerLng, Vehicle $vehicle): array
+    {
+        $maxDistanceM = 50;
+
+        if ($vehicle->last_latitude === null || $vehicle->last_longitude === null) {
+            return [
+                'ok' => true,
+                'verified' => false,
+                'distance_m' => null,
+                'max_distance_m' => $maxDistanceM,
+                'reason' => 'vehicle_position_unknown',
+            ];
+        }
+
+        $distanceM = $this->haversine(
+            $passagerLat,
+            $passagerLng,
+            (float) $vehicle->last_latitude,
+            (float) $vehicle->last_longitude
+        ) * 1000;
+
+        return [
+            'ok' => $distanceM <= $maxDistanceM,
+            'verified' => true,
+            'distance_m' => (int) round($distanceM),
+            'max_distance_m' => $maxDistanceM,
+        ];
+    }
+
+    protected function resolveQr(string $token): ?QrCode
+    {
+        $qr = QrCode::where('token', $token)->first();
+        if (! $qr) {
+            return null;
+        }
+
+        $payload = base64_decode($token);
+        $parts = explode('.', $payload, 2);
+        if (count($parts) !== 2) {
+            return null;
+        }
+
+        $expectedSignature = hash_hmac('sha256', $parts[0], config('app.key'));
+        if (! hash_equals($expectedSignature, $parts[1])) {
+            return null;
+        }
+
+        $data = json_decode($parts[0], true);
+        if (($data['exp'] ?? 0) < now()->timestamp) {
+            return null;
+        }
+
+        return $qr;
+    }
+}

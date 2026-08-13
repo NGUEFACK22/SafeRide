@@ -1,0 +1,15 @@
+# Fichiers système / éditeur
+.claude/
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db
+
+# Dépendances (sécurité : jamais versionnées)
+/node_modules/
+/vendor/
+
+# Builds
+/build/
+/dist/

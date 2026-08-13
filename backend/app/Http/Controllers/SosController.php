@@ -1,0 +1,211 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\EmergencyContact;
+use App\Models\EmergencyService;
+use App\Models\ManagerAssignment;
+use App\Models\Notification;
+use App\Models\SosAlert;
+use App\Models\Trip;
+use App\Models\User;
+use App\Models\VoiceSecurityProfile;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+class SosController extends Controller
+{
+    public function create(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'trip_id' => 'required|exists:trips,id',
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+            'declenchement' => 'required|in:VOCAL,BOUTON',
+            'keyword' => 'nullable|string|max:40',
+            'empreinte' => 'nullable|string|max:255',
+        ]);
+
+        $trip = Trip::where('id', $data['trip_id'])
+            ->where('passager_id', $request->user()->id)
+            ->where('statut', 'EN_COURS')
+            ->first();
+
+        if (! $trip) {
+            return response()->json(['message' => 'Aucun trajet actif pour cet utilisateur'], 422);
+        }
+
+        // Vérification SOS vocal : mot-clé + empreinte vocale (Point 9)
+        $verification = $this->verifyVoice($request->user(), $data);
+        $statut = $verification['statut'];
+
+        $sos = SosAlert::create([
+            'trip_id' => $trip->id,
+            'passager_id' => $request->user()->id,
+            'declenchement' => $data['declenchement'],
+            'latitude' => $data['latitude'],
+            'longitude' => $data['longitude'],
+            'heure_detection' => now(),
+            'statut' => $statut,
+            'details' => $verification['details'],
+        ]);
+
+        $this->dispatchAlerts($sos);
+        $this->assignManager($sos);
+
+        $transmission = $this->notifyAll($request, $sos, $trip);
+
+        $message = match (true) {
+            $data['declenchement'] === 'BOUTON' => $transmission['en_attente']
+                ? 'Alerte bouton reçue. En attente de connexion.'
+                : 'Alerte bouton transmise',
+            $verification['details']['verification_passed'] ?? false => 'Alerte vocale vérifiée et transmise',
+            default => 'Alerte vocale reçue mais non vérifiée — en cours de vérification.',
+        };
+
+        return response()->json([
+            'message' => $message,
+            'sos' => $sos->load('emergencyNotifications'),
+        ], 201);
+    }
+
+    /**
+     * Vérifie un déclenchement SOS vocal (mot-clé + empreinte).
+     * BOUTON = déclenchement immédiat (fallback). VOCAL = vérifié si mot-clé
+     * et empreinte correspondent au profil du passager.
+     */
+    protected function verifyVoice(User $user, array $data): array
+    {
+        if ($data['declenchement'] === 'BOUTON') {
+            return [
+                'statut' => 'DECLENCHE',
+                'details' => [
+                    'triggered_by' => 'bouton',
+                    'verification_passed' => true,
+                ],
+            ];
+        }
+
+        $profile = VoiceSecurityProfile::where('user_id', $user->id)->first();
+
+        $keywordMatch = $profile
+            && $profile->mot_securite
+            && $data['keyword']
+            && strcasecmp(trim($data['keyword']), $profile->mot_securite) === 0;
+
+        $voiceMatch = $profile
+            && $profile->empreinte_vocale
+            && $data['empreinte']
+            && hash_equals($profile->empreinte_vocale, $data['empreinte']);
+
+        $passed = $keywordMatch && $voiceMatch;
+
+        return [
+            'statut' => $passed ? 'DECLENCHE' : 'VERIFICATION',
+            'details' => [
+                'triggered_by' => 'vocal',
+                'keyword_detected' => (bool) $keywordMatch,
+                'voiceprint_match' => (bool) $voiceMatch,
+                'verification_passed' => $passed,
+            ],
+        ];
+    }
+
+    public function show(Request $request, int $id): JsonResponse
+    {
+        $sos = SosAlert::with('trip', 'passager', 'emergencyNotifications')
+            ->findOrFail($id);
+
+        return response()->json(['sos' => $sos]);
+    }
+
+    public function myAlerts(Request $request): JsonResponse
+    {
+        $alerts = SosAlert::with('trip')
+            ->where('passager_id', $request->user()->id)
+            ->latest()
+            ->paginate(15);
+
+        return response()->json(['alerts' => $alerts]);
+    }
+
+    public function resolve(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'statut' => 'required|in:RESOLU,FAUSSE_ALERTE,EN_COURS',
+            'details' => 'nullable|array',
+        ]);
+
+        $sos = SosAlert::findOrFail($id);
+        $sos->update([
+            'statut' => $data['statut'],
+            'details' => array_merge((array) $sos->details, $data['details'] ?? []),
+        ]);
+
+        return response()->json([
+            'message' => 'Enregistré',
+            'sos' => $sos,
+        ]);
+    }
+
+    protected function dispatchAlerts(SosAlert $sos): void
+    {
+        // Notifie les contacts d'urgence du passager
+        EmergencyContact::where('user_id', $sos->passager_id)
+            ->each(function (EmergencyContact $contact) use ($sos) {
+                Notification::create([
+                    'user_id' => $sos->passager_id,
+                    'type' => 'SOS',
+                    'titre' => 'SOS en cours — Contact ' . $contact->nom,
+                    'message' => 'Votre contact d\'urgence ' . $contact->nom . ' a été notifié (' . $contact->telephone . ').',
+                ]);
+            });
+
+        // Services d'urgence référencés
+        EmergencyService::get()->each(function (EmergencyService $service) use ($sos) {
+            $sos->emergencyNotifications()->create([
+                'emergency_service_id' => $service->id,
+                'notifie_le' => now(),
+                'statut' => 'TRANSMISE',
+            ]);
+        });
+    }
+
+    protected function assignManager(SosAlert $sos): void
+    {
+        $manager = User::whereHas('roles', fn ($q) => $q->where('slug', 'gestionnaire'))
+            ->withCount(['managerAssignments as ouvertes' => fn ($q) => $q->where('statut', '!=', 'CLOTURE')])
+            ->orderBy('ouvertes')
+            ->first();
+
+        if ($manager) {
+            ManagerAssignment::create([
+                'manager_id' => $manager->id,
+                'dossier_type' => 'SOS',
+                'dossier_id' => $sos->id,
+                'statut' => 'ATTRIBUE',
+            ]);
+
+            Notification::create([
+                'user_id' => $manager->id,
+                'type' => 'SOS',
+                'titre' => 'Nouveau dossier SOS attribué',
+                'message' => 'Une alerte SOS est attribuée à votre compte. Position : ' . $sos->latitude . ', ' . $sos->longitude,
+            ]);
+        }
+    }
+
+    protected function notifyAll(Request $request, SosAlert $sos, Trip $trip): array
+    {
+        $withNetwork = true; // placeholder réseau ; en production : vérifier la connectivité réelle
+
+        // Une alerte non vérifiée (VERIFICATION) reste en attente de confirmation
+        if ($sos->statut === 'VERIFICATION') {
+            return ['en_attente' => false, 'verification' => false];
+        }
+
+        $sos->update(['statut' => $withNetwork ? 'NOTIFIE' : 'DECLENCHE']);
+
+        return ['en_attente' => ! $withNetwork];
+    }
+}
