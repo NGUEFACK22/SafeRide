@@ -148,6 +148,14 @@ Toute requête non authentifiée renvoie **401 JSON** (jamais de 500).
 ### Incidents (auth)
 `lost-items` (CRUD), `lost-items/{id}/chronology` (croisement passagers), `disputes` (CRUD).
 
+### Notifications (auth, in-app)
+| Méthode | Route | Description |
+|---|---|---|
+| GET | `notifications` | 50 notifications récentes + `unread_count` |
+| GET | `notifications/unread-count` | Nombre de non-lues (badge, polling) |
+| POST | `notifications/{id}/read` | Marquer comme lue |
+| POST | `notifications/read-all` | Tout marquer lu |
+
 ### Gestionnaire / Admin
 - `manager/dashboard`, `manager/assignments`, `manager/assignments/{id}/take`, `manager/assignments/{id}/close`.
 - `admin/dashboard`, `admin/users`, `admin/managers/stats`, etc.
@@ -196,7 +204,7 @@ Le passager définit un **mot/phrase de sécurité** et s'enrôle (`voice/enroll
 - **Didit** nécessite des **crédits** ; sans eux, la vérification retombe sur une révision manuelle (`A_EXAMINER`). La clé est valide, seul le solde manque.
 - **Empreinte vocale SOS** : simulée (empreinte = `sha256` du mot de sécurité), pas une empreinte biométrique réelle.
 - **Affichage cartographique** : intégré (`google_maps_flutter`). Nécessite une **clé Google Maps** valide (voir ci-dessous) ; sans elle la carte ne s'affiche pas (le reste de l'app fonctionne).
-- **Temps réel** : pas de push (FCM) ; les notifications SOS passent par email et le mobile rafraîchit manuellement.
+- **Temps réel** : notifications in-app par **polling** (cloche + badge dans l'app, rafraîchi toutes les ~15 s) — pas de push FCM natif (évolution production).
 - **Secrets** : clés API dans `.env` (ne sont **jamais** commitées). À **renouveler après la soutenance**.
 
 ---

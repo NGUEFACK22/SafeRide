@@ -6,6 +6,7 @@ use App\Http\Controllers\DisputeController;
 use App\Http\Controllers\IdentityController;
 use App\Http\Controllers\LostItemController;
 use App\Http\Controllers\ManagerController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SosController;
 use App\Http\Controllers\TripController;
 use App\Http\Controllers\VehicleController;
@@ -91,6 +92,12 @@ Route::prefix('v1')->group(function () {
             Route::get('sos/{sos}', [SosController::class, 'show']);
             Route::put('sos/{sos}/resolve', [SosController::class, 'resolve']);
         });
+
+        // Notifications (in-app, temps réel par polling)
+        Route::get('notifications', [NotificationController::class, 'index']);
+        Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::post('notifications/read-all', [NotificationController::class, 'markAllRead']);
+        Route::post('notifications/{notification}/read', [NotificationController::class, 'markRead']);
 
         // Administration
         Route::prefix('admin')->middleware(['role:admin'])->group(function () {

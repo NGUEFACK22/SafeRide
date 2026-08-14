@@ -93,6 +93,23 @@ class ApiService {
     return data;
   }
 
+  Future<Map<String, dynamic>> fetchNotifications() async {
+    return get('/notifications');
+  }
+
+  Future<int> fetchUnreadCount() async {
+    final data = await get('/notifications/unread-count');
+    return (data['unread_count'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<void> markNotificationRead(int id) async {
+    await post('/notifications/$id/read', {});
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    await post('/notifications/read-all', {});
+  }
+
   Future<Map<String, dynamic>> postMultipart(
     String path,
     Map<String, String> fields, {

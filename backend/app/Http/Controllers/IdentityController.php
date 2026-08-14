@@ -197,6 +197,13 @@ class IdentityController extends Controller
                     'dossier_id' => $verification->id,
                     'statut' => 'ATTRIBUE',
                 ]);
+
+                Notification::create([
+                    'user_id' => $manager->id,
+                    'type' => 'IDENTITE',
+                    'titre' => 'Nouvelle vérification d\'identité',
+                    'message' => 'Identité de l\'utilisateur #' . $verification->user_id . ' à vérifier.',
+                ]);
             }
         }
     }
