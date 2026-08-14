@@ -10,8 +10,10 @@ use App\Models\SosAlert;
 use App\Models\Trip;
 use App\Models\User;
 use App\Models\VoiceSecurityProfile;
+use App\Mail\SosAlertMail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class SosController extends Controller
 {
@@ -150,19 +152,37 @@ class SosController extends Controller
 
     protected function dispatchAlerts(SosAlert $sos): void
     {
-        // Notifie les contacts d'urgence du passager
+        $trip = $sos->trip;
+
+        // Contacts d'urgence du passager -> notification DB + email réel
         EmergencyContact::where('user_id', $sos->passager_id)
-            ->each(function (EmergencyContact $contact) use ($sos) {
+            ->get()
+            ->each(function (EmergencyContact $contact) use ($sos, $trip) {
                 Notification::create([
                     'user_id' => $sos->passager_id,
                     'type' => 'SOS',
                     'titre' => 'SOS en cours — Contact ' . $contact->nom,
                     'message' => 'Votre contact d\'urgence ' . $contact->nom . ' a été notifié (' . $contact->telephone . ').',
                 ]);
+
+                if ($contact->email) {
+                    try {
+                        Mail::to($contact->email)->send(new SosAlertMail($sos, $trip, $contact->nom));
+                    } catch (\Throwable $e) {
+                        // La notification DB reste créée même si l'email échoue
+                    }
+                }
             });
 
-        // Services d'urgence référencés
-        EmergencyService::get()->each(function (EmergencyService $service) use ($sos) {
+        // Services d'urgence -> email réel + journalisation de la transmission
+        EmergencyService::get()->each(function (EmergencyService $service) use ($sos, $trip) {
+            if ($service->email) {
+                try {
+                    Mail::to($service->email)->send(new SosAlertMail($sos, $trip, $service->nom));
+                } catch (\Throwable $e) {
+                }
+            }
+
             $sos->emergencyNotifications()->create([
                 'emergency_service_id' => $service->id,
                 'notifie_le' => now(),
@@ -192,6 +212,13 @@ class SosController extends Controller
                 'titre' => 'Nouveau dossier SOS attribué',
                 'message' => 'Une alerte SOS est attribuée à votre compte. Position : ' . $sos->latitude . ', ' . $sos->longitude,
             ]);
+
+            if ($manager->email) {
+                try {
+                    Mail::to($manager->email)->send(new SosAlertMail($sos, $sos->trip, $manager->nom));
+                } catch (\Throwable $e) {
+                }
+            }
         }
     }
 

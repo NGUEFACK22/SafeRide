@@ -67,6 +67,7 @@ Route::prefix('v1')->group(function () {
         Route::get('lost-items', [LostItemController::class, 'index']);
         Route::post('lost-items', [LostItemController::class, 'store']);
         Route::put('lost-items/{report}', [LostItemController::class, 'update']);
+        Route::get('lost-items/{report}/chronology', [LostItemController::class, 'chronology']);
         Route::get('disputes', [DisputeController::class, 'index']);
         Route::post('disputes', [DisputeController::class, 'store']);
 

@@ -47,6 +47,7 @@ class LostItemController extends Controller
         return response()->json([
             'message' => 'Objet perdu signalé. Le signalement est lié au trajet ' . $trip->id . ' et au transporteur.',
             'report' => $report->load('trip'),
+            'chronology' => $this->reconstructChronology($report),
         ], 201);
     }
 
@@ -86,5 +87,54 @@ class LostItemController extends Controller
                 'message' => 'Objet perdu signalé sur le trajet #' . $trip->id . ' — transporteur ' . $trip->transporteur_id,
             ]);
         }
+    }
+
+    /**
+     * Reconstitue la chronologie : autres passagers ayant utilisé le même
+     * véhicule entre la fin du trajet concerné et le signalement de l'objet.
+     * Permet d'identifier qui a pu trouver/emporter l'objet perdu.
+     */
+    public function chronology(Request $request, int $id): JsonResponse
+    {
+        $report = LostItemReport::with('trip.vehicle')->findOrFail($id);
+
+        return response()->json([
+            'report_id' => $report->id,
+            'vehicle_id' => $report->trip?->vehicle_id,
+            'related_trips' => $this->reconstructChronology($report),
+        ]);
+    }
+
+    protected function reconstructChronology(LostItemReport $report): array
+    {
+        $trip = $report->trip;
+        if (! $trip || ! $trip->vehicle_id) {
+            return [];
+        }
+
+        $from = $trip->ended_at ?? $trip->started_at;
+        $to = $report->created_at;
+
+        if (! $from || ! $to) {
+            return [];
+        }
+
+        return Trip::with('passager')
+            ->where('vehicle_id', $trip->vehicle_id)
+            ->where('id', '!=', $trip->id)
+            ->whereNotNull('ended_at')
+            ->where('ended_at', '>=', $from)
+            ->where('ended_at', '<=', $to)
+            ->orderBy('ended_at')
+            ->get()
+            ->map(fn (Trip $t) => [
+                'trip_id' => $t->id,
+                'passager_id' => $t->passager_id,
+                'passager_nom' => trim(($t->passager?->prenom ?? '') . ' ' . ($t->passager?->nom ?? '')) ?: null,
+                'transporteur_id' => $t->transporteur_id,
+                'ended_at' => $t->ended_at,
+                'statut' => $t->statut,
+            ])
+            ->all();
     }
 }

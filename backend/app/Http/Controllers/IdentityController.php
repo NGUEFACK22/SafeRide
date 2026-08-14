@@ -75,6 +75,14 @@ class IdentityController extends Controller
                     'statut' => $finalStatut,
                     'verifie_le' => now(),
                 ]);
+
+                $extracted = $result['id_verification']['form_values']['document_number']
+                    ?? $result['id_verification']['extracted_data']['document_number']
+                    ?? null;
+                if ($extracted && ! $verification->numero) {
+                    $verification->numero = $extracted;
+                    $verification->save();
+                }
             } catch (\Throwable $e) {
                 // Échec Didit -> on garde la vérification manuelle
                 $finalStatut = 'EN_ATTENTE';

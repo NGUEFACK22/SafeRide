@@ -141,8 +141,8 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Alerte SOS (bouton) transmise aux contacts, au '
-              'gestionnaire et aux services d\'urgence.'),
+          content: Text('Alerte SOS (bouton) déclenchée et transmise : '
+              'contacts, gestionnaire et services d\'urgence notifiés.'),
         ),
       );
     } catch (e) {
@@ -188,8 +188,8 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
         const Text('Vous êtes en danger ?', style: TextStyle(fontSize: 20)),
         const SizedBox(height: 12),
         const Text(
-          'Maintenez le bouton pour déclencher une alerte auprès de vos '
-          'contacts, du gestionnaire et des services d\'urgence.',
+          'Maintenez le bouton pour déclencher une alerte SOS transmise à vos '
+          'contacts d\'urgence, au gestionnaire et aux services d\'urgence.',
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 30),
