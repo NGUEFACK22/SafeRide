@@ -7,18 +7,29 @@ use App\Models\IdentityVerification;
 use App\Models\ManagerAssignment;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\DiditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 
 class IdentityController extends Controller
 {
+    public function __construct(private DiditService $didit)
+    {
+    }
+
     public function submit(Request $request): JsonResponse
     {
         $data = $request->validate([
             'type' => 'required|in:CNI,PASSEPORT,AUTRE',
             'numero' => 'nullable|string|max:100',
-            'fichier_url' => 'required|string',
+            'fichier_url' => 'nullable|string',
+            'fichier' => 'nullable|file|image|max:10240',
         ]);
+
+        if (! $request->filled('fichier_url') && ! $request->hasFile('fichier')) {
+            return response()->json(['message' => 'Un document (fichier_url ou fichier) est requis.'], 422);
+        }
 
         $verification = IdentityVerification::create([
             'user_id' => $request->user()->id,
@@ -26,20 +37,90 @@ class IdentityController extends Controller
             'statut' => 'EN_ATTENTE',
         ]);
 
+        $docUrl = $request->input('fichier_url');
+        if ($request->hasFile('fichier')) {
+            $docUrl = $request->file('fichier')->getClientOriginalName();
+        }
+
         $document = IdentityDocument::create([
             'user_id' => $request->user()->id,
             'verification_id' => $verification->id,
             'type' => $data['type'],
             'numero' => $data['numero'] ?? null,
-            'fichier_url' => $data['fichier_url'],
+            'fichier_url' => $docUrl,
         ]);
 
-        $this->assignIdentityReview($verification);
+        $finalStatut = 'EN_ATTENTE';
+
+        // Vérification réelle via Didit si la clé est configurée et une image est disponible
+        $image = $this->resolveImageContents($request);
+        if ($image && $this->didit->isEnabled()) {
+            try {
+                $result = $this->didit->verifyIdDocument($image);
+                $document->update(['ocr_data' => $result]);
+
+                if (($result['status'] ?? '') === 'error') {
+                    $finalStatut = 'A_EXAMINER';
+                } else {
+                    $diditStatus = strtolower($result['id_verification']['status'] ?? 'unknown');
+                    $finalStatut = match ($diditStatus) {
+                        'approved' => 'VERIFIE',
+                        'declined' => 'ECHOUE',
+                        default => 'A_EXAMINER',
+                    };
+                }
+
+                $verification->update([
+                    'provider_kyc' => 'didit',
+                    'statut' => $finalStatut,
+                    'verifie_le' => now(),
+                ]);
+            } catch (\Throwable $e) {
+                // Échec Didit -> on garde la vérification manuelle
+                $finalStatut = 'EN_ATTENTE';
+            }
+        }
+
+        if (in_array($finalStatut, ['EN_ATTENTE', 'A_EXAMINER'], true)) {
+            $this->assignIdentityReview($verification);
+        }
 
         return response()->json([
-            'message' => 'Document soumis pour vérification',
+            'message' => $finalStatut === 'VERIFIE'
+                ? 'Identité vérifiée automatiquement via Didit'
+                : 'Document soumis à vérification'.($this->didit->isEnabled() ? ' (Didit)' : ''),
             'verification' => $verification->load('document'),
         ], 201);
+    }
+
+    /**
+     * Résout le contenu binaire de l'image du document à partir d'un upload
+     * ou d'une URL/chemin fourni.
+     */
+    protected function resolveImageContents(Request $request): ?string
+    {
+        if ($request->hasFile('fichier') && $request->file('fichier')->isValid()) {
+            return file_get_contents($request->file('fichier')->getRealPath());
+        }
+
+        $url = $request->input('fichier_url');
+        if (! $url) {
+            return null;
+        }
+
+        if (filter_var($url, FILTER_VALIDATE_URL)) {
+            $resp = Http::timeout(15)->get($url);
+
+            return $resp->successful() ? $resp->body() : null;
+        }
+
+        foreach ([storage_path('app/'.$url), storage_path('app/public/'.$url), public_path($url), $url] as $candidate) {
+            if (is_file($candidate)) {
+                return file_get_contents($candidate);
+            }
+        }
+
+        return null;
     }
 
     public function status(Request $request): JsonResponse
@@ -99,7 +180,7 @@ class IdentityController extends Controller
 
     protected function assignIdentityReview(IdentityVerification $verification): void
     {
-        if ($verification->statut === 'EN_ATTENTE') {
+        if (in_array($verification->statut, ['EN_ATTENTE', 'A_EXAMINER'], true)) {
             $manager = $this->leastBusyManager();
             if ($manager) {
                 ManagerAssignment::create([

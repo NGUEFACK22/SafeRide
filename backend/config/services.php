@@ -47,4 +47,9 @@ return [
         'timeout' => env('AI_TIMEOUT', 20),
     ],
 
+    'didit' => [
+        'key' => env('DIDIT_API_KEY'),
+        'base_url' => env('DIDIT_BASE_URL', 'https://verification.didit.me/v3'),
+    ],
+
 ];
