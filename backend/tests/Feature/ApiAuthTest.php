@@ -19,4 +19,21 @@ class ApiAuthTest extends TestCase
         $response->assertStatus(401)
             ->assertJson(['message' => 'Unauthenticated.']);
     }
+
+    /**
+     * Plusieurs routes protégées doivent renvoyer 401 sans token.
+     */
+    public function test_protected_routes_require_authentication(): void
+    {
+        $routes = [
+            ['GET', '/api/v1/auth/profile'],
+            ['GET', '/api/v1/trips/history'],
+            ['GET', '/api/v1/ai/summary'],
+            ['GET', '/api/v1/identity/status'],
+        ];
+
+        foreach ($routes as [$method, $uri]) {
+            $this->call($method, $uri)->assertStatus(401);
+        }
+    }
 }
