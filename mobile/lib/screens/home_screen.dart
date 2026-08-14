@@ -75,6 +75,15 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.verified_user, color: Colors.blue),
+              title: const Text('Vérification d\'identité'),
+              subtitle: const Text('Soumettre CNI / passeport (KYC)'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/identity');
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('Déconnexion'),
               onTap: () {
@@ -151,6 +160,16 @@ class _PassagerView extends StatelessWidget {
               subtitle: const Text('Signaler un problème sur un trajet'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.pushNamed(context, '/dispute'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.verified_user, size: 32, color: Colors.blue),
+              title: const Text('Vérification d\'identité'),
+              subtitle: const Text('Soumettre CNI / passeport (KYC Didit)'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.pushNamed(context, '/identity'),
             ),
           ),
         ],

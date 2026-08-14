@@ -14,6 +14,7 @@ import 'screens/trip_active_screen.dart';
 import 'screens/ai_screen.dart';
 import 'screens/vehicles_screen.dart';
 import 'screens/dispute_screen.dart';
+import 'screens/identity_screen.dart';
 import 'services/auth_service.dart';
 
 void main() {
@@ -56,6 +57,7 @@ class SafeRideApp extends StatelessWidget {
         '/vehicles': (ctx) => const VehiclesScreen(),
         '/manager': (ctx) => const ManagerScreen(),
         '/ai': (ctx) => const AiScreen(),
+        '/identity': (ctx) => const IdentityScreen(),
       },
     );
   }

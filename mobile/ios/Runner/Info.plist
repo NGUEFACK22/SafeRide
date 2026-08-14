@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>SafeRide AI a besoin de la caméra pour photographier votre pièce d'identité.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SafeRide AI accède à votre galerie pour choisir la photo de votre pièce d'identité.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>SafeRide AI enregistre la photo de votre pièce d'identité vérifiée.</string>
 </dict>
 </plist>

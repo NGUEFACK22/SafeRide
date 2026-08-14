@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -83,6 +84,40 @@ class ApiService {
     };
 
     final response = await http.put(uri, headers: headers, body: jsonEncode(body));
+    final data = _decode(response);
+
+    if (response.statusCode >= 400) {
+      throw ApiException(_messageFrom(data, response.statusCode), response.statusCode);
+    }
+
+    return data;
+  }
+
+  Future<Map<String, dynamic>> postMultipart(
+    String path,
+    Map<String, String> fields, {
+    File? file,
+    String fileField = 'fichier',
+    bool auth = true,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$path');
+    final request = http.MultipartRequest('POST', uri);
+
+    if (auth) {
+      final token = await getToken();
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+    }
+    request.headers['Accept'] = 'application/json';
+    request.fields.addAll(fields);
+
+    if (file != null) {
+      request.files.add(await http.MultipartFile.fromPath(fileField, file.path));
+    }
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
     final data = _decode(response);
 
     if (response.statusCode >= 400) {
