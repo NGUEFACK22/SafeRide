@@ -170,10 +170,19 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
 
   Future<void> _sendLocation() async {
     if (_trip == null) return;
-    // MVP : position simulée ; production : geolocator.getCurrentPosition()
-    const lat = 3.86210;
-    const lng = 11.51900;
-    await _offline.sendLocation(_trip!.id, lat, lng, 35);
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      await _offline.sendLocation(
+        _trip!.id,
+        position.latitude,
+        position.longitude,
+        position.speed * 3.6,
+      );
+    } catch (_) {
+      // GPS indisponible : le service de fond réessaiera
+    }
     await _refreshPending();
   }
 

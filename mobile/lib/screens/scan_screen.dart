@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 
 import '../services/trip_service.dart';
@@ -29,13 +30,14 @@ class _ScanScreenState extends State<ScanScreen> {
       setState(() => _loading = true);
       _controller?.pauseCamera();
       try {
-        // Dans un MVP, on prend la position simulée ; en production : geolocator
-        const startLat = 3.86670;
-        const startLng = 11.51670;
+        // Position réelle du passager au moment du scan (validation de proximité ±50 m)
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        );
         final trip = await _tripService.startTrip(
           scanData.code!,
-          startLat,
-          startLng,
+          position.latitude,
+          position.longitude,
         );
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
