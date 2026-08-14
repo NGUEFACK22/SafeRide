@@ -288,6 +288,64 @@ class TripController extends Controller
         ]);
     }
 
+    /**
+     * Itinéraire décodé (points GPS) pour affichage cartographique.
+     * Accessible au passager, au transporteur et aux rôles gestionnaire/admin.
+     */
+    public function route(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $role = $user->roles()->first()?->slug;
+
+        $trip = Trip::with('locations')->findOrFail($id);
+
+        $isOwner = $trip->passager_id === $user->id || $trip->transporteur_id === $user->id;
+        $isManager = in_array($role, ['gestionnaire', 'admin'], true);
+
+        if (! $isOwner && ! $isManager) {
+            abort(403, 'Accès refusé à ce trajet.');
+        }
+
+        $points = [];
+
+        if ($trip->start_latitude !== null && $trip->start_longitude !== null) {
+            $points[] = [
+                'lat' => (float) $trip->start_latitude,
+                'lng' => (float) $trip->start_longitude,
+                'captured_at' => $trip->started_at?->toIso8601String(),
+            ];
+        }
+
+        foreach ($trip->locations()->orderBy('captured_at')->get() as $location) {
+            $points[] = [
+                'lat' => (float) $location->latitude,
+                'lng' => (float) $location->longitude,
+                'captured_at' => $location->captured_at?->toIso8601String(),
+            ];
+        }
+
+        if ($trip->destination_latitude !== null && $trip->destination_longitude !== null) {
+            $points[] = [
+                'lat' => (float) $trip->destination_latitude,
+                'lng' => (float) $trip->destination_longitude,
+                'captured_at' => $trip->ended_at?->toIso8601String(),
+            ];
+        }
+
+        return response()->json([
+            'trip_id' => $trip->id,
+            'deviation_km' => $trip->deviation_km,
+            'deviation_alert' => (bool) $trip->deviation_alert,
+            'start' => $trip->start_latitude !== null
+                ? ['lat' => (float) $trip->start_latitude, 'lng' => (float) $trip->start_longitude]
+                : null,
+            'destination' => $trip->destination_latitude !== null
+                ? ['lat' => (float) $trip->destination_latitude, 'lng' => (float) $trip->destination_longitude]
+                : null,
+            'points' => $points,
+        ]);
+    }
+
     public function autoEndInactive(): JsonResponse
     {
         // Fin automatique des trajets dont la destination est atteinte depuis plus de 10 minutes

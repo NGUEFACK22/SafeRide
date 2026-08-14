@@ -34,6 +34,7 @@ Route::prefix('v1')->group(function () {
         Route::get('trips/history', [TripController::class, 'history']);
         Route::post('trips/{trip}/locations', [TripController::class, 'storeLocation']);
         Route::post('trips/{trip}/end', [TripController::class, 'end']);
+        Route::get('trips/{trip}/route', [TripController::class, 'route']);
 
         // Véhicules (transporteur)
         Route::get('vehicles', [VehicleController::class, 'index']);

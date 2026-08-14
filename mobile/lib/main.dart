@@ -15,6 +15,7 @@ import 'screens/ai_screen.dart';
 import 'screens/vehicles_screen.dart';
 import 'screens/dispute_screen.dart';
 import 'screens/identity_screen.dart';
+import 'screens/trip_map_screen.dart';
 import 'services/auth_service.dart';
 
 void main() {
@@ -58,6 +59,10 @@ class SafeRideApp extends StatelessWidget {
         '/manager': (ctx) => const ManagerScreen(),
         '/ai': (ctx) => const AiScreen(),
         '/identity': (ctx) => const IdentityScreen(),
+        '/trip-map': (ctx) {
+          final arg = ModalRoute.of(ctx)?.settings.arguments;
+          return TripMapScreen(tripId: arg as int);
+        },
       },
     );
   }

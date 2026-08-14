@@ -67,4 +67,9 @@ class TripService {
     final items = data['trips']['data'] as List<dynamic>? ?? [];
     return items.map((e) => Trip.fromJson(e as Map<String, dynamic>)).toList();
   }
+
+  Future<Map<String, dynamic>> getRoute(int tripId) async {
+    final data = await _api.get('/trips/$tripId/route');
+    return data;
+  }
 }

@@ -4,7 +4,7 @@ Plateforme mobile intelligente de **sécurisation et de traçabilité des dépla
 
 SafeRide AI met en relation passagers et transporteurs et assure :
 - **Identification des personnes présentes dans un véhicule** via le scan du QR Code unique du transporteur. L'embarquement enregistre automatiquement le passager, le transporteur, le véhicule, la date, l'heure et la position GPS du scan (point de départ).
-- **Saisie de la destination et suivi GPS** du trajet, avec **détection d'écart d'itinéraire** (l'affichage cartographique côté mobile est en cours d'intégration — les coordonnées et l'écart sont suivis et calculés côté backend).
+- **Saisie de la destination et suivi GPS** du trajet, avec **détection d'écart d'itinéraire** et **affichage de l'itinéraire sur une carte** (Google Maps) accessible depuis l'historique des trajets (`GET /trips/{trip}/route`).
 - **Déclenchement SOS vocal sécurisé** : mot/phrase de sécurité + empreinte vocale. L'alerte transmet position et détails du trajet aux contacts d'urgence, au gestionnaire et, le cas échéant, aux services d'urgence (email).
 - **Signalement d'objets perdus** rattaché au trajet et au transporteur, avec ouverture de **litige** et reconstitution de la **chronologie** par croisement des passagers d'un même véhicule.
 - **Vérification d'identité** (CNI / passeport) des passagers et transporteurs via une API KYC spécialisée (**Didit**).
@@ -77,7 +77,11 @@ flutter pub get
 flutter run                    # émulateur / appareil Android
 ```
 
-L'URL de l'API est configurée dans `lib/config/api.dart` (à pointer vers l'IP/le port du backend).
+- **URL de l'API** : configurée dans `lib/config/api_config.dart` (émulateur Android → `10.0.2.2` ; appareil/web → `--dart-define=API_BASE_URL=http://<IP_LAN>:8000/api/v1`).
+- **Clé Google Maps** (obligatoire pour la carte) :
+  - Android : `android/app/src/main/res/values/strings.xml` (`google_maps_key`).
+  - iOS : `ios/Runner/AppDelegate.swift` (`GMSServices.provideAPIKey(...)`).
+  - Créer la clé sur https://console.cloud.google.com/ (API « Maps SDK for Android / iOS »).
 
 ---
 
@@ -110,6 +114,7 @@ Toute requête non authentifiée renvoie **401 JSON** (jamais de 500).
 | POST | `trips/{trip}/end` | Clôturer (déclenche le résumé IA) |
 | GET | `trips/current` | Trajet en cours |
 | GET | `trips/history` | Historique |
+| GET | `trips/{trip}/route` | Itinéraire décodé (points GPS) pour la carte |
 
 ### Véhicules (transporteur, auth)
 `vehicles` (CRUD), `vehicles/{id}/qr` (générer QR), `vehicles/{id}/qr/toggle`, `vehicles/{id}/position`.
@@ -190,7 +195,7 @@ Le passager définit un **mot/phrase de sécurité** et s'enrôle (`voice/enroll
 
 - **Didit** nécessite des **crédits** ; sans eux, la vérification retombe sur une révision manuelle (`A_EXAMINER`). La clé est valide, seul le solde manque.
 - **Empreinte vocale SOS** : simulée (empreinte = `sha256` du mot de sécurité), pas une empreinte biométrique réelle.
-- **Affichage cartographique** : le suivi GPS et l'écart d'itinéraire sont calculés côté backend, mais la carte n'est pas encore affichée dans le mobile (`google_maps_flutter` à intégrer).
+- **Affichage cartographique** : intégré (`google_maps_flutter`). Nécessite une **clé Google Maps** valide (voir ci-dessous) ; sans elle la carte ne s'affiche pas (le reste de l'app fonctionne).
 - **Temps réel** : pas de push (FCM) ; les notifications SOS passent par email et le mobile rafraîchit manuellement.
 - **Secrets** : clés API dans `.env` (ne sont **jamais** commitées). À **renouveler après la soutenance**.
 

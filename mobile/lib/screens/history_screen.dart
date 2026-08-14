@@ -78,6 +78,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 '${(trip.durationSeconds ?? 0) ~/ 60} min',
                                 style: const TextStyle(fontWeight: FontWeight.bold),
                               ),
+                              onTap: () {
+                                Navigator.of(context).pushNamed(
+                                  '/trip-map',
+                                  arguments: trip.id,
+                                );
+                              },
                             ),
                           );
                         },
