@@ -12,8 +12,6 @@ import 'package:record/record.dart';
 class VoiceprintService {
   static const int sampleRate = 16000;
   static const String modelAsset = 'assets/models/ecapa_tdnn.onnx';
-  static const String inputName = 'waveform';
-  static const String outputName = 'embedding';
 
   ort.OrtSession? _session;
   bool _loading = false;
@@ -99,8 +97,8 @@ class VoiceprintService {
       );
       final outputs = _session!.run(
         ort.OrtRunOptions(),
-        {inputName: tensor},
-        [outputName],
+        {_session!.inputNames.first: tensor},
+        _session!.outputNames,
       );
       return _flattenEmbedding(outputs);
     } catch (_) {

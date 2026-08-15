@@ -197,7 +197,7 @@ Le mobile exécute un modèle d'embedding de voix **ECAPA-TDNN** (ONNX Runtime, 
 1. **Enrôlement** : le passager prononce le mot de sécurité → le mobile calcule un **embedding de voix** (192 valeurs) → envoi à `voice/enroll` (stocké en JSON).
 2. **Déclenchement** : le mobile recalcule l'embedding de la phrase prononcée → envoi avec le mot-clé dans `POST /sos` → le backend compare les deux embeddings par **similarité cosinus** (seuil ≥ 0.5) + correspondance du mot-clé → alerte **vérifiée** (`verification_passed=true`) ou en **vérification**.
 
-**Modèle requis** : déposer un export ONNX `ecapa_tdnn.onnx` dans `mobile/assets/models/` (entrée `waveform` float32 `[1,N]` @16 kHz, sortie `embedding` float32 `[1,192]`). Voir `mobile/assets/models/README.md`. Sans ce fichier, l'application **retombe automatiquement** sur la vérification mot-clé seule (reconnaissance vocale réelle `speech_to_text`), sans biométrie.
+**Modèle inclus** : `mobile/assets/models/ecapa_tdnn.onnx` (84 Mo, export ONNX du ECAPA-TDNN de SpeechBrain, licence MIT — provenance et SHA-256 dans `mobile/assets/models/README.md`). Entrée `audio` float32 `[1,N]` @16 kHz (waveform brute, Fbank incluse dans le graphe), sortie `embedding` `[1,1,192]`. Sans ce fichier, l'application **retombe automatiquement** sur la vérification mot-clé seule (reconnaissance vocale réelle `speech_to_text`), sans biométrie.
 
 ---
 
