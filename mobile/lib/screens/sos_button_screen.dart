@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -107,10 +108,11 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     });
     try {
       final token = await _sosService.voiceprintToken(keyword);
+      final pos = await _position();
       final data = await _sosService.triggerVocal(
         widget.trip!.id,
-        3.86680,
-        11.51690,
+        pos.latitude,
+        pos.longitude,
         keyword,
         token,
       );
@@ -137,7 +139,8 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     try {
       final trip = widget.trip;
       if (trip == null) throw Exception('Aucun trajet actif');
-      await _sosService.triggerButton(trip.id, 3.86680, 11.51690);
+      final pos = await _position();
+      await _sosService.triggerButton(trip.id, pos.latitude, pos.longitude);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -152,6 +155,22 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       );
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Position GPS réelle (haute précision), avec repli sur la dernière connue.
+  Future<({double latitude, double longitude})> _position() async {
+    try {
+      final p = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      return (latitude: p.latitude, longitude: p.longitude);
+    } catch (_) {
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) {
+        return (latitude: last.latitude, longitude: last.longitude);
+      }
+      rethrow;
     }
   }
 
