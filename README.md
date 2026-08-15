@@ -31,7 +31,7 @@ SafeRide AI met en relation passagers et transporteurs et assure :
 - **Base de données** : PostgreSQL hébergée sur **Neon** (connexion sécurisée SSL, endpoint dédié).
 - **IA** : **Mistral** via endpoint compatible OpenAI (`/chat/completions`).
 - **KYC** : **Didit** (`/v3/id-verification/`).
-- **Notifications SOS** : `Mail` (mailer `log` par défaut, configurable SMTP).
+- **Notifications SOS** : email réel (SMTP) + **push Firebase (FCM)** vers l'app en temps réel.
 
 ---
 
@@ -46,7 +46,7 @@ SafeRide AI met en relation passagers et transporteurs et assure :
 | IA | Mistral (`mistral-small-latest`) |
 | KYC | Didit (clé API `x-api-key`) |
 
-Comptes requis pour les fonctionnalités complètes : **Neon** (base), **Mistral** (IA), **Didit** (KYC, nécessite des crédits).
+Comptes requis pour les fonctionnalités complètes : **Neon** (base), **Mistral** (IA), **Didit** (KYC, nécessite des crédits), **Firebase** (push FCM, gratuit).
 
 ---
 
@@ -59,7 +59,7 @@ cd backend
 composer install
 cp .env.example .env          # renseigner DB Neon, AI_*, DIDIT_*, MAIL_*
 php artisan key:generate
-php artisan migrate --seed    # crée les tables + données de démo
+php artisan migrate --seed    # crée les tables + données de base
 php artisan serve             # http://127.0.0.1:8000
 ```
 
@@ -67,7 +67,8 @@ Variables d'environnement clés (`.env`) :
 - `DB_*` : connexion Neon (PgSQL, `DB_SSLMODE=require`, `DB_NEON_ENDPOINT=...`).
 - `AI_ENABLED=true`, `AI_API_KEY=...`, `AI_BASE_URL=https://api.mistral.ai/v1`, `AI_MODEL=mistral-small-latest`.
 - `DIDIT_API_KEY=...`, `DIDIT_BASE_URL=https://api.didit.me`.
-- `MAIL_MAILER=log` (les emails SOS sont journalisés dans `storage/logs/laravel.log`).
+- `MAIL_MAILER=smtp` + `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS` : **SMTP réel** pour les emails SOS (ex. Gmail avec mot de passe d'application, gratuit). Par défaut `MAIL_MAILER=log`.
+- `FCM_CREDENTIALS_PATH` : chemin du fichier `firebase-service-account.json` (défaut : racine du backend, fichier gitignoré).
 
 ### 2. Mobile (Flutter)
 
@@ -79,6 +80,11 @@ flutter run                    # émulateur / appareil Android
 
 - **URL de l'API** : configurée dans `lib/config/api_config.dart` (émulateur Android → `10.0.2.2` ; appareil/web → `--dart-define=API_BASE_URL=http://<IP_LAN>:8000/api/v1`).
 - **Carte (gratuite)** : itinéraire affiché avec **OpenStreetMap** via `flutter_map` — **aucune clé, aucune carte bancaire**. Simple connexion internet pour les tuiles.
+- **Push Firebase (FCM)** — config à déposer (fichiers gitignorés, non commités) :
+  1. Créer un projet sur https://console.firebase.google.com (paquet `com.saferide.saferide_mobile`).
+  2. **Android** : Paramètres → Application Android → télécharger `google-services.json` → le mettre dans `mobile/android/app/`.
+  3. **Backend** : Paramètres du projet → Comptes de service → **Générer une nouvelle clé privée** → sauvegarder en `backend/firebase-service-account.json`.
+  4. iOS : `GoogleService-Info.plist` dans `mobile/ios/Runner/` (et APNs).
 
 ---
 
@@ -152,6 +158,9 @@ Toute requête non authentifiée renvoie **401 JSON** (jamais de 500).
 | GET | `notifications/unread-count` | Nombre de non-lues (badge, polling) |
 | POST | `notifications/{id}/read` | Marquer comme lue |
 | POST | `notifications/read-all` | Tout marquer lu |
+| POST | `push-token` | Enregistre le token FCM du mobile (push temps réel) |
+
+Toute notification créée côté serveur (SOS, trajet, identité, incidents) est poussée en **temps réel** via **FCM** vers les appareils de l'utilisateur.
 
 ### Gestionnaire / Admin
 - `manager/dashboard`, `manager/assignments`, `manager/assignments/{id}/take`, `manager/assignments/{id}/close`.
@@ -179,13 +188,13 @@ En cas de réponse Didit non conclusive (ex. crédits épuisés), le dossier pas
 
 ## SOS vocal sécurisé
 
-Le passager définit un **mot/phrase de sécurité** et s'enrôle (`voice/enroll`). Au déclenchement, l'alerte transmet position + détails du trajet aux **contacts d'urgence** (email), au **gestionnaire**, et aux **services d'urgence** (email). Le backend utilise `Mail` (mailer `log` par défaut) — vérifiable dans `storage/logs/laravel.log`.
+Le passager définit un **mot/phrase de sécurité** et s'enrôle (`voice/enroll`). Au déclenchement, l'alerte transmet position + détails du trajet aux **contacts d'urgence** (email réel SMTP + notification in-app FCM), au **gestionnaire**, et aux **services d'urgence** (email).
 
 ---
 
 ## Scénario de démo (soutenance)
 
-1. **Backend** : `php artisan serve` + `MAIL_MAILER=log`.
+1. **Backend** : `php artisan serve` (SMTP réel configuré).
 2. **Inscription/connexion** : `POST /auth/register` puis `/auth/login` (récupérer le token).
 3. **Trajet** : `POST /trips/start` → `confirm-embarquement` (QR) → `destination` → `locations` (GPS) → `end`. Vérifier le **résumé IA** (`GET /ai/trips/{trip}`).
 4. **Assistant IA** : `GET /ai/summary` (stats par rôle Mistral).
@@ -201,7 +210,7 @@ Le passager définit un **mot/phrase de sécurité** et s'enrôle (`voice/enroll
 - **Didit** nécessite des **crédits** ; sans eux, la vérification retombe sur une révision manuelle (`A_EXAMINER`). La clé est valide, seul le solde manque.
 - **Empreinte vocale SOS** : simulée (empreinte = `sha256` du mot de sécurité), pas une empreinte biométrique réelle.
 - **Affichage cartographique** : intégré avec **OpenStreetMap** (`flutter_map`), **gratuit et sans clé**. L'affichage des tuiles dépend d'une connexion internet.
-- **Temps réel** : notifications in-app par **polling** (cloche + badge dans l'app, rafraîchi toutes les ~15 s) — pas de push FCM natif (évolution production).
+- **Temps réel** : notifications **push FCM** (Firebase) sur les appareils de l'utilisateur + polling in-app en secours (badge rafraîchi toutes les ~15 s). Le push nécessite les fichiers de config Firebase (`google-services.json` + `firebase-service-account.json`).
 - **Secrets** : clés API dans `.env` (ne sont **jamais** commitées). À **renouveler après la soutenance**.
 
 ---

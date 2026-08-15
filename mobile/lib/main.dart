@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'models/trip.dart';
@@ -18,8 +19,11 @@ import 'screens/identity_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/trip_map_screen.dart';
 import 'services/auth_service.dart';
+import 'services/push_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const SafeRideApp());
 }
 
@@ -89,6 +93,7 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _bootstrap() async {
     await Future.delayed(const Duration(milliseconds: 600));
     final User? user = await _auth.currentUser();
+    await PushService.instance.init();
     if (!mounted) return;
     if (user != null) {
       Navigator.of(context).pushReplacementNamed('/home', arguments: user);

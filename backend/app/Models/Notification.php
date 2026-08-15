@@ -20,6 +20,21 @@ class Notification extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::created(function (Notification $notification) {
+            app(\App\Services\FcmService::class)->sendToUser(
+                $notification->user_id,
+                $notification->titre,
+                $notification->message,
+                [
+                    'notification_id' => (string) $notification->id,
+                    'type' => (string) $notification->type,
+                ]
+            );
+        });
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/push_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final User user;
@@ -28,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _user = widget.user;
     _timer = Timer.periodic(const Duration(seconds: 15), (_) => _refreshUnread());
     _refreshUnread();
+    PushService.instance.addRefreshListener(_refreshUnread);
   }
 
   @override

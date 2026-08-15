@@ -7,6 +7,7 @@ use App\Http\Controllers\IdentityController;
 use App\Http\Controllers\LostItemController;
 use App\Http\Controllers\ManagerController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PushTokenController;
 use App\Http\Controllers\SosController;
 use App\Http\Controllers\TripController;
 use App\Http\Controllers\VehicleController;
@@ -98,6 +99,9 @@ Route::prefix('v1')->group(function () {
         Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount']);
         Route::post('notifications/read-all', [NotificationController::class, 'markAllRead']);
         Route::post('notifications/{notification}/read', [NotificationController::class, 'markRead']);
+
+        // Token push FCM (Firebase Cloud Messaging)
+        Route::post('push-token', [PushTokenController::class, 'store']);
 
         // Administration
         Route::prefix('admin')->middleware(['role:admin'])->group(function () {
