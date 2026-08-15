@@ -93,7 +93,11 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _bootstrap() async {
     await Future.delayed(const Duration(milliseconds: 600));
     final User? user = await _auth.currentUser();
-    await PushService.instance.init();
+    try {
+      await PushService.instance.init();
+    } catch (_) {
+      // Push indisponible (ex. Firebase non configuré) : l'app continue.
+    }
     if (!mounted) return;
     if (user != null) {
       Navigator.of(context).pushReplacementNamed('/home', arguments: user);

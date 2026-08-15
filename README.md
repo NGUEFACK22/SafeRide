@@ -226,7 +226,7 @@ Le mobile exécute un modèle d'embedding de voix **ECAPA-TDNN** (ONNX Runtime, 
 
 ## Tests
 
-Des tests automatisés couvrent l'authentification, les notifications, le flux de trajet et la **biométrie vocale** (`php artisan test` : 13 tests / 40 assertions ; `flutter analyze` : aucune erreur).
+Des tests automatisés couvrent l'authentification, les notifications, le flux de trajet et la **biométrie vocale** (`php artisan test` : 15 tests / 46 assertions ; `flutter test` + `flutter analyze` : aucune erreur).
 
 ---
 
@@ -236,18 +236,21 @@ Des tests automatisés couvrent l'authentification, les notifications, le flux d
 soutenance/
 ├── backend/                 # Laravel 12 (API, services IA/KYC, mail SOS)
 │   ├── app/
-│   │   ├── Http/Controllers/   # Trip, Sos, Identity, Ai, Manager, Admin, LostItem...
-│   │   ├── Services/           # AiService (Mistral), DiditService (KYC)
+│   │   ├── Http/Controllers/   # Trip, Sos, Identity, Ai, Manager, Admin, PushToken...
+│   │   ├── Services/           # AiService (Mistral), DiditService (KYC), FcmService (push)
 │   │   ├── Mail/               # SosAlertMail
-│   │   └── Models/
+│   │   └── Models/             # dont FcmToken, VoiceSecurityProfile
+│   ├── config/fcm.php          # config push Firebase (credentials, project id)
 │   ├── config/services.php     # ai (Mistral), didit
-│   ├── database/seeders/       # DemoSeeder, EmergencyDataSeeder
+│   ├── database/migrations/    # dont fcm_tokens, empreinte_vocale (text)
+│   ├── database/seeders/       # DatabaseSeeder, EmergencyDataSeeder
 │   └── routes/api.php
 ├── mobile/                 # Flutter (écrans passager/transporteur, SOS, identité, IA)
+│   ├── assets/models/         # ecapa_tdnn.onnx (biométrie vocale, 84 Mo)
 │   └── lib/
 │       ├── screens/           # home, sos_button, identity, ai, vehicles...
-│       ├── services/          # api_service, sos_service, auth
-│       └── main.dart
+│       └── services/          # api_service, sos_service, push_service, geocoding_service,
+│                              # voiceprint_service, auth
 ├── sync.ps1                # commit + push GitHub automatique
 └── README.md
 ```

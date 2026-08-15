@@ -108,4 +108,41 @@ class VoiceBiometricTest extends TestCase
         $this->assertFalse($details['verification_passed']);
         $this->assertEquals('VERIFICATION', $response->json('sos.statut'));
     }
+
+    public function test_voice_sos_without_enrolled_profile_falls_back_to_verification(): void
+    {
+        $user = $this->user();
+        $this->actingAs($user);
+        $trip = $this->activeTrip($user);
+
+        // Aucun profil vocal enrôlé : l'alerte reste créée mais en vérification.
+        $response = $this->postJson('/api/v1/sos', [
+            'trip_id' => $trip->id,
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+            'declenchement' => 'VOCAL',
+            'keyword' => 'ALERTE',
+            'empreinte' => $this->embedding(),
+        ])->assertCreated();
+
+        $this->assertEquals('VERIFICATION', $response->json('sos.statut'));
+        $this->assertFalse($response->json('sos.details.verification_passed'));
+    }
+
+    public function test_button_sos_triggers_immediately_without_voice_profile(): void
+    {
+        $user = $this->user();
+        $this->actingAs($user);
+        $trip = $this->activeTrip($user);
+
+        $response = $this->postJson('/api/v1/sos', [
+            'trip_id' => $trip->id,
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+            'declenchement' => 'BOUTON',
+        ])->assertCreated();
+
+        $this->assertEquals('NOTIFIE', $response->json('sos.statut'));
+        $this->assertTrue($response->json('sos.details.verification_passed'));
+    }
 }
