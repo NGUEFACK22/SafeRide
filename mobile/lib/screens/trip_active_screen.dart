@@ -6,6 +6,7 @@ import '../models/trip.dart';
 import '../services/trip_service.dart';
 import '../services/offline_service.dart';
 import '../services/background_location_service.dart';
+import '../services/geocoding_service.dart';
 import 'package:geolocator/geolocator.dart';
 
 class TripActiveScreen extends StatefulWidget {
@@ -119,14 +120,23 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     if (address.isEmpty) return;
     setState(() => _busy = true);
     try {
-      // MVP : position destination simulée ; production : geocoding depuis l'adresse
-      const destLat = 3.86150;
-      const destLng = 11.52120;
+      // Géocodage réel de l'adresse (OpenStreetMap Nominatim, gratuit)
+      final coords = await GeocodingService().geocode(address);
+      if (coords == null) {
+        if (!mounted) return;
+        setState(() => _busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Adresse introuvable, veuillez reformuler la destination.'),
+          ),
+        );
+        return;
+      }
       final trip = await _tripService.setDestination(
         _trip!.id,
         address,
-        destLat,
-        destLng,
+        coords.latitude,
+        coords.longitude,
       );
       if (!mounted) return;
       setState(() {
