@@ -25,7 +25,8 @@ class SosController extends Controller
             'longitude' => 'required|numeric|between:-180,180',
             'declenchement' => 'required|in:VOCAL,BOUTON',
             'keyword' => 'nullable|string|max:40',
-            'empreinte' => 'nullable|string|max:255',
+            'empreinte' => 'nullable|array',
+            'empreinte.*' => 'numeric',
         ]);
 
         $trip = Trip::where('id', $data['trip_id'])
@@ -95,10 +96,13 @@ class SosController extends Controller
             && $data['keyword']
             && strcasecmp(trim($data['keyword']), $profile->mot_securite) === 0;
 
-        $voiceMatch = $profile
-            && $profile->empreinte_vocale
-            && $data['empreinte']
-            && hash_equals($profile->empreinte_vocale, $data['empreinte']);
+        $voiceMatch = false;
+        if ($profile && $profile->empreinte_vocale && isset($data['empreinte'])) {
+            $stored = json_decode($profile->empreinte_vocale, true);
+            if (is_array($stored) && $stored !== [] && is_array($data['empreinte'])) {
+                $voiceMatch = $this->cosineSimilarity($stored, $data['empreinte']) >= self::VOICE_SIMILARITY_THRESHOLD;
+            }
+        }
 
         $passed = $keywordMatch && $voiceMatch;
 
@@ -111,6 +115,32 @@ class SosController extends Controller
                 'verification_passed' => $passed,
             ],
         ];
+    }
+
+    /** Seuil de similarité cosinus entre deux embeddings de voix (0.5 = voix proche). */
+    private const VOICE_SIMILARITY_THRESHOLD = 0.5;
+
+    protected function cosineSimilarity(array $a, array $b): float
+    {
+        if (count($a) !== count($b) || $a === []) {
+            return 0.0;
+        }
+
+        $dot = 0.0;
+        $normA = 0.0;
+        $normB = 0.0;
+
+        foreach ($a as $i => $value) {
+            $dot += $value * $b[$i];
+            $normA += $value * $value;
+            $normB += $b[$i] * $b[$i];
+        }
+
+        if ($normA <= 0.0 || $normB <= 0.0) {
+            return 0.0;
+        }
+
+        return $dot / (sqrt($normA) * sqrt($normB));
     }
 
     public function show(Request $request, int $id): JsonResponse

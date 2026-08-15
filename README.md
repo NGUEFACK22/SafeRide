@@ -190,6 +190,15 @@ En cas de réponse Didit non conclusive (ex. crédits épuisés), le dossier pas
 
 Le passager définit un **mot/phrase de sécurité** et s'enrôle (`voice/enroll`). Au déclenchement, l'alerte transmet position + détails du trajet aux **contacts d'urgence** (email réel SMTP + notification in-app FCM), au **gestionnaire**, et aux **services d'urgence** (email).
 
+### Biométrie vocale embarquée (ECAPA-TDNN via ONNX)
+
+Le mobile exécute un modèle d'embedding de voix **ECAPA-TDNN** (ONNX Runtime, 100 % sur l'appareil, hors-ligne et gratuit) :
+
+1. **Enrôlement** : le passager prononce le mot de sécurité → le mobile calcule un **embedding de voix** (192 valeurs) → envoi à `voice/enroll` (stocké en JSON).
+2. **Déclenchement** : le mobile recalcule l'embedding de la phrase prononcée → envoi avec le mot-clé dans `POST /sos` → le backend compare les deux embeddings par **similarité cosinus** (seuil ≥ 0.5) + correspondance du mot-clé → alerte **vérifiée** (`verification_passed=true`) ou en **vérification**.
+
+**Modèle requis** : déposer un export ONNX `ecapa_tdnn.onnx` dans `mobile/assets/models/` (entrée `waveform` float32 `[1,N]` @16 kHz, sortie `embedding` float32 `[1,192]`). Voir `mobile/assets/models/README.md`. Sans ce fichier, l'application **retombe automatiquement** sur la vérification mot-clé seule (reconnaissance vocale réelle `speech_to_text`), sans biométrie.
+
 ---
 
 ## Scénario de démo (soutenance)
@@ -208,7 +217,7 @@ Le passager définit un **mot/phrase de sécurité** et s'enrôle (`voice/enroll
 ## Limitations connues (à mentionner en soutenance)
 
 - **Didit** nécessite des **crédits** ; sans eux, la vérification retombe sur une révision manuelle (`A_EXAMINER`). La clé est valide, seul le solde manque.
-- **Empreinte vocale SOS** : simulée (empreinte = `sha256` du mot de sécurité), pas une empreinte biométrique réelle.
+- **Empreinte vocale SOS** : biométrie vocale réelle (embedding ECAPA-TDNN + similarité cosinus) une fois le modèle ONNX présent dans `mobile/assets/models/` ; sinon repli mot-clé seul.
 - **Affichage cartographique** : intégré avec **OpenStreetMap** (`flutter_map`), **gratuit et sans clé**. L'affichage des tuiles dépend d'une connexion internet.
 - **Temps réel** : notifications **push FCM** (Firebase) sur les appareils de l'utilisateur + polling in-app en secours (badge rafraîchi toutes les ~15 s). Le push nécessite les fichiers de config Firebase (`google-services.json` + `firebase-service-account.json`).
 - **Secrets** : clés API dans `.env` (ne sont **jamais** commitées). À **renouveler après la soutenance**.
@@ -217,7 +226,7 @@ Le passager définit un **mot/phrase de sécurité** et s'enrôle (`voice/enroll
 
 ## Tests
 
-Des tests automatisés (`php artisan test`, `flutter test`) sont recommandés pour couvrir l'authentification, le flux de trajet, la soumission d'identité et le SOS. État actuel : squelette présent (`tests/Feature/ExampleTest.php`, `mobile/test/widget_test.dart`) — à compléter.
+Des tests automatisés couvrent l'authentification, les notifications, le flux de trajet et la **biométrie vocale** (`php artisan test` : 13 tests / 40 assertions ; `flutter analyze` : aucune erreur).
 
 ---
 

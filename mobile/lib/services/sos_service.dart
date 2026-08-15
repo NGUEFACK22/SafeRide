@@ -23,13 +23,15 @@ class SosService {
     });
   }
 
-  /// Déclenchement vocal : mot-clé détecté + empreinte vocale (token).
+  /// Déclenchement vocal : mot-clé détecté + empreinte vocale.
+  /// [empreinte] est soit l'embedding de voix (`List<double>`, biométrie ECAPA-TDNN),
+  /// soit un token (repli si le modèle ONNX est absent).
   Future<Map<String, dynamic>> triggerVocal(
     int tripId,
     double latitude,
     double longitude,
     String keyword,
-    String empreinte,
+    Object empreinte,
   ) async {
     return await _api.post('/sos', {
       'trip_id': tripId,
@@ -45,7 +47,8 @@ class SosService {
     return await _api.post('/voice/security-word', {'mot_securite': mot});
   }
 
-  Future<Map<String, dynamic>> enroll(String empreinte) async {
+  /// Enrôle l'embedding de voix (`List<double>`) ou un token de repli.
+  Future<Map<String, dynamic>> enroll(Object empreinte) async {
     return await _api.post('/voice/enroll', {'empreinte': empreinte});
   }
 

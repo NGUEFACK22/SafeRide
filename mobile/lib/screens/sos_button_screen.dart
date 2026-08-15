@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/trip.dart';
 import '../services/sos_service.dart';
+import '../services/voiceprint_service.dart';
 
 class SosButtonScreen extends StatefulWidget {
   final Trip? trip;
@@ -17,6 +18,7 @@ class SosButtonScreen extends StatefulWidget {
 
 class _SosButtonScreenState extends State<SosButtonScreen> {
   final _sosService = SosService();
+  final _voiceprint = VoiceprintService();
   final stt.SpeechToText _speech = stt.SpeechToText();
 
   bool _loading = false;
@@ -24,6 +26,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
 
   // État du profil vocal
   bool _enrolled = false;
+  bool _voiceAvailable = false;
   String? _securityWord;
   bool _listening = false;
   String _heard = '';
@@ -33,6 +36,12 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   void initState() {
     super.initState();
     _loadProfile();
+    _initVoiceprint();
+  }
+
+  Future<void> _initVoiceprint() async {
+    final available = await _voiceprint.ensureLoaded();
+    if (mounted) setState(() => _voiceAvailable = available);
   }
 
   Future<void> _loadProfile() async {
@@ -55,17 +64,27 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     setState(() => _loading = true);
     try {
       await _sosService.setSecurityWord(word);
-      final token = await _sosService.voiceprintToken(word);
-      await _sosService.enroll(token);
+      setState(() => _status = 'Parlez le mot « $word » maintenant pour enrôler votre voix…');
+      final embedding = await _voiceprint.captureEmbedding(const Duration(seconds: 3));
+      final empreinte = embedding ?? await _sosService.voiceprintToken(word);
+      await _sosService.enroll(empreinte);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('voice_security_word', word);
       if (!mounted) return;
-      setState(() => _enrolled = true);
+      setState(() {
+        _enrolled = true;
+        _status = '';
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil vocal enrôlé. SOS vocal activé.')),
+        SnackBar(
+          content: Text(embedding != null
+              ? 'Biométrie vocale enrôlée. SOS vocal activé.'
+              : 'Profil vocal enrôlé (mode repli : modèle vocal absent).'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
+      setState(() => _status = '');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -95,26 +114,47 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       if (_securityWord != null &&
           text.toLowerCase().contains(_securityWord!.toLowerCase())) {
         _speech.stop();
-        _sendVocalSos(_securityWord!);
+        _verifyVoiceAndSend(_securityWord!);
       }
     });
   }
 
-  Future<void> _sendVocalSos(String keyword) async {
+  /// Vérification vocale : capture la voix, calcule l'embedding (biométrie),
+  /// puis envoie le SOS. Repli sur le token si le modèle est absent.
+  Future<void> _verifyVoiceAndSend(String keyword) async {
     setState(() {
       _listening = false;
       _loading = true;
-      _status = 'Vérification vocale…';
+      _status = _voiceAvailable
+          ? 'Vérification de la voix — redites le mot « $keyword »…'
+          : 'Vérification vocale…';
     });
     try {
-      final token = await _sosService.voiceprintToken(keyword);
+      Object empreinte;
+      if (_voiceAvailable) {
+        final embedding = await _voiceprint.captureEmbedding(const Duration(seconds: 3));
+        empreinte = embedding ?? await _sosService.voiceprintToken(keyword);
+      } else {
+        empreinte = await _sosService.voiceprintToken(keyword);
+      }
+      await _sendVocalSos(keyword, empreinte);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _status = 'SOS vocal en attente de connexion : $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _sendVocalSos(String keyword, Object empreinte) async {
+    try {
       final pos = await _position();
       final data = await _sosService.triggerVocal(
         widget.trip!.id,
         pos.latitude,
         pos.longitude,
         keyword,
-        token,
+        empreinte,
       );
       final sos = data['sos'] as Map<String, dynamic>?;
       final details = sos?['details'] as Map<String, dynamic>?;
@@ -233,9 +273,21 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
           const Text('Configurer le SOS vocal', style: TextStyle(fontSize: 20)),
           const SizedBox(height: 12),
           const Text(
-            'Définissez un mot de sécurité puis enrôlez votre empreinte vocale. '
-            'Au déclenchement, dites ce mot : le serveur vérifie mot-clé + empreinte.',
+            'Définissez un mot de sécurité puis enrôlez votre voix. '
+            'Au déclenchement, dites ce mot : mot-clé + biométrie vocale vérifiés '
+            'avant l\'alerte.',
             textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _voiceAvailable
+                ? 'Biométrie vocale embarquée (ECAPA-TDNN) : active.'
+                : 'Modèle vocal absent — repli sur vérification mot-clé.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              color: _voiceAvailable ? Colors.green.shade700 : Colors.orange.shade800,
+            ),
           ),
           const SizedBox(height: 16),
           TextField(

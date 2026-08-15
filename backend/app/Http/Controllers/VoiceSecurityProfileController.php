@@ -29,18 +29,19 @@ class VoiceSecurityProfileController extends Controller
     }
 
     /**
-     * Enrôle l'empreinte vocale (token dérivé côté mobile de la voix + un sel device).
-     * Pour la soutenance : le mobile calcule un token reproductible et le renvoie ici.
+     * Enrôle l'empreinte vocale : embedding de voix (ECAPA-TDNN, calculé sur le mobile)
+     * envoyé comme tableau de nombres. Stocké en JSON, comparé par similarité cosinus.
      */
     public function enroll(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'empreinte' => 'required|string|min:16|max:255',
+            'empreinte' => 'required|array',
+            'empreinte.*' => 'numeric',
         ]);
 
         $profile = VoiceSecurityProfile::updateOrCreate(
             ['user_id' => $request->user()->id],
-            ['empreinte_vocale' => $data['empreinte'], 'actif' => true],
+            ['empreinte_vocale' => json_encode(array_values($data['empreinte'])), 'actif' => true],
         );
 
         return response()->json([
