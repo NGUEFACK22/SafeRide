@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../models/trip.dart';
@@ -17,6 +18,7 @@ class TripMapScreen extends StatefulWidget {
 
 class _TripMapScreenState extends State<TripMapScreen> {
   final _tripService = TripService();
+  final _mapController = MapController();
 
   bool _loading = true;
   String? _error;
@@ -25,6 +27,8 @@ class _TripMapScreenState extends State<TripMapScreen> {
   LatLng? _destination;
   bool _deviationAlert = false;
   double? _deviationKm;
+  LatLng? _userLocation;
+  bool _locating = false;
 
   static const LatLng _fallbackCenter = LatLng(3.8480, 11.5021); // Yaoundé
 
@@ -62,6 +66,16 @@ class _TripMapScreenState extends State<TripMapScreen> {
         );
       }
 
+      LatLng? user;
+      try {
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        );
+        user = LatLng(position.latitude, position.longitude);
+      } catch (_) {
+        user = null;
+      }
+
       if (!mounted) return;
       setState(() {
         _points = points;
@@ -69,6 +83,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
         _destination = destination;
         _deviationAlert = data['deviation_alert'] == true;
         _deviationKm = (data['deviation_km'] as num?)?.toDouble();
+        _userLocation = user;
         _loading = false;
       });
     } catch (e) {
@@ -80,11 +95,36 @@ class _TripMapScreenState extends State<TripMapScreen> {
     }
   }
 
+  Future<void> _centerOnUser() async {
+    if (_locating) return;
+    setState(() => _locating = true);
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      final loc = LatLng(position.latitude, position.longitude);
+      if (!mounted) return;
+      setState(() => _userLocation = loc);
+      _mapController.move(loc, 15);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Localisation indisponible')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
   LatLng get _center {
+    if (_userLocation != null) return _userLocation!;
     if (_points.isNotEmpty) return _points[_points.length ~/ 2];
     if (_start != null) return _start!;
     return _fallbackCenter;
   }
+
+  double get _zoom => _userLocation != null ? 15 : 13;
 
   @override
   Widget build(BuildContext context) {
@@ -125,9 +165,10 @@ class _TripMapScreenState extends State<TripMapScreen> {
                       ),
                     Expanded(
                       child: FlutterMap(
+                        mapController: _mapController,
                         options: MapOptions(
                           initialCenter: _center,
-                          initialZoom: 13,
+                          initialZoom: _zoom,
                         ),
                         children: [
                           TileLayer(
@@ -147,6 +188,27 @@ class _TripMapScreenState extends State<TripMapScreen> {
                             ),
                           MarkerLayer(
                             markers: [
+                              if (_userLocation != null)
+                                Marker(
+                                  point: _userLocation!,
+                                  width: 22,
+                                  height: 22,
+                                  alignment: Alignment.center,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: Colors.white, width: 3),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          blurRadius: 6,
+                                          color: Colors.black38,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               if (_start != null)
                                 Marker(
                                   point: _start!,
@@ -180,6 +242,17 @@ class _TripMapScreenState extends State<TripMapScreen> {
                     ),
                   ],
                 ),
+      floatingActionButton: FloatingActionButton.small(
+        onPressed: _centerOnUser,
+        tooltip: 'Ma position',
+        child: _locating
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.my_location),
+      ),
     );
   }
 }
