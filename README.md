@@ -4,7 +4,7 @@ Plateforme mobile intelligente de **sécurisation et de traçabilité des dépla
 
 SafeRide AI met en relation passagers et transporteurs et assure :
 - **Identification des personnes présentes dans un véhicule** via le scan du QR Code unique du transporteur. L'embarquement enregistre automatiquement le passager, le transporteur, le véhicule, la date, l'heure et la position GPS du scan (point de départ).
-- **Saisie de la destination et suivi GPS** du trajet, avec **détection d'écart d'itinéraire** et **affichage de l'itinéraire sur une carte** (Google Maps) accessible depuis l'historique des trajets (`GET /trips/{trip}/route`).
+- **Saisie de la destination et suivi GPS** du trajet, avec **détection d'écart d'itinéraire** et **affichage de l'itinéraire sur une carte** (OpenStreetMap, gratuit sans clé) accessible depuis l'historique des trajets (`GET /trips/{trip}/route`).
 - **Déclenchement SOS vocal sécurisé** : mot/phrase de sécurité + empreinte vocale. L'alerte transmet position et détails du trajet aux contacts d'urgence, au gestionnaire et, le cas échéant, aux services d'urgence (email).
 - **Signalement d'objets perdus** rattaché au trajet et au transporteur, avec ouverture de **litige** et reconstitution de la **chronologie** par croisement des passagers d'un même véhicule.
 - **Vérification d'identité** (CNI / passeport) des passagers et transporteurs via une API KYC spécialisée (**Didit**).
@@ -78,10 +78,7 @@ flutter run                    # émulateur / appareil Android
 ```
 
 - **URL de l'API** : configurée dans `lib/config/api_config.dart` (émulateur Android → `10.0.2.2` ; appareil/web → `--dart-define=API_BASE_URL=http://<IP_LAN>:8000/api/v1`).
-- **Clé Google Maps** (obligatoire pour la carte) :
-  - Android : `android/app/src/main/res/values/strings.xml` (`google_maps_key`).
-  - iOS : `ios/Runner/AppDelegate.swift` (`GMSServices.provideAPIKey(...)`).
-  - Créer la clé sur https://console.cloud.google.com/ (API « Maps SDK for Android / iOS »).
+- **Carte (gratuite)** : itinéraire affiché avec **OpenStreetMap** via `flutter_map` — **aucune clé, aucune carte bancaire**. Simple connexion internet pour les tuiles.
 
 ---
 
@@ -203,7 +200,7 @@ Le passager définit un **mot/phrase de sécurité** et s'enrôle (`voice/enroll
 
 - **Didit** nécessite des **crédits** ; sans eux, la vérification retombe sur une révision manuelle (`A_EXAMINER`). La clé est valide, seul le solde manque.
 - **Empreinte vocale SOS** : simulée (empreinte = `sha256` du mot de sécurité), pas une empreinte biométrique réelle.
-- **Affichage cartographique** : intégré (`google_maps_flutter`). Nécessite une **clé Google Maps** valide (voir ci-dessous) ; sans elle la carte ne s'affiche pas (le reste de l'app fonctionne).
+- **Affichage cartographique** : intégré avec **OpenStreetMap** (`flutter_map`), **gratuit et sans clé**. L'affichage des tuiles dépend d'une connexion internet.
 - **Temps réel** : notifications in-app par **polling** (cloche + badge dans l'app, rafraîchi toutes les ~15 s) — pas de push FCM natif (évolution production).
 - **Secrets** : clés API dans `.env` (ne sont **jamais** commitées). À **renouveler après la soutenance**.
 

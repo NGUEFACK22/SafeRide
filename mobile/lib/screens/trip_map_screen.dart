@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../models/trip.dart';
 import '../services/trip_service.dart';
@@ -79,30 +80,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
     }
   }
 
-  Set<Marker> get _markers {
-    final markers = <Marker>{};
-    if (_start != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('start'),
-          position: _start!,
-          infoWindow: const InfoWindow(title: 'Départ'),
-        ),
-      );
-    }
-    if (_destination != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('destination'),
-          position: _destination!,
-          infoWindow: const InfoWindow(title: 'Destination'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        ),
-      );
-    }
-    return markers;
-  }
-
   LatLng get _center {
     if (_points.isNotEmpty) return _points[_points.length ~/ 2];
     if (_start != null) return _start!;
@@ -147,22 +124,58 @@ class _TripMapScreenState extends State<TripMapScreen> {
                         ),
                       ),
                     Expanded(
-                      child: GoogleMap(
-                        initialCameraPosition: CameraPosition(
-                          target: _center,
-                          zoom: 13,
+                      child: FlutterMap(
+                        options: MapOptions(
+                          initialCenter: _center,
+                          initialZoom: 13,
                         ),
-                        markers: _markers,
-                        polylines: {
-                          Polyline(
-                            polylineId: const PolylineId('route'),
-                            points: _points,
-                            color: Colors.blue,
-                            width: 5,
+                        children: [
+                          TileLayer(
+                            urlTemplate:
+                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'com.saferide.saferide_mobile',
                           ),
-                        },
-                        myLocationEnabled: false,
-                        zoomControlsEnabled: true,
+                          if (_points.length >= 2)
+                            PolylineLayer(
+                              polylines: [
+                                Polyline(
+                                  points: _points,
+                                  color: Colors.blue,
+                                  strokeWidth: 5,
+                                ),
+                              ],
+                            ),
+                          MarkerLayer(
+                            markers: [
+                              if (_start != null)
+                                Marker(
+                                  point: _start!,
+                                  width: 40,
+                                  height: 40,
+                                  child: const Icon(Icons.location_on,
+                                      color: Colors.green, size: 34),
+                                ),
+                              if (_destination != null)
+                                Marker(
+                                  point: _destination!,
+                                  width: 40,
+                                  height: 40,
+                                  child: const Icon(Icons.location_on,
+                                      color: Colors.red, size: 34),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(4),
+                      color: Colors.grey.shade200,
+                      child: const Text(
+                        'Cartes © OpenStreetMap',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 11),
                       ),
                     ),
                   ],

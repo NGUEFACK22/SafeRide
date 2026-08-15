@@ -43,11 +43,6 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- Clé Google Maps (à remplacer par ta propre clé) -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="@string/google_maps_key" />
-
         <!-- Service de fond (GPS) déclaré pour Android 14+ (foregroundServiceType) -->
         <service
             android:name="id.flutter.flutter_background_service.BackgroundService"
