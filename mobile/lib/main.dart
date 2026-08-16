@@ -25,7 +25,12 @@ import 'services/push_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    // Firebase absent (ex. google-services.json non fourni) : l'app démarre
+    // quand même, le push sera initialisé dès que la configuration existe.
+  }
   runApp(const SafeRideApp());
 }
 
