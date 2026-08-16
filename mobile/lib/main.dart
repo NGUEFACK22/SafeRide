@@ -18,6 +18,7 @@ import 'screens/dispute_screen.dart';
 import 'screens/identity_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/trip_map_screen.dart';
+import 'screens/admin_screen.dart';
 import 'services/auth_service.dart';
 import 'services/push_service.dart';
 
@@ -69,6 +70,7 @@ class SafeRideApp extends StatelessWidget {
           return TripMapScreen(tripId: arg as int);
         },
         '/notifications': (ctx) => const NotificationsScreen(),
+        '/admin': (ctx) => const AdminScreen(),
       },
     );
   }

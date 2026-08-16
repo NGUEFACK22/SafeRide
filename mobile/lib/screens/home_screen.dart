@@ -141,6 +141,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.pushNamed(context, '/identity');
               },
             ),
+            if (_user.hasRole('admin'))
+              ListTile(
+                leading: const Icon(Icons.admin_panel_settings,
+                    color: Colors.purple),
+                title: const Text('Administration'),
+                subtitle: const Text('Utilisateurs, stats, gestionnaires'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, '/admin');
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('Déconnexion'),
@@ -152,11 +163,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      body: _user.hasRole('transporteur')
-          ? const _TransporteurView()
-          : _user.hasRole('gestionnaire')
-              ? const _GestionnaireView()
-              : const _PassagerView(),
+      body: _user.hasRole('admin')
+          ? const _AdminView()
+          : _user.hasRole('transporteur')
+              ? const _TransporteurView()
+              : _user.hasRole('gestionnaire')
+                  ? const _GestionnaireView()
+                  : const _PassagerView(),
     );
   }
 }
@@ -290,14 +303,38 @@ class _GestionnaireView extends StatelessWidget {
               onTap: () => Navigator.pushNamed(context, '/manager'),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminView extends StatelessWidget {
+  const _AdminView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.admin_panel_settings, size: 32),
+              title: const Text('Administration'),
+              subtitle: const Text('Tableau de bord, utilisateurs, gestionnaires'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.pushNamed(context, '/admin'),
+            ),
+          ),
           const SizedBox(height: 16),
           Card(
             child: ListTile(
-              leading: const Icon(Icons.insights, size: 32),
-              title: const Text('Mes statistiques'),
-              subtitle: const Text('Dossiers traités et taux de résolution'),
+              leading: const Icon(Icons.history, size: 32),
+              title: const Text('Historique des trajets'),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.pushNamed(context, '/manager-stats'),
+              onTap: () => Navigator.pushNamed(context, '/history'),
             ),
           ),
         ],
