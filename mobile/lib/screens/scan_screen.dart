@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../services/trip_service.dart';
 
@@ -13,46 +13,47 @@ class ScanScreen extends StatefulWidget {
 
 class _ScanScreenState extends State<ScanScreen> {
   final _tripService = TripService();
-  final GlobalKey _qrKey = GlobalKey();
-  QRViewController? _controller;
+  final MobileScannerController _scanner = MobileScannerController();
   bool _loading = false;
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _scanner.dispose();
     super.dispose();
   }
 
-  void _onQRViewCreated(QRViewController controller) {
-    _controller = controller;
-    controller.scannedDataStream.listen((scanData) async {
-      if (_loading || scanData.code == null) return;
-      setState(() => _loading = true);
-      _controller?.pauseCamera();
-      try {
-        // Position réelle du passager au moment du scan (validation de proximité ±50 m)
-        final position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-        );
-        final trip = await _tripService.startTrip(
-          scanData.code!,
-          position.latitude,
-          position.longitude,
-        );
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Trajet démarré ! ${trip.transporteurFullName}')),
-        );
-        Navigator.of(context).pushReplacementNamed('/trip-active', arguments: trip);
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e')),
-        );
-        _controller?.resumeCamera();
-        setState(() => _loading = false);
-      }
-    });
+  Future<void> _onDetect(BarcodeCapture capture) async {
+    if (_loading) return;
+    final barcodes = capture.barcodes;
+    if (barcodes.isEmpty) return;
+    final code = barcodes.first.rawValue;
+    if (code == null || code.isEmpty) return;
+
+    setState(() => _loading = true);
+    await _scanner.stop();
+    try {
+      // Position réelle du passager au moment du scan (validation de proximité ±50 m)
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      final trip = await _tripService.startTrip(
+        code,
+        position.latitude,
+        position.longitude,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Trajet démarré ! ${trip.transporteurFullName}')),
+      );
+      Navigator.of(context).pushReplacementNamed('/trip-active', arguments: trip);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : $e')),
+      );
+      await _scanner.start();
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -61,9 +62,9 @@ class _ScanScreenState extends State<ScanScreen> {
       appBar: AppBar(title: const Text('Scanner le QR')),
       body: Stack(
         children: [
-          QRView(
-            key: _qrKey,
-            onQRViewCreated: _onQRViewCreated,
+          MobileScanner(
+            controller: _scanner,
+            onDetect: _onDetect,
           ),
           if (_loading)
             Container(
