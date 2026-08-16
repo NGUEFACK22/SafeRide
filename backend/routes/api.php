@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DisputeController;
+use App\Http\Controllers\EmergencyContactController;
 use App\Http\Controllers\IdentityController;
 use App\Http\Controllers\LostItemController;
 use App\Http\Controllers\ManagerController;
@@ -54,6 +55,12 @@ Route::prefix('v1')->group(function () {
         // SOS
         Route::post('sos', [SosController::class, 'create']);
         Route::get('sos/my', [SosController::class, 'myAlerts']);
+
+        // Contacts d'urgence (notifiés lors d'un SOS)
+        Route::get('emergency-contacts', [EmergencyContactController::class, 'index']);
+        Route::post('emergency-contacts', [EmergencyContactController::class, 'store']);
+        Route::put('emergency-contacts/{contact}', [EmergencyContactController::class, 'update']);
+        Route::delete('emergency-contacts/{contact}', [EmergencyContactController::class, 'destroy']);
 
         // Profil vocal (SOS vocal)
         Route::get('voice/profile', [VoiceSecurityProfileController::class, 'show']);

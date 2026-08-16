@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/trip.dart';
 import '../services/sos_service.dart';
+import '../services/trip_service.dart';
 import '../services/voiceprint_service.dart';
 
 class SosButtonScreen extends StatefulWidget {
@@ -19,10 +20,13 @@ class SosButtonScreen extends StatefulWidget {
 class _SosButtonScreenState extends State<SosButtonScreen> {
   final _sosService = SosService();
   final _voiceprint = VoiceprintService();
+  final _tripService = TripService();
   final stt.SpeechToText _speech = stt.SpeechToText();
 
+  Trip? _trip;
   bool _loading = false;
   bool _vocalMode = false;
+  bool _hasActiveTrip = true;
 
   // État du profil vocal
   bool _enrolled = false;
@@ -35,8 +39,26 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   @override
   void initState() {
     super.initState();
+    _trip = widget.trip;
+    _loadActiveTrip();
     _loadProfile();
     _initVoiceprint();
+  }
+
+  /// Charge le trajet actif si aucun trajet n'a été passé (accès depuis l'accueil).
+  Future<void> _loadActiveTrip() async {
+    if (_trip != null) return;
+    try {
+      final trip = await _tripService.currentTrip();
+      if (!mounted) return;
+      setState(() {
+        _trip = trip;
+        _hasActiveTrip = trip != null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _hasActiveTrip = false);
+    }
   }
 
   Future<void> _initVoiceprint() async {
@@ -92,8 +114,8 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   }
 
   Future<void> _startListening() async {
-    if (widget.trip == null) {
-      _fallbackButton();
+    if (_trip == null) {
+      _noTripMessage();
       return;
     }
     final available = await _speech.initialize();
@@ -148,9 +170,14 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
 
   Future<void> _sendVocalSos(String keyword, Object empreinte) async {
     try {
+      final trip = _trip;
+      if (trip == null) {
+        _noTripMessage();
+        return;
+      }
       final pos = await _position();
       final data = await _sosService.triggerVocal(
-        widget.trip!.id,
+        trip.id,
         pos.latitude,
         pos.longitude,
         keyword,
@@ -177,8 +204,11 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   Future<void> _fallbackButton() async {
     setState(() => _loading = true);
     try {
-      final trip = widget.trip;
-      if (trip == null) throw Exception('Aucun trajet actif');
+      final trip = _trip;
+      if (trip == null) {
+        _noTripMessage();
+        return;
+      }
       final pos = await _position();
       await _sosService.triggerButton(trip.id, pos.latitude, pos.longitude);
       if (!mounted) return;
@@ -222,20 +252,62 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
         backgroundColor: Colors.red.shade700,
         foregroundColor: Colors.white,
         actions: [
-          TextButton(
-            onPressed: () => setState(() => _vocalMode = !_vocalMode),
-            child: Text(
-              _vocalMode ? 'Mode bouton' : 'Mode vocal',
-              style: const TextStyle(color: Colors.white),
+          if (_hasActiveTrip)
+            TextButton(
+              onPressed: () => setState(() => _vocalMode = !_vocalMode),
+              child: Text(
+                _vocalMode ? 'Mode bouton' : 'Mode vocal',
+                style: const TextStyle(color: Colors.white),
+              ),
             ),
-          ),
         ],
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: _vocalMode ? _vocalBody() : _buttonBody(),
+      body: !_hasActiveTrip
+          ? _noTripBody()
+          : Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: _vocalMode ? _vocalBody() : _buttonBody(),
+              ),
+            ),
+    );
+  }
+
+  Widget _noTripBody() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.info_outline, size: 48, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text('Aucun trajet actif', style: TextStyle(fontSize: 20)),
+            const SizedBox(height: 8),
+            const Text(
+              'Le SOS est lié à un trajet en cours : scannez le QR du '
+              'transporteur pour démarrer un trajet avant de déclencher '
+              'une alerte.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, '/trip-active'),
+              icon: const Icon(Icons.trip_origin),
+              label: const Text('Voir mon trajet en cours'),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  void _noTripMessage() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Aucun trajet actif : scannez le QR du transporteur '
+            'pour démarrer un trajet.'),
       ),
     );
   }

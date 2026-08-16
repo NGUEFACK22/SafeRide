@@ -141,6 +141,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.pushNamed(context, '/identity');
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.contact_emergency, color: Colors.red),
+              title: const Text('Contacts d\'urgence'),
+              subtitle: const Text('Personnes notifiées en cas de SOS'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/emergency-contacts');
+              },
+            ),
             if (_user.hasRole('admin'))
               ListTile(
                 leading: const Icon(Icons.admin_panel_settings,

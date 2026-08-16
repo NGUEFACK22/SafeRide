@@ -93,6 +93,23 @@ class ApiService {
     return data;
   }
 
+  Future<Map<String, dynamic>> delete(String path, {bool auth = true}) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}$path');
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      if (auth) 'Authorization': 'Bearer ${await getToken()}',
+    };
+
+    final response = await http.delete(uri, headers: headers);
+    final data = _decode(response);
+
+    if (response.statusCode >= 400) {
+      throw ApiException(_messageFrom(data, response.statusCode), response.statusCode);
+    }
+
+    return data;
+  }
+
   Future<Map<String, dynamic>> fetchNotifications() async {
     return get('/notifications');
   }
