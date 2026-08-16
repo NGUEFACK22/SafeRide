@@ -10,100 +10,376 @@ class LostItemScreen extends StatefulWidget {
 }
 
 class _LostItemScreenState extends State<LostItemScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Objet perdu'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Mes signalements'),
+              Tab(text: 'Signaler'),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [
+            _LostReportsTab(),
+            _LostItemFormTab(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LostReportsTab extends StatefulWidget {
+  const _LostReportsTab();
+
+  @override
+  State<_LostReportsTab> createState() => _LostReportsTabState();
+}
+
+class _LostReportsTabState extends State<_LostReportsTab> {
   final _api = ApiService();
-  final _objetController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final _tripIdController = TextEditingController();
-  bool _loading = false;
+  List<dynamic> _reports = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await _api.get('/lost-items');
+      if (!mounted) return;
+      setState(() {
+        _reports = (data['reports'] as Map<String, dynamic>)['data']
+                as List<dynamic>? ??
+            [];
+        _error = null;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _openChronology(dynamic report) async {
+    try {
+      final data = await _api.get('/lost-items/${report['id']}/chronology');
+      if (!mounted) return;
+      await showModalBottomSheet<void>(
+        context: context,
+        builder: (ctx) => _ChronologySheet(data: data),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur : $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(child: Text(_error!));
+    }
+    if (_reports.isEmpty) {
+      return const Center(child: Text('Aucun signalement pour le moment'));
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: _reports.length,
+        itemBuilder: (context, index) {
+          final report = _reports[index];
+          final (label, color) = _reportStatus(report['statut'] as String?);
+          return Card(
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            child: ListTile(
+              leading: Icon(Icons.work_outline, color: color),
+              title: Text(report['objet'] ?? 'Objet'),
+              subtitle: Text(
+                'Trajet #${report['trip_id']} · '
+                '${_dateOnly(report['created_at'] as String?)}',
+              ),
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Chip(
+                    label: Text(label, style: TextStyle(fontSize: 11)),
+                    backgroundColor: color.withValues(alpha: 0.15),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const Text(
+                    'Chronologie',
+                    style: TextStyle(fontSize: 11, color: Colors.blue),
+                  ),
+                ],
+              ),
+              onTap: () => _openChronology(report),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ChronologySheet extends StatelessWidget {
+  const _ChronologySheet({required this.data});
+
+  final Map<String, dynamic> data;
+
+  @override
+  Widget build(BuildContext context) {
+    final related = data['related_trips'] as List<dynamic>? ?? [];
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Chronologie du véhicule #${data['vehicle_id'] ?? '—'}',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Passagers ayant utilisé ce véhicule entre la fin de votre '
+              'trajet et le signalement.',
+              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+            ),
+            const SizedBox(height: 12),
+            if (related.isEmpty)
+              const Text('Aucun autre passager détecté sur cette période.')
+            else
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final t in related)
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.person),
+                        title: Text(
+                          t['passager_nom'] ?? 'Passager #${t['passager_id']}',
+                        ),
+                        subtitle: Text(
+                          'Trajet #${t['trip_id']} · '
+                          '${_dateOnly(t['ended_at'] as String?)}',
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LostItemFormTab extends StatefulWidget {
+  const _LostItemFormTab();
+
+  @override
+  State<_LostItemFormTab> createState() => _LostItemFormTabState();
+}
+
+class _LostItemFormTabState extends State<_LostItemFormTab> {
+  final _api = ApiService();
+  final _objet = TextEditingController();
+  final _description = TextEditingController();
+  int? _selectedTripId;
+  List<dynamic> _trips = [];
+  bool _loadingTrips = true;
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTrips();
+  }
+
+  @override
+  void dispose() {
+    _objet.dispose();
+    _description.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadTrips() async {
+    try {
+      final data = await _api.get('/trips/history');
+      if (!mounted) return;
+      setState(() {
+        _trips = (data['trips'] as Map<String, dynamic>)['data'] as List<dynamic>? ?? [];
+        _loadingTrips = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingTrips = false);
+    }
+  }
 
   Future<void> _submit() async {
-    final tripId = int.tryParse(_tripIdController.text.trim());
-    if (tripId == null) {
+    if (_selectedTripId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Entrez un identifiant de trajet valide')),
+        const SnackBar(content: Text('Choisissez un trajet')),
+      );
+      return;
+    }
+    if (_objet.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Décrivez l\'objet oublié')),
       );
       return;
     }
 
-    setState(() => _loading = true);
+    setState(() => _submitting = true);
     try {
       await _api.post('/lost-items', {
-        'trip_id': tripId,
-        'objet': _objetController.text.trim(),
-        'description': _descriptionController.text.trim().isEmpty
+        'trip_id': _selectedTripId,
+        'objet': _objet.text.trim(),
+        'description': _description.text.trim().isEmpty
             ? null
-            : _descriptionController.text.trim(),
+            : _description.text.trim(),
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              'Objet perdu signalé. Le signalement est lié à votre trajet '
-              'et au transporteur.'),
+              'Objet perdu signalé. Un gestionnaire en est informé.'),
         ),
       );
-      Navigator.pop(context);
+      _objet.clear();
+      _description.clear();
+      setState(() => _selectedTripId = null);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur : $e')),
       );
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Objet perdu')),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _tripIdController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'ID du trajet',
-                border: OutlineInputBorder(),
-                hintText: 'Ex : 5',
-              ),
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DropdownButtonFormField<int?>(
+            initialValue: _selectedTripId,
+            decoration: const InputDecoration(
+              labelText: 'Trajet concerné',
+              border: OutlineInputBorder(),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _objetController,
-              decoration: const InputDecoration(
-                labelText: 'Objet oublié',
-                border: OutlineInputBorder(),
-                hintText: 'Ex : Portefeuille noir',
-              ),
+            items: _loadingTrips
+                ? [
+                    const DropdownMenuItem<int?>(
+                      value: null,
+                      child: Text('Chargement…'),
+                    ),
+                  ]
+                : [
+                    const DropdownMenuItem<int?>(
+                      value: null,
+                      child: Text('Choisir un trajet terminé'),
+                    ),
+                    for (final trip in _trips)
+                      DropdownMenuItem<int?>(
+                        value: trip['id'] as int,
+                        child: Text(_tripLabel(trip)),
+                      ),
+                  ],
+            onChanged: (v) => setState(() => _selectedTripId = v),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _objet,
+            decoration: const InputDecoration(
+              labelText: 'Objet oublié',
+              border: OutlineInputBorder(),
+              hintText: 'Ex : Portefeuille noir',
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _descriptionController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Description (facultatif)',
-                border: OutlineInputBorder(),
-              ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _description,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Description (facultatif)',
+              border: OutlineInputBorder(),
             ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _loading ? null : _submit,
-              icon: const Icon(Icons.report_problem),
-              label: const Text('Signaler l\'objet perdu'),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Le signalement est automatiquement associé au trajet, au '
-              'transporteur et au véhicule. Un gestionnaire en sera informé.',
-              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: _submitting ? null : _submit,
+            icon: const Icon(Icons.report_problem),
+            label: const Text('Signaler l\'objet perdu'),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Le signalement est automatiquement associé au trajet, au '
+            'transporteur et au véhicule. La chronologie identifie les '
+            'passagers suivants.',
+            style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+          ),
+        ],
       ),
     );
   }
+}
+
+String _tripLabel(dynamic trip) {
+  final dest = trip['destination_address'] as String?;
+  final ended = _dateOnly(trip['ended_at'] as String?);
+  return '${dest ?? 'Trajet #${trip['id']}'}${ended.isEmpty ? '' : ' — $ended'}';
+}
+
+(String, Color) _reportStatus(String? statut) {
+  switch (statut) {
+    case 'SIGNALE':
+      return ('Signalé', Colors.orange);
+    case 'EN_RECHERCHE':
+      return ('En recherche', Colors.blue);
+    case 'RETROUVE':
+      return ('Retrouvé', Colors.green);
+    case 'RESTITUE':
+      return ('Restitué', Colors.teal);
+    case 'NON_RETROUVE':
+      return ('Non retrouvé', Colors.red);
+    case 'CLOTURE':
+      return ('Clôturé', Colors.grey);
+    default:
+      return (statut ?? '', Colors.grey);
+  }
+}
+
+String _dateOnly(String? iso) {
+  if (iso == null || iso.isEmpty) return '';
+  return iso.split('T').first;
 }

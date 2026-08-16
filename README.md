@@ -226,7 +226,7 @@ Le mobile exécute un modèle d'embedding de voix **ECAPA-TDNN** (ONNX Runtime, 
 
 ## Tests
 
-Des tests automatisés couvrent l'authentification, les notifications, le **flux complet de trajet**, le **KYC Didit**, les **véhicules**, l'**administration** et la **biométrie vocale** (`php artisan test` : 29 tests / 119 assertions ; `flutter test` : 6 tests dont les modèles ; `flutter analyze` : aucune erreur).
+Des tests automatisés couvrent l'authentification, les notifications, le **flux complet de trajet**, le **KYC Didit**, les **véhicules**, l'**administration**, les **incidents (objets perdus / litiges + chronologie)** et la **biométrie vocale** (`php artisan test` : 35 tests / 142 assertions ; `flutter test` : 6 tests dont les modèles ; `flutter analyze` : aucune erreur).
 
 ---
 
