@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Services\GoogleAuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -75,6 +77,70 @@ class AuthController extends Controller
             'message' => 'Connexion réussie',
             'token' => $token,
             'user' => $this->userPayload($user),
+        ]);
+    }
+
+    /**
+     * Connexion / inscription via compte Google (OAuth).
+     * Le mobile envoie l'ID token reçu de Google ; il est vérifié côté serveur
+     * et un compte est créé automatiquement si l'email est inconnu.
+     */
+    public function google(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'id_token' => 'required|string',
+            'telephone' => 'nullable|string|max:20',
+        ]);
+
+        $claims = app(GoogleAuthService::class)->verifyIdToken($data['id_token']);
+
+        if ($claims === null) {
+            return response()->json(['message' => 'Jeton Google invalide'], 401);
+        }
+
+        $email = strtolower($claims['email']);
+        $user = User::where('email', $email)->first();
+
+        if ($user === null) {
+            $user = User::create([
+                'nom' => $claims['family_name'] ?? ($claims['name'] ?? 'Google'),
+                'prenom' => $claims['given_name'] ?? $claims['name'] ?? 'Utilisateur',
+                'email' => $email,
+                'telephone' => $data['telephone'] ?? null,
+                'password' => Hash::make(Str::random(40)),
+                'photo_url' => $claims['picture'] ?? null,
+                'google_id' => $claims['sub'],
+                'email_verified_at' => now(),
+                'statut' => 'ACTIF',
+            ]);
+            $user->assignRole('passager');
+        } else {
+            if ($user->statut === 'SUSPENDU') {
+                return response()->json(['message' => 'Compte suspendu. Contactez l\'administration.'], 403);
+            }
+
+            $user->update([
+                'google_id' => $user->google_id ?? $claims['sub'],
+                'photo_url' => $claims['picture'] ?? $user->photo_url,
+            ]);
+        }
+
+        $token = $user->createToken('auth')->plainTextToken;
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'action' => 'login_google',
+            'entity_type' => 'User',
+            'entity_id' => $user->id,
+            'details' => ['email' => $email],
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        return response()->json([
+            'message' => 'Connexion Google réussie',
+            'token' => $token,
+            'user' => $this->userPayload($user->load('roles')),
         ]);
     }
 

@@ -52,4 +52,9 @@ return [
         'base_url' => env('DIDIT_BASE_URL', 'https://verification.didit.me/v3'),
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'android_client_id' => env('GOOGLE_ANDROID_CLIENT_ID'),
+    ],
+
 ];

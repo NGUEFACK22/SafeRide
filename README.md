@@ -41,7 +41,7 @@ SafeRide AI met en relation passagers et transporteurs et assure :
 |---|---|
 | PHP | 8.2+ (Composer) |
 | Backend | Laravel 12, Sanctum, Spatie Laravel Permission |
-| Mobile | Flutter 3.44+, Android SDK (NDK r28c, AGP 9), scanner `mobile_scanner` |
+| Mobile | Flutter 3.44+, Android SDK (NDK r28c, AGP 9), scanner `mobile_scanner`, `google_sign_in` |
 | Base de données | PostgreSQL (Neon) |
 | IA | Mistral (`mistral-small-latest`) |
 | KYC | Didit (clé API `x-api-key`) |
@@ -102,6 +102,24 @@ Toute requête non authentifiée renvoie **401 JSON** (jamais de 500).
 
 ---
 
+## Connexion Google ("Continuer avec Google")
+
+Le mobile envoie l'**ID token** Google (`POST /auth/google`), vérifié côté serveur via l'API `tokeninfo` de Google (champ `aud` contrôlé contre nos client IDs). Si l'email est inconnu, un **compte passager est créé automatiquement** ; sinon le compte existant est relié (`google_id`). Un utilisateur Google n'a pas besoin de téléphone.
+
+### Configuration (une fois)
+
+1. **Google Cloud Console** → Identifiants → *Créer des identifiants* → **Client OAuth** :
+   - **Web** : l'ID (ex. `xxxx.apps.googleusercontent.com`) devient `GOOGLE_CLIENT_ID` (backend `.env` **et** `--dart-define=GOOGLE_CLIENT_ID=...`).
+   - **Android** (optionnel mais recommandé) : ajouter l'empreinte **SHA-1** du keystore de signature (`keytool -list -v -keystore ~/.android/debug.keystore`) → l'ID devient `GOOGLE_ANDROID_CLIENT_ID` (`--dart-define=GOOGLE_ANDROID_CLIENT_ID=...`).
+2. Backend `.env` : `GOOGLE_CLIENT_ID=...` (et éventuellement `GOOGLE_ANDROID_CLIENT_ID`).
+3. Build du mobile avec le client ID :
+   ```bash
+   flutter build apk --debug --dart-define=GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
+   ```
+4. Sans aucun client ID configuré, le bouton "Continuer avec Google" est **masqué** (le formulaire classique reste disponible).
+
+---
+
 ## Endpoints API (`/api/v1`)
 
 ### Auth (public)
@@ -109,6 +127,7 @@ Toute requête non authentifiée renvoie **401 JSON** (jamais de 500).
 |---|---|---|
 | POST | `auth/register` | Inscription |
 | POST | `auth/login` | Connexion (retourne le token) |
+| POST | `auth/google` | Connexion/inscription avec un compte Google (ID token vérifié côté serveur) |
 | POST | `auth/logout` | Déconnexion (auth) |
 | GET | `auth/profile` | Profil courant (auth) |
 
@@ -233,7 +252,7 @@ Le mobile exécute un modèle d'embedding de voix **ECAPA-TDNN** (ONNX Runtime, 
 
 ## Tests
 
-Des tests automatisés couvrent l'authentification, les notifications, le **flux complet de trajet**, le **KYC Didit**, les **véhicules**, l'**administration**, les **incidents (objets perdus / litiges + chronologie)**, les **contacts d'urgence** et la **biométrie vocale** (`php artisan test` : 40 tests / 153 assertions ; `flutter test` : 6 tests dont les modèles ; `flutter analyze` : aucune erreur).
+Des tests automatisés couvrent l'authentification (dont **Google OAuth**), les notifications, le **flux complet de trajet**, le **KYC Didit**, les **véhicules**, l'**administration**, les **incidents (objets perdus / litiges + chronologie)**, les **contacts d'urgence** et la **biométrie vocale** (`php artisan test` : 45 tests / 170 assertions ; `flutter test` : 6 tests dont les modèles ; `flutter analyze` : aucune erreur).
 
 ---
 

@@ -19,6 +19,15 @@ class AuthService {
     return User.fromJson(data['user']);
   }
 
+  Future<User> loginWithGoogle(String idToken) async {
+    final data = await _api.post('/auth/google', {'id_token': idToken}, auth: false);
+
+    await _api.saveToken(data['token']);
+    await _api.saveUser(data['user']);
+
+    return User.fromJson(data['user']);
+  }
+
   Future<User> register({
     required String nom,
     required String prenom,

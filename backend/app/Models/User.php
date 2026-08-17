@@ -21,6 +21,8 @@ class User extends Authenticatable
         'password',
         'photo_url',
         'statut',
+        'google_id',
+        'email_verified_at',
     ];
 
     protected $hidden = [
