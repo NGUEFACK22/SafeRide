@@ -41,7 +41,7 @@ SafeRide AI met en relation passagers et transporteurs et assure :
 |---|---|
 | PHP | 8.2+ (Composer) |
 | Backend | Laravel 12, Sanctum, Spatie Laravel Permission |
-| Mobile | Flutter 3.x, Android SDK (`image_picker`) |
+| Mobile | Flutter 3.44+, Android SDK (NDK r28c, AGP 9), scanner `mobile_scanner` |
 | Base de données | PostgreSQL (Neon) |
 | IA | Mistral (`mistral-small-latest`) |
 | KYC | Didit (clé API `x-api-key`) |
@@ -77,6 +77,13 @@ cd mobile
 flutter pub get
 flutter run                    # émulateur / appareil Android
 ```
+
+**Construire un APK** (démo sur un vrai téléphone) :
+```bash
+flutter build apk --debug                  # APK universel (toutes architectures, ~260 Mo)
+flutter build apk --debug --split-per-abi  # 1 APK par architecture (arm64 ~90 Mo, à privilégier)
+```
+L'APK est produit dans `mobile/build/app/outputs/flutter-apk/` et s'installe avec `adb install <fichier.apk>` (mode développeur + débogage USB sur le téléphone). La biométrie vocale ONNX (84 Mo) et onnxruntime (4 architectures) expliquent la taille. Le build ne nécessite **pas** `google-services.json` : sans lui, l'app démarre et le push FCM reste inactif jusqu'à la configuration.
 
 - **URL de l'API** : configurée dans `lib/config/api_config.dart` (émulateur Android → `10.0.2.2` ; appareil/web → `--dart-define=API_BASE_URL=http://<IP_LAN>:8000/api/v1`).
 - **Carte (gratuite)** : itinéraire affiché avec **OpenStreetMap** via `flutter_map` — **aucune clé, aucune carte bancaire**. Simple connexion internet pour les tuiles.
