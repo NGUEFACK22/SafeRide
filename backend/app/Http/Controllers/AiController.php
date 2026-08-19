@@ -39,6 +39,29 @@ class AiController extends Controller
     }
 
     /**
+     * Résumé hebdomadaire de l'utilisateur (semaine en cours, généré le dimanche
+     * par la commande planifiée). ?refresh=1 force la régénération.
+     */
+    public function weekly(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $refresh = $request->query('refresh') === '1';
+
+        $report = \App\Models\AiReport::where('user_id', $user->id)
+            ->where('type', 'RAPPORT_HEBDOMADAIRE')
+            ->latest()
+            ->first();
+
+        $startOfWeek = now()->startOfWeek();
+
+        if ($refresh || ! $report || $report->created_at->lt($startOfWeek)) {
+            $report = $this->ai->weeklyReport($user);
+        }
+
+        return response()->json(['report' => $report]);
+    }
+
+    /**
      * Résumé d'un trajet (propriétaire ou transporteur).
      */
     public function tripSummary(Request $request, int $id): JsonResponse

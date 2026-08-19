@@ -4,6 +4,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/trip.dart';
+import '../services/whatsapp_service.dart';
 import '../services/sos_service.dart';
 import '../services/trip_service.dart';
 import '../services/voiceprint_service.dart';
@@ -183,12 +184,16 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
         keyword,
         empreinte,
       );
+
+      // Envoyer des SOS via WhatsApp aux contacts d'urgence
+      await _sendWhatsAppSos(data);
+
       final sos = data['sos'] as Map<String, dynamic>?;
       final details = sos?['details'] as Map<String, dynamic>?;
       final passed = details?['verification_passed'] == true;
       if (!mounted) return;
       setState(() => _status = passed
-          ? 'Alerte vocale vérifiée et transmise.'
+          ? 'Alerte vocale vérifiée et transmise + SMS envoyés.'
           : 'Alerte vocale reçue mais non vérifiée — en vérification.');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_status)),
@@ -210,12 +215,16 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
         return;
       }
       final pos = await _position();
-      await _sosService.triggerButton(trip.id, pos.latitude, pos.longitude);
+      final data = await _sosService.triggerButton(trip.id, pos.latitude, pos.longitude);
+
+      // Envoyer des SOS via WhatsApp aux contacts d'urgence
+      await _sendWhatsAppSos(data);
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Alerte SOS (bouton) déclenchée et transmise : '
-              'contacts, gestionnaire et services d\'urgence notifiés.'),
+              'SMS, contacts, gestionnaire et services d\'urgence notifiés.'),
         ),
       );
     } catch (e) {
@@ -443,6 +452,36 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
               ),
             ),
     );
+  }
+
+  /// Envoie le message SOS via WhatsApp aux contacts d'urgence.
+  /// Le backend retourne la liste des contacts et le message SMS à envoyer.
+  Future<void> _sendWhatsAppSos(Map<String, dynamic> data) async {
+    try {
+      final contacts = data['emergency_contacts'] as List<dynamic>? ?? [];
+      final smsMessage = data['sms_message'] as String?;
+      if (contacts.isEmpty || smsMessage == null || smsMessage.isEmpty) return;
+
+      final phones = contacts
+          .map((c) => (c['telephone'] as String?)?.trim())
+          .where((p) => p != null && p.isNotEmpty)
+          .cast<String>()
+          .toList();
+
+      if (phones.isEmpty) return;
+
+      final sent = await WhatsAppService.instance.sendBulk(phones, smsMessage);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('WhatsApp envoyés : $sent/${phones.length} contacts'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (_) {
+      // Échec WhatsApp silencieux — les autres canaux (email, push) restent actifs
+    }
   }
 
   @override

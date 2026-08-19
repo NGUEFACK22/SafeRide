@@ -174,7 +174,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
                           TileLayer(
                             urlTemplate:
                                 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName: 'com.saferide.saferide_mobile',
+                            userAgentPackageName: 'com.tech.saveride',
                           ),
                           if (_points.length >= 2)
                             PolylineLayer(

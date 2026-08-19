@@ -12,7 +12,7 @@ if (file("google-services.json").exists()) {
 }
 
 android {
-    namespace = "com.saferide.saferide_mobile"
+    namespace = "com.tech.saveride"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -23,7 +23,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.saferide.saferide_mobile"
+        applicationId = "com.tech.saveride"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

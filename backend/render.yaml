@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: saferide-api
+    runtime: php
+    plan: free
+    buildCommand: composer install --no-dev --optimize-autoloader
+    startCommand: php artisan serve --host=0.0.0.0 --port=$PORT
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        generateValue: true
+      - key: APP_URL
+        sync: false
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        fromDatabase:
+          name: saferide-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: saferide-db
+          property: port
+      - key: DB_DATABASE
+        fromDatabase:
+          name: saferide-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: saferide-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: saferide-db
+          property: password
+      - key: DB_SSLMODE
+        value: require
+
+databases:
+  - name: saferide-db
+    plan: free
+    databaseName: saferide
+    user: saferide

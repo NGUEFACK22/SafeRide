@@ -31,7 +31,7 @@ SafeRide AI met en relation passagers et transporteurs et assure :
 - **Base de données** : PostgreSQL hébergée sur **Neon** (connexion sécurisée SSL, endpoint dédié).
 - **IA** : **Mistral** via endpoint compatible OpenAI (`/chat/completions`).
 - **KYC** : **Didit** (`/v3/id-verification/`).
-- **Notifications SOS** : email réel (SMTP) + **push Firebase (FCM)** vers l'app en temps réel.
+- **Notifications SOS** : **SMS Infobip** + **WhatsApp** (gratuit, message pré-rempli) + email réel (SMTP) + **push Firebase (FCM)** vers l'app en temps réel.
 
 ---
 
@@ -88,7 +88,7 @@ L'APK est produit dans `mobile/build/app/outputs/flutter-apk/` et s'installe ave
 - **URL de l'API** : configurée dans `lib/config/api_config.dart` (émulateur Android → `10.0.2.2` ; appareil/web → `--dart-define=API_BASE_URL=http://<IP_LAN>:8000/api/v1`).
 - **Carte (gratuite)** : itinéraire affiché avec **OpenStreetMap** via `flutter_map` — **aucune clé, aucune carte bancaire**. Simple connexion internet pour les tuiles.
 - **Push Firebase (FCM)** — config à déposer (fichiers gitignorés, non commités) :
-  1. Créer un projet sur https://console.firebase.google.com (paquet `com.saferide.saferide_mobile`).
+  1. Créer un projet sur https://console.firebase.google.com (paquet `com.tech.saveride`).
   2. **Android** : Paramètres → Application Android → télécharger `google-services.json` → le mettre dans `mobile/android/app/`.
   3. **Backend** : Paramètres du projet → Comptes de service → **Générer une nouvelle clé privée** → sauvegarder en `backend/firebase-service-account.json`.
   4. iOS : `GoogleService-Info.plist` dans `mobile/ios/Runner/` (et APNs).
@@ -159,7 +159,7 @@ Le mobile envoie l'**ID token** Google (`POST /auth/google`), vérifié côté s
 ### SOS (auth)
 | Méthode | Route | Description |
 |---|---|---|
-| POST | `sos` | Déclencher une alerte (email contacts + gestionnaire + services) |
+| POST | `sos` | Déclencher une alerte (SMS Infobip + WhatsApp + email contacts + gestionnaire + services) |
 | GET | `sos/my` | Mes alertes |
 | GET | `sos/{id}` | Détail (gestionnaire/admin) |
 | PUT | `sos/{id}/resolve` | Résolution (gestionnaire/admin) |
@@ -171,6 +171,7 @@ Le mobile envoie l'**ID token** Google (`POST /auth/google`), vérifié côté s
 | Méthode | Route | Description |
 |---|---|---|
 | GET | `ai/summary` | Statistiques personnalisées au rôle (Mistral) |
+| GET | `ai/weekly` | Résumé hebdomadaire IA (généré le dimanche) |
 | GET | `ai/trips/{trip}` | Résumé du trajet (Mistral) |
 | GET | `ai/anomalies` | Anomalies (gestionnaire/admin) |
 
@@ -199,6 +200,7 @@ Toute notification créée côté serveur (SOS, trajet, identité, incidents) es
 `App\Services\AiService` appelle l'endpoint compatible OpenAI de Mistral pour :
 1. **Résumé de trajet** (`tripSummary`) — 3-5 phrases en français pour passager + transporteur.
 2. **Statistiques par rôle** (`userStats`) — bilan en puces + recommandations (passager / transporteur / gestionnaire / admin).
+3. **Résumé hebdomadaire** (`weeklyReport`) — bilan de la semaine écoulée, généré automatiquement **chaque dimanche à 08h00** par la commande planifiée `ai:weekly-reports` (`php artisan schedule:run` via cron) et consultable à tout moment via `GET /ai/weekly` (l'écran IA mobile l'affiche).
 
 Si l'IA est désactivée (`AI_ENABLED=false`) ou en échec, un **repli déterministe** génère un texte par règle (`generateur = REGLE`). La détection d'anomalies (`detectAnomalies`) est calculée par requêtes SQL (pas d'appel LLM).
 
@@ -214,7 +216,24 @@ En cas de réponse Didit non conclusive (ex. crédits épuisés), le dossier pas
 
 ## SOS vocal sécurisé
 
-Le passager définit un **mot/phrase de sécurité** et s'enrôle (`voice/enroll`). Au déclenchement, l'alerte transmet position + détails du trajet aux **contacts d'urgence** (email réel SMTP + notification in-app FCM), au **gestionnaire**, et aux **services d'urgence** (email).
+Le passager définit un **mot/phrase de sécurité** et s'enrôle (`voice/enroll`). Au déclenchement, l'alerte transmet position + détails du trajet aux **contacts d'urgence** (**SMS Infobip** + **WhatsApp** + email réel SMTP + notification in-app FCM), au **gestionnaire**, et aux **services d'urgence** (email).
+
+### SMS aux contacts d'urgence (Infobip)
+
+À chaque SOS, chaque contact d'urgence disposant d'un numéro reçoit un **SMS** via Infobip avec la position (lien Google Maps) et la destination du trajet. Configuration :
+
+1. Créer un compte sur https://www.infobip.com → obtenir une clé API.
+2. `backend/.env` :
+   ```
+   INFOBIP_BASE_URL=https://api.infobip.com
+   INFOBIP_API_KEY=your_api_key
+   INFOBIP_SENDER=SafeRide
+   ```
+3. Les numéros de contacts doivent être au format international (ex. `+237690000000`).
+
+### WhatsApp aux contacts d'urgence (gratuit, complémentaire)
+
+En plus du SMS, l'app mobile ouvre **WhatsApp** avec un message pré-rempli pour chaque contact. Gratuit, fonctionne même sans forfait SMS.
 
 ### Biométrie vocale embarquée (ECAPA-TDNN via ONNX)
 
@@ -252,7 +271,7 @@ Le mobile exécute un modèle d'embedding de voix **ECAPA-TDNN** (ONNX Runtime, 
 
 ## Tests
 
-Des tests automatisés couvrent l'authentification (dont **Google OAuth**), les notifications, le **flux complet de trajet**, le **KYC Didit**, les **véhicules**, l'**administration**, les **incidents (objets perdus / litiges + chronologie)**, les **contacts d'urgence** et la **biométrie vocale** (`php artisan test` : 45 tests / 170 assertions ; `flutter test` : 6 tests dont les modèles ; `flutter analyze` : aucune erreur).
+Des tests automatisés couvrent l'authentification (dont **Google OAuth**), les notifications, le **flux complet de trajet**, le **KYC Didit**, les **véhicules**, l'**administration**, les **incidents (objets perdus / litiges + chronologie)**, les **contacts d'urgence**, le **SMS SOS (Infobip)** et **WhatsApp** et le **rapport hebdomadaire IA** (`php artisan test` : 51 tests / 191 assertions ; `flutter test` : 6 tests dont les modèles ; `flutter analyze` : aucune erreur).
 
 ---
 

@@ -57,4 +57,10 @@ return [
         'android_client_id' => env('GOOGLE_ANDROID_CLIENT_ID'),
     ],
 
+    'infobip' => [
+        'base_url' => env('INFOBIP_BASE_URL', 'https://api.infobip.com'),
+        'api_key' => env('INFOBIP_API_KEY'),
+        'sender' => env('INFOBIP_SENDER', 'SafeRide'),
+    ],
+
 ];

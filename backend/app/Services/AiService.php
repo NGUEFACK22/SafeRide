@@ -126,6 +126,100 @@ class AiService
     }
 
     /**
+     * Résumé hebdomadaire de l'activité de l'utilisateur (généré le dimanche
+     * par la commande planifiée, ou à la demande via GET /ai/weekly).
+     */
+    public function weeklyReport(User $user): AiReport
+    {
+        $role = $user->roles()->first()?->slug ?? 'passager';
+        $data = $this->weeklyData($user, $role);
+
+        $libelles = [
+            'passager' => 'passager',
+            'transporteur' => 'transporteur',
+            'gestionnaire' => 'gestionnaire de dossiers de sécurité',
+            'admin' => 'administrateur de la plateforme',
+        ];
+
+        $system = "Tu es l'assistant IA de SafeRide. Rédige en français un résumé "
+            . "hebdomadaire (semaine écoulée) pour un {$libelles[$role]}, en 4-6 phrases "
+            . "claires et rassurantes, avec 1-2 recommandations pour la semaine à venir. "
+            . "Mentionne les faits marquants (trajets, SOS, incidents, anomalies).";
+
+        $prompt = "Semaine du {$data['debut_semaine']} au {$data['fin_semaine']} "
+            . "(rôle : {$role}) :\n"
+            . json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+        $contenu = $this->complete($system, $prompt)
+            ?? $this->fallbackWeeklyReport($user, $role, $data);
+
+        return AiReport::create([
+            'type' => 'RAPPORT_HEBDOMADAIRE',
+            'contenu' => $contenu,
+            'user_id' => $user->id,
+            'generateur' => $this->isEnabled() ? 'IA_SafeRide' : 'REGLE',
+        ]);
+    }
+
+    /**
+     * Données agrégées de la semaine écoulée (lundi -> aujourd'hui).
+     */
+    protected function weeklyData(User $user, string $role): array
+    {
+        $debut = now()->startOfWeek();
+        $fin = now()->endOfWeek();
+
+        $trajetsQuery = Trip::whereBetween('created_at', [$debut, $fin]);
+
+        $data = [
+            'debut_semaine' => $debut->format('d/m/Y'),
+            'fin_semaine' => $fin->format('d/m/Y'),
+        ];
+
+        $data += match ($role) {
+            'transporteur' => [
+                'trajets_effectues' => $user->tripsAsTransporteur()->whereBetween('created_at', [$debut, $fin])->count(),
+                'distance_totale_km' => round((float) ($user->tripsAsTransporteur()->whereBetween('created_at', [$debut, $fin])->sum('distance_km') ?? 0), 2),
+                'ecarts_itineraire' => $user->tripsAsTransporteur()->whereBetween('created_at', [$debut, $fin])->where('deviation_alert', true)->count(),
+                'sos' => SosAlert::whereIn('trip_id', $user->tripsAsTransporteur()->whereBetween('created_at', [$debut, $fin])->pluck('id'))->count(),
+            ],
+            'gestionnaire' => [
+                'dossiers_attribues' => $user->managerAssignments()->whereBetween('created_at', [$debut, $fin])->count(),
+                'dossiers_clotures' => $user->managerAssignments()->whereBetween('created_at', [$debut, $fin])->where('statut', 'CLOTURE')->count(),
+                'sos_en_cours' => SosAlert::where('statut', '!=', 'RESOLU')->whereBetween('created_at', [$debut, $fin])->count(),
+            ],
+            'admin' => [
+                'total_trajets' => (clone $trajetsQuery)->count(),
+                'total_sos' => SosAlert::whereBetween('created_at', [$debut, $fin])->count(),
+                'nouveaux_utilisateurs' => User::whereBetween('created_at', [$debut, $fin])->count(),
+                'anomalies' => AiReport::where('type', 'ANOMALIE')->whereBetween('created_at', [$debut, $fin])->count(),
+            ],
+            default => [
+                'trajets_effectues' => $user->tripsAsPassager()->whereBetween('created_at', [$debut, $fin])->count(),
+                'distance_totale_km' => round((float) ($user->tripsAsPassager()->whereBetween('created_at', [$debut, $fin])->sum('distance_km') ?? 0), 2),
+                'sos' => SosAlert::where('passager_id', $user->id)->whereBetween('created_at', [$debut, $fin])->count(),
+                'litiges' => Dispute::where('passager_id', $user->id)->whereBetween('created_at', [$debut, $fin])->count(),
+            ],
+        };
+
+        return $data;
+    }
+
+    protected function fallbackWeeklyReport(User $user, string $role, array $d): string
+    {
+        $lines = ["Bilan de la semaine du {$d['debut_semaine']} au {$d['fin_semaine']} "
+            . "({$role}, utilisateur #{$user->id}) :"];
+        foreach ($d as $k => $v) {
+            if (str_starts_with($k, 'debut_') || str_starts_with($k, 'fin_')) {
+                continue;
+            }
+            $lines[] = "- $k : $v";
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
      * Détection d'anomalies globales (pour gestionnaire / admin).
      * Renvoie des données brutes ; la persistance se fait sous un AiReport ANOMALIE.
      */

@@ -13,6 +13,7 @@ class _AiScreenState extends State<AiScreen> {
   final _ai = AiService();
   bool _loading = true;
   String? _summary;
+  String? _weekly;
   List<dynamic> _insights = [];
   String? _error;
 
@@ -29,6 +30,19 @@ class _AiScreenState extends State<AiScreen> {
       final report = data['report'] as Map<String, dynamic>?;
       if (!mounted) return;
       setState(() => _summary = report?['contenu'] as String?);
+
+      // Résumé hebdomadaire IA (le dimanche / disponible à tout moment)
+      try {
+        final weekly = await _ai.weekly(refresh: refresh);
+        if (mounted) {
+          setState(() {
+            _weekly =
+                (weekly['report'] as Map<String, dynamic>?)?['contenu'] as String?;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _weekly = null);
+      }
 
       // Anomalies (silencieusement ignorées si l'utilisateur n'a pas le droit)
       try {
@@ -98,6 +112,25 @@ class _AiScreenState extends State<AiScreen> {
                         ),
                       ),
                     ),
+                    if (_weekly != null && _weekly!.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Résumé hebdomadaire',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 8),
+                      Card(
+                        color: Theme.of(context).colorScheme.primaryContainer
+                            .withValues(alpha: 0.35),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            _weekly!,
+                            style: const TextStyle(height: 1.4),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                   if (_insights.isNotEmpty) ...[
                     const SizedBox(height: 24),

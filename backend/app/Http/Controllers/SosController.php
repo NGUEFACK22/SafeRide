@@ -11,6 +11,7 @@ use App\Models\Trip;
 use App\Models\User;
 use App\Models\VoiceSecurityProfile;
 use App\Mail\SosAlertMail;
+use App\Services\SmsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -66,9 +67,18 @@ class SosController extends Controller
             default => 'Alerte vocale reçue mais non vérifiée — en cours de vérification.',
         };
 
+        // Contacts d'urgence avec téléphone pour envoi SMS natif côté mobile
+        $contacts = EmergencyContact::where('user_id', $request->user()->id)
+            ->whereNotNull('telephone')
+            ->where('telephone', '!=', '')
+            ->select('nom', 'telephone')
+            ->get();
+
         return response()->json([
             'message' => $message,
             'sos' => $sos->load('emergencyNotifications'),
+            'emergency_contacts' => $contacts,
+            'sms_message' => $this->smsMessage($sos, $trip, null),
         ], 201);
     }
 
@@ -183,25 +193,40 @@ class SosController extends Controller
     protected function dispatchAlerts(SosAlert $sos): void
     {
         $trip = $sos->trip;
+        $smsMessage = $this->smsMessage($sos, $trip, null);
+        $smsService = app(SmsService::class);
 
-        // Contacts d'urgence du passager -> notification DB + email réel
+        // Contacts d'urgence du passager -> notification DB + email + SMS (Africa's Talking)
         EmergencyContact::where('user_id', $sos->passager_id)
             ->get()
-            ->each(function (EmergencyContact $contact) use ($sos, $trip) {
-                Notification::create([
-                    'user_id' => $sos->passager_id,
-                    'type' => 'SOS',
-                    'titre' => 'SOS en cours — Contact ' . $contact->nom,
-                    'message' => 'Votre contact d\'urgence ' . $contact->nom . ' a été notifié (' . $contact->telephone . ').',
-                ]);
+            ->each(function (EmergencyContact $contact) use ($sos, $trip, $smsMessage, $smsService) {
+                $canaux = [];
 
+                // SMS (Africa's Talking) : le canal le plus direct pour prévenir la personne
+                if ($contact->telephone) {
+                    $smsSent = $smsService->send($contact->telephone, $smsMessage);
+                    if ($smsSent) {
+                        $canaux[] = 'SMS (' . $contact->telephone . ')';
+                    }
+                }
+
+                // Email réel (SMTP)
                 if ($contact->email) {
                     try {
                         Mail::to($contact->email)->send(new SosAlertMail($sos, $trip, $contact->nom));
+                        $canaux[] = 'email (' . $contact->email . ')';
                     } catch (\Throwable $e) {
                         // La notification DB reste créée même si l'email échoue
                     }
                 }
+
+                Notification::create([
+                    'user_id' => $sos->passager_id,
+                    'type' => 'SOS',
+                    'titre' => 'SOS en cours — Contact ' . $contact->nom,
+                    'message' => 'Votre contact d\'urgence ' . $contact->nom
+                        . (count($canaux) > 0 ? ' a été notifié par ' . implode(' et ', $canaux) : ' n\'a pas pu être notifié (aucun canal configuré).'),
+                ]);
             });
 
         // Services d'urgence -> email réel + journalisation de la transmission
@@ -219,6 +244,32 @@ class SosController extends Controller
                 'statut' => 'TRANSMISE',
             ]);
         });
+    }
+
+    /**
+     * Message SMS court envoyé au contact d'urgence lors d'un SOS.
+     */
+    protected function smsMessage(SosAlert $sos, Trip $trip, ?EmergencyContact $contact): string
+    {
+        $passager = $sos->passager;
+
+        $message = 'URGENT SafeRide : ' . ($passager?->prenom ?? 'un passager') . ' '
+            . ($passager?->nom ?? '') . " a déclenché une alerte SOS.";
+
+        if ($sos->latitude && $sos->longitude) {
+            $message .= ' Position : https://maps.google.com/?q='
+                . $sos->latitude . ',' . $sos->longitude;
+        }
+
+        if ($trip->destination_address) {
+            $message .= ' Destination : ' . $trip->destination_address;
+        }
+
+        if ($contact) {
+            $message .= ' — ' . $contact->nom;
+        }
+
+        return $message;
     }
 
     protected function assignManager(SosAlert $sos): void
