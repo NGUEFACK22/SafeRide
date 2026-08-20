@@ -11,11 +11,11 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app/backend
 
-# Copier composer.json UNIQUEMENT (pas de lock, généré au build)
+# Copier composer.json UNIQUEMENT et installer sans scripts (artisan n'existe pas encore)
 COPY backend/composer.json ./
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
 
-# Copier tout le backend
+# Copier tout le backend (y compris artisan)
 COPY backend/ . .
 
 # Créer les dossiers storage si absents
