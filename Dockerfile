@@ -18,13 +18,17 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --no-script
 # Copier tout le backend
 COPY backend/ . .
 
-# Créer un .env vide - les variables Render sont injectées au démarrage
-RUN touch .env && rm -f bootstrap/cache/config.php bootstrap/cache/routes.php bootstrap/cache/services.php
-
 # Créer les dossiers storage si absents
 RUN mkdir -p storage/framework/{sessions,views,cache} storage/logs storage/app/public bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "php artisan key:generate --force --no-interaction && php artisan config:clear --no-interaction && php artisan route:clear --no-interaction && php artisan migrate --force --no-interaction && php artisan serve --host=0.0.0.0 --port=${PORT:-8000}"]
+# Script de démarrage: génère .env depuis les vars Render, puis migre et lance le serveur
+CMD ["sh", "-c", "\
+  printf 'APP_NAME=%s\\nAPP_ENV=%s\\nAPP_DEBUG=%s\\nAPP_URL=%s\\nAPP_KEY=%s\\n' \"$APP_NAME\" \"$APP_ENV\" \"$APP_DEBUG\" \"$APP_URL\" \"$APP_KEY\" > .env && \
+  printf 'DB_CONNECTION=%s\\nDB_HOST=%s\\nDB_PORT=%s\\nDB_DATABASE=%s\\nDB_USERNAME=%s\\nDB_PASSWORD=%s\\nDB_SSLMODE=%s\\n' \"$DB_CONNECTION\" \"$DB_HOST\" \"$DB_PORT\" \"$DB_DATABASE\" \"$DB_USERNAME\" \"$DB_PASSWORD\" \"$DB_SSLMODE\" >> .env && \
+  echo 'SESSION_DRIVER=database' >> .env && \
+  echo 'CACHE_STORE=database' >> .env && \
+  php artisan migrate --force --no-interaction && \
+  php artisan serve --host=0.0.0.0 --port=${PORT:-8000}"]
