@@ -19,11 +19,10 @@ RUN composer install --no-dev --optimize-autoloader --no-scripts --no-interactio
 COPY . .
 
 # Créer les dossiers storage si absents
-RUN mkdir -p storage/framework/{sessions,views,cache} storage/logs storage/app/public bootstrap/cache
-
-# Rendre les dossiers stockage exécutables
-RUN chmod -R 775 storage bootstrap/cache
+RUN mkdir -p storage/framework/{sessions,views,cache} storage/logs storage/app/public bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "php artisan key:generate --force --no-interaction && php artisan migrate --force --no-interaction && php artisan serve --host=0.0.0.0 --port=8000"]
+# Render fournit $PORT — sh -c l'évalue au démarrage
+CMD ["sh", "-c", "php artisan key:generate --force --no-interaction && php artisan migrate --force --no-interaction && php artisan serve --host=0.0.0.0 --port=${PORT:-8000}"]
