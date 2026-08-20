@@ -18,11 +18,10 @@ RUN composer install --no-dev --optimize-autoloader --no-scripts
 # Copier le reste du code
 COPY . .
 
-# Générer la clé et préparer l'app
-RUN php artisan key:generate --force \
-    && php artisan config:cache \
-    && php artisan route:cache
+# Rendre le script d'entrée exécutable
+RUN chmod +x docker-entrypoint.sh 2>/dev/null || true
 
 EXPOSE 8000
 
-CMD php artisan serve --host=0.0.0.0 --port=8000
+# Script d'entrée: génère la clé + migrations au démarrage (pas au build)
+CMD ["sh", "-c", "php artisan key:generate --force --no-interaction && php artisan migrate --force --no-interaction && php artisan serve --host=0.0.0.0 --port=8000"]
