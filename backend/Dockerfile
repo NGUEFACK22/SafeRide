@@ -11,9 +11,9 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 
-# Copier composer.json + composer.lock, installer les dépendances
-COPY composer.json composer.lock ./
-RUN composer install --no-dev --optimize-autoloader --no-scripts --no-interaction
+# Copier composer.json UNIQUEMENT et générer le lock pendant le build
+COPY composer.json ./
+RUN composer install --no-dev --optimize-autoloader --no-interaction
 
 # Copier le reste du code
 COPY . .
