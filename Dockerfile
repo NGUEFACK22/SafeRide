@@ -11,12 +11,15 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app/backend
 
-# Copier composer.json UNIQUEMENT et installer sans scripts (artisan n'existe pas encore)
+# Copier composer.json UNIQUEMENT et installer sans scripts
 COPY backend/composer.json ./
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
 
-# Copier tout le backend (y compris artisan)
+# Copier tout le backend (y compris artisan + .env.example)
 COPY backend/ . .
+
+# Créer .env à partir de .env.example si absent
+RUN cp -n .env.example .env 2>/dev/null || true
 
 # Créer les dossiers storage si absents
 RUN mkdir -p storage/framework/{sessions,views,cache} storage/logs storage/app/public bootstrap/cache \
