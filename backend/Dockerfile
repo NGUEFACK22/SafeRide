@@ -12,14 +12,11 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 WORKDIR /app
 
 # Copier composer.json et installer les dépendances
-COPY composer.json composer.lock ./
+COPY composer.json ./
 RUN composer install --no-dev --optimize-autoloader --no-scripts
 
 # Copier le reste du code
 COPY . .
-
-# Rendre le script d'entrée exécutable
-RUN chmod +x docker-entrypoint.sh 2>/dev/null || true
 
 EXPOSE 8000
 
