@@ -18,13 +18,17 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --no-script
 # Copier tout le backend
 COPY backend/ . .
 
-# Créer un .env VIDE (les vars Render écrasent tout au démarrage)
-RUN touch .env
-
 # Créer les dossiers storage si absents
 RUN mkdir -p storage/framework/{sessions,views,cache} storage/logs storage/app/public bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
+# Script de démarrage
+RUN echo '#!/bin/sh\n\
+touch .env\n\
+php artisan config:cache --no-interaction 2>/dev/null || true\n\
+php artisan migrate --force --no-interaction 2>/dev/null || true\n\
+php artisan serve --host=0.0.0.0 --port=${PORT:-8000}\n' > /start.sh && chmod +x /start.sh
+
 EXPOSE 8000
 
-CMD ["sh", "-c", "php artisan key:generate --force --no-interaction && php artisan migrate --force --no-interaction && php artisan serve --host=0.0.0.0 --port=${PORT:-8000}"]
+CMD ["/start.sh"]
