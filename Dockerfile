@@ -25,10 +25,37 @@ RUN mkdir -p storage/framework/{sessions,views,cache} storage/logs storage/app/p
 EXPOSE 8000
 
 # Script de démarrage: génère .env depuis les vars Render, puis migre et lance le serveur
-CMD ["sh", "-c", "\
-  printf 'APP_NAME=%s\\nAPP_ENV=%s\\nAPP_DEBUG=%s\\nAPP_URL=%s\\nAPP_KEY=%s\\n' \"$APP_NAME\" \"$APP_ENV\" \"$APP_DEBUG\" \"$APP_URL\" \"$APP_KEY\" > .env && \
-  printf 'DB_CONNECTION=%s\\nDB_HOST=%s\\nDB_PORT=%s\\nDB_DATABASE=%s\\nDB_USERNAME=%s\\nDB_PASSWORD=%s\\nDB_SSLMODE=%s\\n' \"$DB_CONNECTION\" \"$DB_HOST\" \"$DB_PORT\" \"$DB_DATABASE\" \"$DB_USERNAME\" \"$DB_PASSWORD\" \"$DB_SSLMODE\" >> .env && \
-  echo 'SESSION_DRIVER=database' >> .env && \
-  echo 'CACHE_STORE=database' >> .env && \
-  php artisan migrate --force --no-interaction && \
-  php artisan serve --host=0.0.0.0 --port=${PORT:-8000}"]
+COPY <<'STARTUP' /start.sh
+#!/bin/sh
+set -e
+
+# Écrire .env depuis les variables d'environnement Render
+cat > /app/backend/.env <<EOF
+APP_NAME=${APP_NAME:-SafeRide}
+APP_ENV=${APP_ENV:-production}
+APP_DEBUG=${APP_DEBUG:-true}
+APP_URL=${APP_URL}
+APP_KEY=${APP_KEY}
+DB_CONNECTION=${DB_CONNECTION:-pgsql}
+DB_HOST=${DB_HOST}
+DB_PORT=${DB_PORT:-5432}
+DB_DATABASE=${DB_DATABASE:-neondb}
+DB_USERNAME=${DB_USERNAME:-neondb_owner}
+DB_PASSWORD=${DB_PASSWORD}
+DB_SSLMODE=${DB_SSLMODE:-require}
+SESSION_DRIVER=database
+CACHE_STORE=database
+QUEUE_CONNECTION=database
+MAIL_MAILER=log
+EOF
+
+# Lancer les migrations
+php artisan migrate --force --no-interaction
+
+# Lancer le serveur
+php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
+STARTUP
+
+RUN chmod +x /start.sh
+
+CMD ["/start.sh"]
