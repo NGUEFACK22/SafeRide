@@ -11,14 +11,19 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 
-# Copier composer.json et installer les dépendances
-COPY composer.json ./
-RUN composer install --no-dev --optimize-autoloader --no-scripts
+# Copier composer.json + composer.lock, installer les dépendances
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-scripts --no-interaction
 
 # Copier le reste du code
 COPY . .
 
+# Créer les dossiers storage si absents
+RUN mkdir -p storage/framework/{sessions,views,cache} storage/logs storage/app/public bootstrap/cache
+
+# Rendre les dossiers stockage exécutables
+RUN chmod -R 775 storage bootstrap/cache
+
 EXPOSE 8000
 
-# Script d'entrée: génère la clé + migrations au démarrage (pas au build)
 CMD ["sh", "-c", "php artisan key:generate --force --no-interaction && php artisan migrate --force --no-interaction && php artisan serve --host=0.0.0.0 --port=8000"]
