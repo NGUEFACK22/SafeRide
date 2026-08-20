@@ -1,0 +1,49 @@
+services:
+  - name: saferide-api
+    router:
+      routes:
+        - paths:
+            - /
+    runtime: php
+    plan: free
+    root: backend
+    build:
+      buildpacks: []
+      dockerfile: Dockerfile
+    env:
+      - name: APP_ENV
+        value: production
+      - name: APP_DEBUG
+        value: "false"
+      - name: APP_KEY
+        value: base64:KEfZX1nOl5BnT11H+/9mAdoMA+7EaysCqFGGbeFSd68=
+      - name: DB_CONNECTION
+        value: pgsql
+      - name: DB_HOST
+        value: ep-summer-recipe-axfvwadi-pooler.c-4.us-east-2.aws.neon.tech
+      - name: DB_PORT
+        value: "5432"
+      - name: DB_DATABASE
+        value: neondb
+      - name: DB_USERNAME
+        value: neondb_owner
+      - name: DB_PASSWORD
+        value: npg_DztT75uMVoUy
+      - name: DB_SSLMODE
+        value: require
+      - name: GOOGLE_CLIENT_ID
+        value: 841219332616-ib3ge6r9a3n6nrpt9pp7q7u7ia5mi60a.apps.googleusercontent.com
+      - name: GOOGLE_ANDROID_CLIENT_ID
+        value: 841219332616-007e6v8ho3jdnkbr2pfo0v50jnbujd2e.apps.googleusercontent.com
+      - name: INFOBIP_BASE_URL
+        value: https://api.infobip.com
+      - name: INFOBIP_API_KEY
+        value: ea69e53eec1e1f3171fcc6eb97eafa4c-f65f5b87-76ca-4a16-8c35-56c17828750d
+      - name: INFOBIP_SENDER
+        value: SafeRide
+      - name: AI_ENABLED
+        value: "true"
+      - name: AI_BASE_URL
+        value: https://api.mistral.ai/v1
+      - name: AI_MODEL
+        value: mistral-small-latest
