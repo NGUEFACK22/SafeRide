@@ -15,6 +15,7 @@ use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\VoiceSecurityProfileController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\RatingController;
+use App\Http\Controllers\TransporteurController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -118,6 +119,10 @@ Route::post('auth/google', [AuthController::class, 'google']);
         Route::get('ratings/received', [RatingController::class, 'received']);
         Route::get('ratings/given', [RatingController::class, 'given']);
         Route::get('users/{user}/ratings/stats', [RatingController::class, 'stats']);
+
+        // Transporteur — tableau de bord
+        Route::get('transporteur/dashboard', [TransporteurController::class, 'dashboard'])
+            ->middleware(['role:transporteur,admin']);
 
         // Token push FCM (Firebase Cloud Messaging)
         Route::post('push-token', [PushTokenController::class, 'store']);

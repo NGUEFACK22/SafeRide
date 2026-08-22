@@ -270,6 +270,16 @@ class _TransporteurView extends StatelessWidget {
         children: [
           Card(
             child: ListTile(
+              leading: const Icon(Icons.dashboard, size: 32, color: Colors.green),
+              title: const Text('Tableau de bord'),
+              subtitle: const Text('Trajets, notes, distance, passagers'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.pushNamed(context, '/transporteur-dashboard'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: ListTile(
               leading: const Icon(Icons.directions_car, size: 32),
               title: const Text('Mes véhicules'),
               subtitle: const Text('Gérer véhicules et QR codes'),
