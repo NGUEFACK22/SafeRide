@@ -93,9 +93,30 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     setState(() => _loading = true);
     try {
       await _sosService.setSecurityWord(word);
-      setState(() => _status = 'Parlez le mot « $word » maintenant pour enrôler votre voix…');
-      final embedding = await _voiceprint.captureEmbedding(const Duration(seconds: 3));
-      final empreinte = embedding ?? await _sosService.voiceprintToken(word);
+
+      Object empreinte;
+      if (_voiceAvailable) {
+        // Flux 1-2 : 3 phrases -> empreinte moyenne robuste
+        setState(() => _status = 'Enrôlement 1/3 : dites « $word » clairement…');
+        final avg = await _voiceprint.captureAverageEmbedding(
+          samples: 3,
+          perSample: const Duration(seconds: 3),
+          onProgress: (cur, total) {
+            if (!mounted) return;
+            setState(() => _status = 'Enrôlement $cur/$total : dites « $word » clairement… (${cur == 1 ? 'parlez naturellement' : cur == 2 ? 'encore une fois' : 'dernière prise'})');
+          },
+        );
+        if (avg != null) {
+          empreinte = avg;
+          if (mounted) setState(() => _status = 'Empreinte moyenne créée (${avg.length} dims) — envoi…');
+        } else {
+          empreinte = await _sosService.voiceprintToken(word);
+        }
+      } else {
+        setState(() => _status = 'Modèle vocal absent — enrôlement mot-clé seul…');
+        empreinte = await _sosService.voiceprintToken(word);
+      }
+
       await _sosService.enroll(empreinte);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('voice_security_word', word);
@@ -104,10 +125,11 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
         _enrolled = true;
         _status = '';
       });
+      final isAvg = empreinte is List && empreinte.length == 192;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(embedding != null
-              ? 'Biométrie vocale enrôlée. SOS vocal activé.'
+          content: Text(isAvg
+              ? 'Empreinte vocale créée (3 prises moyennées). SOS vocal activé ✅'
               : 'Profil vocal enrôlé (mode repli : modèle vocal absent).'),
         ),
       );
@@ -403,8 +425,8 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
           const Text('Configurer le SOS vocal', style: TextStyle(fontSize: 20)),
           const SizedBox(height: 12),
           const Text(
-            'Définissez un mot de sécurité puis enrôlez votre voix. '
-            'Au déclenchement, dites ce mot : mot-clé + biométrie vocale vérifiés '
+            'Définissez un mot de sécurité puis enrôlez votre voix en 3 prises. '
+            'Au déclenchement, dites ce mot : mot-clé (Vosk) + biométrie vocale (ECAPA) vérifiés '
             'avant l\'alerte.',
             textAlign: TextAlign.center,
           ),

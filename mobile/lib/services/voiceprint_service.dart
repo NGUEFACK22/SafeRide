@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
@@ -128,5 +129,48 @@ class VoiceprintService {
     if (!await startCapture()) return null;
     await Future<void>.delayed(duration);
     return stopAndEmbed();
+  }
+
+  /// Enrôlement robuste : capture [samples] embeddings et retourne leur moyenne
+  /// (plus stable que 1 seule prise). L2-normalisée pour la comparaison cosinus.
+  Future<List<double>?> captureAverageEmbedding({
+    int samples = 3,
+    Duration perSample = const Duration(seconds: 3),
+    void Function(int current, int total)? onProgress,
+  }) async {
+    if (!await ensureLoaded()) return null;
+    final List<List<double>> all = [];
+    for (int i = 0; i < samples; i++) {
+      onProgress?.call(i + 1, samples);
+      final emb = await captureEmbedding(perSample);
+      if (emb == null) return null;
+      all.add(emb);
+      // Petite pause entre les prises pour laisser l'utilisateur respirer
+      if (i < samples - 1) await Future<void>.delayed(const Duration(milliseconds: 600));
+    }
+    return averageEmbeddings(all);
+  }
+
+  /// Moyenne élément-par-élément + normalisation L2 (pour cosine similarity).
+  List<double> averageEmbeddings(List<List<double>> embeddings) {
+    if (embeddings.isEmpty) throw ArgumentError('embeddings vide');
+    final dim = embeddings.first.length;
+    final avg = List<double>.filled(dim, 0);
+    for (final emb in embeddings) {
+      for (int i = 0; i < dim; i++) {
+        avg[i] += emb[i];
+      }
+    }
+    for (int i = 0; i < dim; i++) {
+      avg[i] /= embeddings.length;
+    }
+    // Normalisation L2 pour que cosine = dot product
+    double norm = 0;
+    for (final v in avg) norm += v * v;
+    norm = math.sqrt(norm);
+    if (norm > 0) {
+      for (int i = 0; i < dim; i++) avg[i] /= norm;
+    }
+    return avg;
   }
 }
