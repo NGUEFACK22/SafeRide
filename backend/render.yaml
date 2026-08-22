@@ -40,5 +40,33 @@ services:
         value: "true"
       - key: AI_BASE_URL
         value: https://api.mistral.ai/v1
+      - key: AI_API_KEY
+        value: GXSB24PantqbNHlFBSCrXnJDbd9mBctq
       - key: AI_MODEL
         value: mistral-small-latest
+      - key: AI_TIMEOUT
+        value: "20"
+      - key: DIDIT_API_KEY
+        value: 7cIcqEhkHiDNJEi2SGpiq9g782SnhGCnmx5hBW9LROs
+      - key: DIDIT_BASE_URL
+        value: https://verification.didit.me/v3
+      - key: INFOBIP_WHATSAPP_SENDER
+        value: ""
+      - key: MAIL_MAILER
+        value: smtp
+      - key: MAIL_HOST
+        value: smtp.gmail.com
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_USERNAME
+        value: francknguefack19@gmail.com
+      - key: MAIL_PASSWORD
+        value: rortdnfhzslgxdgr
+      - key: MAIL_ENCRYPTION
+        value: tls
+      - key: MAIL_FROM_ADDRESS
+        value: francknguefack19@gmail.com
+      - key: MAIL_FROM_NAME
+        value: SafeRide
+      - key: DB_NEON_ENDPOINT
+        value: ep-summer-recipe-axfvwadi
