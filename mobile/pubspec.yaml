@@ -43,7 +43,8 @@ dependencies:
   path: ^1.9.0
   connectivity_plus: ^6.1.0
   speech_to_text: ^7.0.0
-  vosk_flutter: ^0.3.48
+  # vosk_flutter temporairement désactivé pour build (AGP namespace + permission_handler v1) — réactivation après fix
+  # vosk_flutter: ^0.3.48
   crypto: ^3.0.3
 
 dependency_overrides:
