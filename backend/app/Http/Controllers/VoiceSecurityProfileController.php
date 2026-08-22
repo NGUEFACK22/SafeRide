@@ -35,13 +35,21 @@ class VoiceSecurityProfileController extends Controller
     public function enroll(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'empreinte' => 'required|array',
-            'empreinte.*' => 'numeric',
+            'empreinte' => 'required',
         ]);
+
+        $empreinte = $data['empreinte'];
+        // Harmonie frontend: mobile envoie soit List<double> (ECAPA 192) soit String token sha256 (repli sans modèle)
+        if (is_array($empreinte)) {
+            $request->validate(['empreinte.*' => 'numeric']);
+            $stored = json_encode(array_values($empreinte));
+        } else {
+            $stored = json_encode($empreinte);
+        }
 
         $profile = VoiceSecurityProfile::updateOrCreate(
             ['user_id' => $request->user()->id],
-            ['empreinte_vocale' => json_encode(array_values($data['empreinte'])), 'actif' => true],
+            ['empreinte_vocale' => $stored, 'actif' => true],
         );
 
         return response()->json([

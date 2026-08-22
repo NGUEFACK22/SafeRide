@@ -8,7 +8,7 @@ class AuthService {
     final body = {
       'email': email,
       'password': password,
-      'telephone': ?telephone,
+      if (telephone != null) 'telephone': telephone,
     };
 
     final data = await _api.post('/auth/login', body, auth: false);

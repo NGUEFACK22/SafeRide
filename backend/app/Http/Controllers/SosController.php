@@ -27,9 +27,12 @@ class SosController extends Controller
             'longitude' => 'required|numeric|between:-180,180',
             'declenchement' => 'required|in:VOCAL,BOUTON',
             'keyword' => 'nullable|string|max:40',
-            'empreinte' => 'nullable|array',
-            'empreinte.*' => 'numeric',
+            'empreinte' => 'nullable',
         ]);
+        // Harmonie: empreinte peut être array ECAPA (List<double>) ou string token repli
+        if (isset($data['empreinte']) && is_array($data['empreinte'])) {
+            $request->validate(['empreinte.*' => 'numeric']);
+        }
 
         $trip = Trip::where('id', $data['trip_id'])
             ->where('passager_id', $request->user()->id)
@@ -110,9 +113,19 @@ class SosController extends Controller
         $voiceMatch = false;
         if ($profile && $profile->empreinte_vocale && isset($data['empreinte'])) {
             $stored = json_decode($profile->empreinte_vocale, true);
-            if (is_array($stored) && $stored !== [] && is_array($data['empreinte'])) {
-                $voiceMatch = $this->cosineSimilarity($stored, $data['empreinte']) >= self::VOICE_SIMILARITY_THRESHOLD;
+            $incoming = $data['empreinte'];
+            // Cas 1: deux embeddings ECAPA (array 192) -> cosine
+            if (is_array($stored) && $stored !== [] && is_array($incoming) && $incoming !== []) {
+                // Vérifie que c'est bien un vecteur numérique, pas un token string encodé en array
+                if (is_numeric($stored[0] ?? null) && is_numeric($incoming[0] ?? null)) {
+                    $voiceMatch = $this->cosineSimilarity($stored, $incoming) >= self::VOICE_SIMILARITY_THRESHOLD;
+                }
             }
+            // Cas 2: deux tokens string (repli sans modèle) -> égalité stricte
+            elseif (is_string($stored) && is_string($incoming)) {
+                $voiceMatch = hash_equals($stored, $incoming);
+            }
+            // Cas 3: token stocké string vs incoming string enveloppé en JSON -> déjà géré par json_decode
         }
 
         $passed = $keywordMatch && $voiceMatch;
