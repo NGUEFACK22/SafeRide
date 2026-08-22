@@ -123,48 +123,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Passager'),
-                        subtitle: const Text('Je cherche un transport'),
-                        value: 'passager',
-                        groupValue: _selectedRole,
-                        onChanged: (v) => setState(() => _selectedRole = v!),
-                        secondary: const Icon(Icons.person),
-                        activeColor: Theme.of(context).colorScheme.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: _selectedRole == 'passager'
-                                ? Theme.of(context).colorScheme.primary
-                                : Colors.grey.shade300,
+                RadioGroup<String>(
+                  groupValue: _selectedRole,
+                  onChanged: (v) => setState(() => _selectedRole = v!),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('Passager'),
+                          subtitle: const Text('Je cherche un transport'),
+                          value: 'passager',
+                          secondary: const Icon(Icons.person),
+                          activeColor: Theme.of(context).colorScheme.primary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: _selectedRole == 'passager'
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.grey.shade300,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: RadioListTile<String>(
-                        title: const Text('Transporteur'),
-                        subtitle: const Text('Je propose un transport'),
-                        value: 'transporteur',
-                        groupValue: _selectedRole,
-                        onChanged: (v) => setState(() => _selectedRole = v!),
-                        secondary: const Icon(Icons.local_taxi),
-                        activeColor: Theme.of(context).colorScheme.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: _selectedRole == 'transporteur'
-                                ? Theme.of(context).colorScheme.primary
-                                : Colors.grey.shade300,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('Transporteur'),
+                          subtitle: const Text('Je propose un transport'),
+                          value: 'transporteur',
+                          secondary: const Icon(Icons.local_taxi),
+                          activeColor: Theme.of(context).colorScheme.primary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: _selectedRole == 'transporteur'
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.grey.shade300,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 24),
                 FilledButton(

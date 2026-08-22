@@ -157,12 +157,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     );
   }
 
-  /// Régénérer le QR code (après un scan)
-  Future<void> _refreshQr(int vehicleId) async {
-    try {
-      await _api.post('/vehicles/$vehicleId/qr/refresh', {});
-    } catch (_) {}
-  }
+  // _refreshQr supprimé — régénération auto côté backend à chaque scan (TripController.start)
 
   @override
   Widget build(BuildContext context) {
@@ -330,11 +325,11 @@ class _QrDialogState extends State<_QrDialog> {
             size: 220,
             backgroundColor: Colors.white,
             eyeStyle: const QrEyeStyle(
-              eyeShape: QrEyeShape.roundedOuter,
+              eyeShape: QrEyeShape.square,
               color: Colors.black,
             ),
             dataModuleStyle: const QrDataModuleStyle(
-              dataModuleShape: QrDataModuleShape.roundedOuter,
+              dataModuleShape: QrDataModuleShape.square,
               color: Colors.black,
             ),
           ),

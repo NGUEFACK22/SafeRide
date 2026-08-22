@@ -413,12 +413,16 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
           FilledButton.icon(
             onPressed: () {
               Navigator.pop(ctx);
+              if (!mounted) return;
               // Navigation vers notation
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => _RatingWrapper(trip: trip),
                 ),
-              ).then((_) => Navigator.of(context).pushReplacementNamed('/home'));
+              ).then((_) {
+                if (!mounted) return;
+                Navigator.of(context).pushReplacementNamed('/home');
+              });
             },
             icon: const Icon(Icons.star_rate),
             label: const Text('Noter le trajet'),
