@@ -29,8 +29,6 @@ class AppTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: background,
       useMaterial3: true,
-      // ignore: deprecated_member_use
-      backgroundColor: background,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
         foregroundColor: textDark,
