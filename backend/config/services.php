@@ -63,4 +63,9 @@ return [
         'sender' => env('INFOBIP_SENDER', 'SafeRide'),
     ],
 
+    'whatsapp' => [
+        'sender' => env('INFOBIP_WHATSAPP_SENDER', env('INFOBIP_SENDER', 'SafeRide')),
+        // Si INFOBIP_WHATSAPP_SENDER est vide, WhatsappService::ready() = false -> seul SMS
+    ],
+
 ];

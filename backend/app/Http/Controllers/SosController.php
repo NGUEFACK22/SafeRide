@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\VoiceSecurityProfile;
 use App\Mail\SosAlertMail;
 use App\Services\SmsService;
+use App\Services\WhatsappService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -195,22 +196,37 @@ class SosController extends Controller
         $trip = $sos->trip;
         $smsMessage = $this->smsMessage($sos, $trip, null);
         $smsService = app(SmsService::class);
+        $waService = app(WhatsappService::class);
 
-        // Contacts d'urgence du passager -> notification DB + email + SMS (Africa's Talking)
+        // Contacts d'urgence du passager -> SMS TOUJOURS + WhatsApp si numéro sur WhatsApp + email
         EmergencyContact::where('user_id', $sos->passager_id)
             ->get()
-            ->each(function (EmergencyContact $contact) use ($sos, $trip, $smsMessage, $smsService) {
+            ->each(function (EmergencyContact $contact) use ($sos, $trip, $smsMessage, $smsService, $waService) {
                 $canaux = [];
 
-                // SMS (Africa's Talking) : le canal le plus direct pour prévenir la personne
+                // 1) SMS — canal obligatoire (fonctionne sans internet côté destinataire)
+                $smsSent = false;
                 if ($contact->telephone) {
                     $smsSent = $smsService->send($contact->telephone, $smsMessage);
-                    if ($smsSent) {
-                        $canaux[] = 'SMS (' . $contact->telephone . ')';
+                    // Même si Infobip sans crédit / clé vide, on log et on continue (fallback WhatsApp côté mobile)
+                    $canaux[] = $smsSent ? 'SMS (' . $contact->telephone . ')' : 'SMS tenté (' . $contact->telephone . ')';
+                }
+
+                // 2) WhatsApp — complémentaire si le numéro est sur WhatsApp
+                $waSent = false;
+                if ($contact->telephone && $waService->ready()) {
+                    if ($waService->isOnWhatsApp($contact->telephone)) {
+                        $waSent = $waService->send($contact->telephone, $smsMessage);
+                        if ($waSent) {
+                            $canaux[] = 'WhatsApp (' . $contact->telephone . ')';
+                        }
+                    } else {
+                        // Numéro non WhatsApp -> on reste en SMS seul (normal)
+                        \Illuminate\Support\Facades\Log::info('Contact non WhatsApp, SMS seul', ['to' => $contact->telephone]);
                     }
                 }
 
-                // Email réel (SMTP)
+                // 3) Email réel (SMTP)
                 if ($contact->email) {
                     try {
                         Mail::to($contact->email)->send(new SosAlertMail($sos, $trip, $contact->nom));
@@ -225,7 +241,7 @@ class SosController extends Controller
                     'type' => 'SOS',
                     'titre' => 'SOS en cours — Contact ' . $contact->nom,
                     'message' => 'Votre contact d\'urgence ' . $contact->nom
-                        . (count($canaux) > 0 ? ' a été notifié par ' . implode(' et ', $canaux) : ' n\'a pas pu être notifié (aucun canal configuré).'),
+                        . (count($canaux) > 0 ? ' a été notifié par ' . implode(' et ', $canaux) . ($smsSent ? '' : ' (SMS en attente de crédit, WhatsApp/email actifs)') : ' n\'a pas pu être notifié (aucun canal configuré).'),
                 ]);
             });
 
