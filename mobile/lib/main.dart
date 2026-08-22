@@ -20,8 +20,10 @@ import 'screens/notifications_screen.dart';
 import 'screens/trip_map_screen.dart';
 import 'screens/rating_screen.dart';
 import 'screens/transporteur_dashboard_screen.dart';
+import 'screens/profile_screen.dart';
 import 'screens/admin_screen.dart';
 import 'screens/emergency_contacts_screen.dart';
+import 'theme/app_theme.dart';
 import 'services/auth_service.dart';
 import 'services/push_service.dart';
 
@@ -44,10 +46,7 @@ class SafeRideApp extends StatelessWidget {
     return MaterialApp(
       title: 'SafeRide AI',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B5E20)),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light,
       initialRoute: '/',
       routes: {
         '/': (ctx) => const SplashScreen(),
@@ -85,6 +84,10 @@ class SafeRideApp extends StatelessWidget {
         '/admin': (ctx) => const AdminScreen(),
         '/emergency-contacts': (ctx) => const EmergencyContactsScreen(),
         '/transporteur-dashboard': (ctx) => const TransporteurDashboardScreen(),
+        '/profile': (ctx) {
+          final arg = ModalRoute.of(ctx)?.settings.arguments;
+          return ProfileScreen(user: arg as dynamic);
+        },
       },
     );
   }
@@ -125,24 +128,26 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.shield,
-              size: 80,
-              color: Theme.of(context).colorScheme.primary,
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: const Color(0xFF111827),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.shield, size: 36, color: AppTheme.primaryBlue),
             ),
             const SizedBox(height: 16),
-            Text(
-              'SafeRide AI',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
+            const Text('SafeRide AI', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+            const SizedBox(height: 6),
+            const Text('Bienvenue sur SafeRide AI', style: TextStyle(color: AppTheme.textGrey)),
             const SizedBox(height: 32),
-            const CircularProgressIndicator(),
+            const CircularProgressIndicator(color: AppTheme.primaryBlue),
           ],
         ),
       ),

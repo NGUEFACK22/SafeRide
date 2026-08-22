@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../services/trip_service.dart';
+import '../theme/app_theme.dart';
 
 class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});
@@ -59,35 +60,62 @@ class _ScanScreenState extends State<ScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Scanner le QR')),
+      backgroundColor: const Color(0xFF0B1220),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.shield, color: Colors.white), onPressed: () => Navigator.pop(context)),
+        title: const Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        centerTitle: true,
+        actions: const [Padding(padding: EdgeInsets.only(right: 12), child: CircleAvatar(radius: 14, backgroundImage: NetworkImage('https://i.pravatar.cc/100')))],
+      ),
       body: Stack(
         children: [
-          MobileScanner(
-            controller: _scanner,
-            onDetect: _onDetect,
+          MobileScanner(controller: _scanner, onDetect: _onDetect),
+          // Overlay sombre + consigne
+          Container(color: Colors.black.withValues(alpha: 0.35)),
+          Positioned(
+            top: 24,
+            left: 16,
+            right: 16,
+            child: Column(
+              children: [
+                const Text('Scannez le QR Code du\ntransporteur pour démarrer\nvotre trajet', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 18),
+                Container(
+                  height: 220,
+                  decoration: BoxDecoration(border: Border.all(color: AppTheme.primaryBlue, width: 2), borderRadius: BorderRadius.circular(20)),
+                  child: Stack(children: [
+                    ClipRRect(borderRadius: BorderRadius.circular(18), child: MobileScanner(controller: _scanner, onDetect: _onDetect)),
+                    Positioned.fill(child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white.withValues(alpha: 0.15))))),
+                  ]),
+                ),
+              ],
+            ),
           ),
           if (_loading)
-            Container(
-              color: Colors.black54,
-              child: const Center(child: CircularProgressIndicator()),
-            ),
+            Container(color: Colors.black54, child: const Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue))),
+          // Bottom sheet maquette "Transporteur identifié"
           Positioned(
-            bottom: 30,
+            bottom: 0,
             left: 0,
             right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.symmetric(horizontal: 40),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.7),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'Placez le QR du transporteur dans le cadre',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white),
-                ),
+            child: Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+              child: Row(
+                children: [
+                  Container(width: 44, height: 44, decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.verified_user, color: AppTheme.primaryBlue)),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Transporteur identifié', style: TextStyle(fontWeight: FontWeight.w800)),
+                      Text('Jean Dupont - Véhicule certifié', style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+                    ]),
+                  ),
+                ],
               ),
             ),
           ),

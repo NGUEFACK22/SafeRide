@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/user.dart';
 import '../services/auth_service.dart';
+import '../theme/app_theme.dart';
 import '../widgets/google_sign_in_button.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -43,92 +44,94 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: Form(
               key: _formKey,
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'SafeRide AI',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF111827),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(Icons.shield, size: 32, color: AppTheme.primaryBlue),
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Voyagez en toute sécurité',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 16),
+                  const Text('SafeRide AI', textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+                  const SizedBox(height: 6),
+                  const Text('Bienvenue sur SafeRide AI', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.textGrey, fontSize: 14)),
+                  const SizedBox(height: 28),
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(),
+                      hintText: 'Adresse e-mail',
+                      prefixIcon: Icon(Icons.mail_outline),
+                      filled: true,
+                      fillColor: AppTheme.background,
                     ),
-                    validator: (v) =>
-                        (v == null || v.isEmpty) ? 'Email requis' : null,
+                    validator: (v) => (v == null || v.isEmpty) ? 'Email requis' : null,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   TextFormField(
                     controller: _passwordController,
                     obscureText: true,
                     decoration: const InputDecoration(
-                      labelText: 'Mot de passe',
+                      hintText: 'Mot de passe',
                       prefixIcon: Icon(Icons.lock_outline),
-                      border: OutlineInputBorder(),
+                      suffixIcon: Icon(Icons.visibility_off_outlined),
+                      filled: true,
+                      fillColor: AppTheme.background,
                     ),
-                    validator: (v) => (v == null || v.isEmpty)
-                        ? 'Mot de passe requis'
-                        : null,
+                    validator: (v) => (v == null || v.isEmpty) ? 'Mot de passe requis' : null,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {},
+                      child: const Text('Mot de passe oublié ?', style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w600, fontSize: 13)),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   FilledButton(
                     onPressed: _loading ? null : _submit,
+                    style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     child: _loading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Se connecter'),
+                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Text('Se connecter', style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
                   Row(
                     children: [
-                      const Expanded(child: Divider()),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          'ou',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ),
-                      const Expanded(child: Divider()),
+                      Expanded(child: Divider(color: Colors.grey.shade300)),
+                      const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('OU CONTINUER AVEC', style: TextStyle(fontSize: 11, color: AppTheme.textGrey, fontWeight: FontWeight.w600))),
+                      Expanded(child: Divider(color: Colors.grey.shade300)),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
                   GoogleSignInButton(
                     onSuccess: (User user) {
                       Navigator.of(context).pushReplacementNamed('/home', arguments: user);
                     },
                   ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/register');
-                    },
-                    child: const Text("Pas de compte ? S'inscrire"),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text("Pas de compte ? ", style: TextStyle(color: AppTheme.textGrey)),
+                      GestureDetector(onTap: () => Navigator.pushNamed(context, '/register'), child: const Text("S'inscrire", style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w700))),
+                    ],
                   ),
                 ],
               ),
