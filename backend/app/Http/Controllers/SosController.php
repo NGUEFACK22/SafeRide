@@ -68,11 +68,11 @@ class SosController extends Controller
             default => 'Alerte vocale reçue mais non vérifiée — en cours de vérification.',
         };
 
-        // Contacts d'urgence avec téléphone pour envoi SMS natif côté mobile
+        // Contacts d'urgence avec téléphone pour envoi SMS/WhatsApp natif côté mobile
         $contacts = EmergencyContact::where('user_id', $request->user()->id)
             ->whereNotNull('telephone')
             ->where('telephone', '!=', '')
-            ->select('nom', 'telephone')
+            ->select('nom', 'telephone', 'whatsapp_telephone', 'email')
             ->get();
 
         return response()->json([
@@ -212,17 +212,18 @@ class SosController extends Controller
                     $canaux[] = $smsSent ? 'SMS (' . $contact->telephone . ')' : 'SMS tenté (' . $contact->telephone . ')';
                 }
 
-                // 2) WhatsApp — complémentaire si le numéro est sur WhatsApp
+                // 2) WhatsApp — complémentaire si le numéro WhatsApp est sur WhatsApp
+                // On privilégie whatsapp_telephone si renseigné, sinon on retombe sur telephone
+                $waNumber = $contact->whatsapp_telephone ?: $contact->telephone;
                 $waSent = false;
-                if ($contact->telephone && $waService->ready()) {
-                    if ($waService->isOnWhatsApp($contact->telephone)) {
-                        $waSent = $waService->send($contact->telephone, $smsMessage);
+                if ($waNumber && $waService->ready()) {
+                    if ($waService->isOnWhatsApp($waNumber)) {
+                        $waSent = $waService->send($waNumber, $smsMessage);
                         if ($waSent) {
-                            $canaux[] = 'WhatsApp (' . $contact->telephone . ')';
+                            $canaux[] = 'WhatsApp (' . $waNumber . ')';
                         }
                     } else {
-                        // Numéro non WhatsApp -> on reste en SMS seul (normal)
-                        \Illuminate\Support\Facades\Log::info('Contact non WhatsApp, SMS seul', ['to' => $contact->telephone]);
+                        \Illuminate\Support\Facades\Log::info('Contact non WhatsApp, SMS seul', ['to' => $waNumber]);
                     }
                 }
 

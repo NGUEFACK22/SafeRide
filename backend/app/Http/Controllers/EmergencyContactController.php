@@ -23,7 +23,8 @@ class EmergencyContactController extends Controller
             'nom' => 'required|string|max:100',
             'telephone' => 'required|string|max:20',
             'relation' => 'nullable|string|max:50',
-            'email' => 'nullable|email|max:150',
+            'email' => 'required|email|max:150',
+            'whatsapp_telephone' => 'nullable|string|max:20',
         ]);
 
         $contact = EmergencyContact::create([
@@ -31,7 +32,8 @@ class EmergencyContactController extends Controller
             'nom' => $data['nom'],
             'telephone' => $data['telephone'],
             'relation' => $data['relation'] ?? null,
-            'email' => $data['email'] ?? null,
+            'email' => $data['email'],
+            'whatsapp_telephone' => $data['whatsapp_telephone'] ?? null,
         ]);
 
         return response()->json([
@@ -50,7 +52,8 @@ class EmergencyContactController extends Controller
             'nom' => 'sometimes|string|max:100',
             'telephone' => 'sometimes|string|max:20',
             'relation' => 'sometimes|nullable|string|max:50',
-            'email' => 'sometimes|nullable|email|max:150',
+            'email' => 'sometimes|required|email|max:150',
+            'whatsapp_telephone' => 'sometimes|nullable|string|max:20',
         ]);
 
         $contact->update($data);

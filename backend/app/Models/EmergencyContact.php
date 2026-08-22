@@ -10,7 +10,7 @@ class EmergencyContact extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'nom', 'telephone', 'email', 'relation'];
+    protected $fillable = ['user_id', 'nom', 'telephone', 'email', 'whatsapp_telephone', 'relation'];
 
     public function user(): BelongsTo
     {

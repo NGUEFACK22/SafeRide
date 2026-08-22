@@ -545,7 +545,9 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       if (contacts.isEmpty || smsMessage == null || smsMessage.isEmpty) return;
 
       final phones = contacts
-          .map((c) => (c['telephone'] as String?)?.trim())
+          .map((c) => ((c['whatsapp_telephone'] as String?)?.trim().isNotEmpty == true
+                  ? c['whatsapp_telephone'] as String
+                  : c['telephone'] as String?)?.trim())
           .where((p) => p != null && p.isNotEmpty)
           .cast<String>()
           .toList();

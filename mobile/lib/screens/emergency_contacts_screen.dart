@@ -132,11 +132,12 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(contact['telephone'] ?? ''),
+                                  Text('📞 ${contact['telephone'] ?? ''}'),
+                                  if (contact['whatsapp_telephone'] != null)
+                                    Text('💬 WhatsApp: ${contact['whatsapp_telephone']}'),
                                   if (contact['relation'] != null)
                                     Text('Relation : ${contact['relation']}'),
-                                  if (contact['email'] != null)
-                                    Text(contact['email']),
+                                  Text('✉️ ${contact['email'] ?? ''}'),
                                 ],
                               ),
                               trailing: Row(
@@ -179,6 +180,7 @@ class _ContactFormDialogState extends State<_ContactFormDialog> {
   late final TextEditingController _telephone;
   late final TextEditingController _relation;
   late final TextEditingController _email;
+  late final TextEditingController _whatsapp;
   bool _submitting = false;
 
   bool get _isEdit => widget.contact != null;
@@ -191,6 +193,7 @@ class _ContactFormDialogState extends State<_ContactFormDialog> {
     _telephone = TextEditingController(text: c?['telephone'] as String? ?? '');
     _relation = TextEditingController(text: c?['relation'] as String? ?? '');
     _email = TextEditingController(text: c?['email'] as String? ?? '');
+    _whatsapp = TextEditingController(text: c?['whatsapp_telephone'] as String? ?? c?['whatsapp'] as String? ?? '');
   }
 
   @override
@@ -199,6 +202,7 @@ class _ContactFormDialogState extends State<_ContactFormDialog> {
     _telephone.dispose();
     _relation.dispose();
     _email.dispose();
+    _whatsapp.dispose();
     super.dispose();
   }
 
@@ -210,7 +214,8 @@ class _ContactFormDialogState extends State<_ContactFormDialog> {
         'nom': _nom.text.trim(),
         'telephone': _telephone.text.trim(),
         'relation': _relation.text.trim().isEmpty ? null : _relation.text.trim(),
-        'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
+        'email': _email.text.trim(),
+        'whatsapp_telephone': _whatsapp.text.trim().isEmpty ? null : _whatsapp.text.trim(),
       };
       final Map<String, dynamic> data = _isEdit
           ? await ApiService().put(
@@ -261,13 +266,23 @@ class _ContactFormDialogState extends State<_ContactFormDialog> {
               TextFormField(
                 controller: _email,
                 decoration: const InputDecoration(
-                    labelText: 'Email (facultatif)',
-                    hintText: 'Notifié en plus du SMS'),
+                    labelText: 'Email *',
+                    hintText: 'Obligatoire - notifié à chaque SOS'),
                 keyboardType: TextInputType.emailAddress,
                 validator: (v) =>
-                    (v == null || v.isEmpty || v.contains('@'))
+                    (v != null && v.contains('@') && v.contains('.'))
                         ? null
-                        : 'Email invalide',
+                        : 'Email invalide (obligatoire)',
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _whatsapp,
+                decoration: const InputDecoration(
+                    labelText: 'Numéro WhatsApp *',
+                    hintText: 'Ex: 690000000 (numéro qui a WhatsApp)'),
+                keyboardType: TextInputType.phone,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Numéro WhatsApp requis' : null,
               ),
             ],
           ),

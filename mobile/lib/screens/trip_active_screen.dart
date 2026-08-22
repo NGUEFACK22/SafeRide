@@ -327,7 +327,9 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
         final sms = data['sms_message'] as String?;
         if (contacts.isNotEmpty && sms != null) {
           final phones = contacts
-              .map((c) => (c['telephone'] as String?)?.trim())
+              .map((c) => ((c['whatsapp_telephone'] as String?)?.trim().isNotEmpty == true
+                      ? c['whatsapp_telephone'] as String
+                      : c['telephone'] as String?)?.trim())
               .whereType<String>()
               .where((p) => p.isNotEmpty)
               .toList();
