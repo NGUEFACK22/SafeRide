@@ -1,13 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/trip.dart';
 import '../services/trip_service.dart';
 import '../services/offline_service.dart';
 import '../services/background_location_service.dart';
 import '../services/geocoding_service.dart';
-import 'package:geolocator/geolocator.dart';
+import '../services/vosk_service.dart';
+import '../services/voiceprint_service.dart';
+import '../services/sos_service.dart';
+import '../services/whatsapp_service.dart';
 import 'rating_screen.dart';
 
 class TripActiveScreen extends StatefulWidget {
@@ -22,6 +27,9 @@ class TripActiveScreen extends StatefulWidget {
 class _TripActiveScreenState extends State<TripActiveScreen> {
   final _tripService = TripService();
   final _offline = OfflineService.instance;
+  final _voskMonitor = VoskService();
+  final _voiceprint = VoiceprintService();
+  final _sosService = SosService();
   Trip? _trip;
   bool _loading = true;
   bool _busy = false;
@@ -31,6 +39,14 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   bool _offlineBanner = false;
   int _pendingCount = 0;
   Timer? _tracker;
+
+  // Surveillance vocale automatique pendant EN_COURS (flux 3-5)
+  String? _securityWord;
+  bool _voiceAvailable = false;
+  bool _voiceMonitoring = false;
+  bool _autoSosSending = false;
+  DateTime? _lastAutoSosAt;
+  String _voiceStatus = '';
 
   @override
   void initState() {
@@ -48,6 +64,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   @override
   void dispose() {
     _tracker?.cancel();
+    _stopVoiceMonitoring();
     _destinationController.dispose();
     super.dispose();
   }
@@ -72,15 +89,17 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     }
   }
 
-  /// Déclenche les actions liées à l'état courant (suivi GPS en EN_COURS).
+  /// Déclenche les actions liées à l'état courant (suivi GPS + écoute vocale en EN_COURS).
   void _enterState() {
     if (_trip?.statut == 'EN_COURS') {
       _startTracking();
       // Foreground Service Android : suivi GPS en arrière-plan
       Geolocator.requestPermission().then((_) {}, onError: (_) {});
       BackgroundLocationService().startTripTracking(_trip!.id);
+      _startVoiceMonitoring();
     } else {
       _tracker?.cancel();
+      _stopVoiceMonitoring();
     }
   }
 
@@ -205,6 +224,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       if (!mounted) return;
       _tracker?.cancel();
       BackgroundLocationService().stopTripTracking();
+      await _stopVoiceMonitoring();
       setState(() {
         _trip = trip;
         _busy = false;
@@ -214,6 +234,147 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       if (!mounted) return;
       setState(() => _busy = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+    }
+  }
+
+  // ===== Surveillance vocale automatique (flux 3-5) =====
+
+  Future<void> _startVoiceMonitoring() async {
+    if (_voiceMonitoring) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _securityWord = prefs.getString('voice_security_word');
+      if (_securityWord == null || _securityWord!.trim().isEmpty) {
+        if (mounted) setState(() => _voiceStatus = 'Mot de sécurité non configuré');
+        return;
+      }
+      _voiceAvailable = await _voiceprint.ensureLoaded();
+      final voskOk = await _voskMonitor.ensureLoaded(securityWord: _securityWord);
+      if (!voskOk) {
+        if (mounted) setState(() => _voiceStatus = 'Vosk absent — écoute automatique désactivée');
+        return;
+      }
+      if (mounted) setState(() => _voiceStatus = 'Écoute automatique active…');
+      final started = await _voskMonitor.startListening(
+        securityWord: _securityWord!,
+        onPartial: (partial) {
+          if (!mounted) return;
+          setState(() => _voiceStatus = 'Écoute… "$partial"');
+        },
+        onResult: (text) async {
+          if (_autoSosSending) return;
+          // Cooldown 30s pour éviter double déclenchement
+          if (_lastAutoSosAt != null && DateTime.now().difference(_lastAutoSosAt!).inSeconds < 30) return;
+          await _onAutoKeywordDetected(text);
+        },
+        onError: (e) {
+          if (!mounted) return;
+          setState(() => _voiceStatus = 'Erreur écoute: $e');
+        },
+      );
+      if (started && mounted) {
+        setState(() {
+          _voiceMonitoring = true;
+          _voiceStatus = '🔴 Écoute automatique Vosk active ("$_securityWord")';
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _voiceStatus = 'Écoute impossible: $e');
+    }
+  }
+
+  Future<void> _stopVoiceMonitoring() async {
+    if (!_voiceMonitoring) return;
+    try {
+      await _voskMonitor.stopListening();
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _voiceMonitoring = false;
+        _voiceStatus = 'Écoute arrêtée';
+      });
+    }
+  }
+
+  Future<void> _onAutoKeywordDetected(String text) async {
+    final word = _securityWord;
+    if (word == null || _trip == null) return;
+    if (!text.toLowerCase().contains(word.toLowerCase())) return;
+    _lastAutoSosAt = DateTime.now();
+    if (mounted) setState(() => _voiceStatus = 'Mot détecté "$word" → vérification vocale…');
+    await _autoVerifyAndSend(word);
+  }
+
+  Future<void> _autoVerifyAndSend(String keyword) async {
+    if (_autoSosSending) return;
+    _autoSosSending = true;
+    try {
+      // Pause temporaire de l'écoute pendant la vérif biométrique
+      await _voskMonitor.stopListening();
+      if (mounted) setState(() => _voiceStatus = 'Vérification biométrique (ECAPA)…');
+      Object empreinte;
+      if (_voiceAvailable) {
+        final emb = await _voiceprint.captureEmbedding(const Duration(seconds: 3));
+        empreinte = emb ?? await _sosService.voiceprintToken(keyword);
+      } else {
+        empreinte = await _sosService.voiceprintToken(keyword);
+      }
+      final pos = await _autoPosition();
+      final data = await _sosService.triggerVocal(_trip!.id, pos.latitude, pos.longitude, keyword, empreinte);
+      // WhatsApp automatique
+      try {
+        final contacts = data['emergency_contacts'] as List<dynamic>? ?? [];
+        final sms = data['sms_message'] as String?;
+        if (contacts.isNotEmpty && sms != null) {
+          final phones = contacts
+              .map((c) => (c['telephone'] as String?)?.trim())
+              .whereType<String>()
+              .where((p) => p.isNotEmpty)
+              .toList();
+          if (phones.isNotEmpty) await WhatsAppService.instance.sendBulk(phones, sms);
+        }
+      } catch (_) {}
+      final details = (data['sos'] as Map<String, dynamic>?)?['details'] as Map<String, dynamic>?;
+      final passed = details?['verification_passed'] == true;
+      if (!mounted) return;
+      setState(() => _voiceStatus = passed ? '✅ SOS vérifié et transmis !' : '❌ Voix différente — alerte en vérification');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: passed ? Colors.green.shade700 : Colors.orange.shade800,
+          content: Text(passed ? '✅ Voix correspondante — SOS déclenché !' : '❌ Voix différente — alerte en vérification'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      // Relancer l'écoute après 5s
+      await Future<void>.delayed(const Duration(seconds: 5));
+      if (mounted && _trip?.statut == 'EN_COURS') {
+        _voiceMonitoring = false; // forcer restart
+        await _startVoiceMonitoring();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _voiceStatus = 'Erreur auto SOS: $e');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('SOS auto erreur: $e')));
+      }
+      // Relancer quand même après erreur
+      await Future<void>.delayed(const Duration(seconds: 3));
+      if (mounted && _trip?.statut == 'EN_COURS') {
+        _voiceMonitoring = false;
+        await _startVoiceMonitoring();
+      }
+    } finally {
+      _autoSosSending = false;
+    }
+  }
+
+  Future<({double latitude, double longitude})> _autoPosition() async {
+    try {
+      final p = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+      return (latitude: p.latitude, longitude: p.longitude);
+    } catch (_) {
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) return (latitude: last.latitude, longitude: last.longitude);
+      rethrow;
     }
   }
 
@@ -485,13 +646,16 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
           ),
         const SizedBox(height: 16),
         Card(
-          color: Colors.green.shade50,
-          child: const ListTile(
-            leading: Icon(Icons.security, color: Colors.green),
-            title: Text('Protection vocale active'),
+          color: _voiceMonitoring ? Colors.green.shade50 : Colors.orange.shade50,
+          child: ListTile(
+            leading: Icon(_voiceMonitoring ? Icons.hearing : Icons.hearing_disabled,
+                color: _voiceMonitoring ? Colors.green : Colors.orange),
+            title: Text(_voiceMonitoring ? 'Protection vocale active (auto)' : 'Protection vocale inactive'),
             subtitle: Text(
-              'Le mot de sécurité est écouté pendant le trajet. '
-              'Un SOS est déclenché si le mot et la voix sont validés.',
+              _voiceStatus.isNotEmpty
+                  ? _voiceStatus
+                  : 'Le mot de sécurité est écouté automatiquement pendant le trajet. '
+                      'Vosk (mot-clé) + ECAPA (voix) -> ✅/❌ automatique.',
             ),
           ),
         ),
