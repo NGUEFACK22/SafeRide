@@ -22,7 +22,10 @@ class AuthController extends Controller
             'email' => 'required|email|unique:users,email',
             'telephone' => 'required|string|max:20|unique:users,telephone',
             'password' => 'required|string|min:8',
+            'role' => 'nullable|in:passager,transporteur',
         ]);
+
+        $role = $data['role'] ?? 'passager';
 
         $user = User::create([
             'nom' => $data['nom'],
@@ -33,7 +36,7 @@ class AuthController extends Controller
             'statut' => 'ACTIF',
         ]);
 
-        $user->assignRole('passager');
+        $user->assignRole($role);
 
         $token = $user->createToken('auth')->plainTextToken;
 

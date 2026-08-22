@@ -34,6 +34,7 @@ class AuthService {
     required String email,
     required String telephone,
     required String password,
+    String role = 'passager',
   }) async {
     final body = {
       'nom': nom,
@@ -41,6 +42,7 @@ class AuthService {
       'email': email,
       'telephone': telephone,
       'password': password,
+      'role': role,
     };
 
     final data = await _api.post('/auth/register', body, auth: false);

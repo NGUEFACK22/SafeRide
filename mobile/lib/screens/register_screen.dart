@@ -20,6 +20,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _telephoneController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _loading = false;
+  String _selectedRole = 'passager';
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -32,6 +33,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         email: _emailController.text.trim(),
         telephone: _telephoneController.text.trim(),
         password: _passwordController.text,
+        role: _selectedRole,
       );
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/home', arguments: user);
@@ -113,6 +115,56 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   validator: (v) => (v == null || v.length < 8)
                       ? 'Minimum 8 caractères'
                       : null,
+                ),
+                const SizedBox(height: 16),
+                // Sélecteur de rôle
+                Text(
+                  'Vous êtes :',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: RadioListTile<String>(
+                        title: const Text('Passager'),
+                        subtitle: const Text('Je cherche un transport'),
+                        value: 'passager',
+                        groupValue: _selectedRole,
+                        onChanged: (v) => setState(() => _selectedRole = v!),
+                        secondary: const Icon(Icons.person),
+                        activeColor: Theme.of(context).colorScheme.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: _selectedRole == 'passager'
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.grey.shade300,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: RadioListTile<String>(
+                        title: const Text('Transporteur'),
+                        subtitle: const Text('Je propose un transport'),
+                        value: 'transporteur',
+                        groupValue: _selectedRole,
+                        onChanged: (v) => setState(() => _selectedRole = v!),
+                        secondary: const Icon(Icons.local_taxi),
+                        activeColor: Theme.of(context).colorScheme.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: _selectedRole == 'transporteur'
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.grey.shade300,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
                 FilledButton(
