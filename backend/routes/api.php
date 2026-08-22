@@ -14,6 +14,7 @@ use App\Http\Controllers\TripController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\VoiceSecurityProfileController;
 use App\Http\Controllers\AiController;
+use App\Http\Controllers\RatingController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -47,6 +48,7 @@ Route::post('auth/google', [AuthController::class, 'google']);
         Route::delete('vehicles/{vehicle}', [VehicleController::class, 'destroy']);
         Route::get('vehicles/{vehicle}/qr', [VehicleController::class, 'qr']);
         Route::post('vehicles/{vehicle}/qr/toggle', [VehicleController::class, 'toggleQr']);
+        Route::post('vehicles/{vehicle}/qr/refresh', [VehicleController::class, 'refreshQr']);
         Route::post('vehicles/{vehicle}/position', [VehicleController::class, 'position']);
 
         // Identité
@@ -108,6 +110,14 @@ Route::post('auth/google', [AuthController::class, 'google']);
         Route::get('notifications/unread-count', [NotificationController::class, 'unreadCount']);
         Route::post('notifications/read-all', [NotificationController::class, 'markAllRead']);
         Route::post('notifications/{notification}/read', [NotificationController::class, 'markRead']);
+
+        // Notation des trajets (1-5 étoiles + commentaire)
+        Route::post('trips/{trip}/rate', [RatingController::class, 'store']);
+        Route::put('trips/{trip}/rate', [RatingController::class, 'update']);
+        Route::get('trips/{trip}/ratings', [RatingController::class, 'index']);
+        Route::get('ratings/received', [RatingController::class, 'received']);
+        Route::get('ratings/given', [RatingController::class, 'given']);
+        Route::get('users/{user}/ratings/stats', [RatingController::class, 'stats']);
 
         // Token push FCM (Firebase Cloud Messaging)
         Route::post('push-token', [PushTokenController::class, 'store']);

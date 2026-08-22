@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../models/trip.dart';
+import '../models/trip_rating.dart';
 import '../services/trip_service.dart';
+import '../widgets/rating_stars.dart';
+import 'rating_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -74,15 +77,37 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 '${trip.distanceKm?.toStringAsFixed(1) ?? '—'} km · '
                                 'fin ${trip.endMethod == 'AUTO_10MIN' ? 'auto' : 'manuelle'}',
                               ),
-                              trailing: Text(
-                                '${(trip.durationSeconds ?? 0) ~/ 60} min',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              trailing: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    '${(trip.durationSeconds ?? 0) ~/ 60} min',
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  if (trip.ratingsAvg != null && trip.ratingsAvg! > 0)
+                                    RatingStars(rating: trip.ratingsAvg!, size: 12),
+                                ],
                               ),
                               onTap: () {
                                 Navigator.of(context).pushNamed(
                                   '/trip-map',
                                   arguments: trip.id,
                                 );
+                              },
+                              onLongPress: () async {
+                                final existing = trip.myRating != null
+                                    ? TripRating.fromJson(trip.myRating!)
+                                    : null;
+                                final result = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => RatingScreen(
+                                      trip: trip,
+                                      existingRating: existing,
+                                    ),
+                                  ),
+                                );
+                                if (result == true) _load();
                               },
                             ),
                           );

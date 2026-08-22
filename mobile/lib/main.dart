@@ -18,6 +18,7 @@ import 'screens/dispute_screen.dart';
 import 'screens/identity_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/trip_map_screen.dart';
+import 'screens/rating_screen.dart';
 import 'screens/admin_screen.dart';
 import 'screens/emergency_contacts_screen.dart';
 import 'services/auth_service.dart';
@@ -74,6 +75,10 @@ class SafeRideApp extends StatelessWidget {
         '/trip-map': (ctx) {
           final arg = ModalRoute.of(ctx)?.settings.arguments;
           return TripMapScreen(tripId: arg as int);
+        },
+        '/rating': (ctx) {
+          final arg = ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>;
+          return RatingScreen(trip: arg['trip'], existingRating: arg['existing']);
         },
         '/notifications': (ctx) => const NotificationsScreen(),
         '/admin': (ctx) => const AdminScreen(),

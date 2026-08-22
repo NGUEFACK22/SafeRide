@@ -116,6 +116,26 @@ class User extends Authenticatable
         return $this->hasMany(ManagerAssignment::class, 'manager_id');
     }
 
+    public function ratingsReceived(): HasMany
+    {
+        return $this->hasMany(TripRating::class, 'rated_id');
+    }
+
+    public function ratingsGiven(): HasMany
+    {
+        return $this->hasMany(TripRating::class, 'rater_id');
+    }
+
+    public function averageRating(): float
+    {
+        return round((float) ($this->ratingsReceived()->avg('rating') ?? 0), 2);
+    }
+
+    public function ratingsCount(): int
+    {
+        return $this->ratingsReceived()->count();
+    }
+
     /**
      * Statut de vérification d'identité le plus récent (exposé au transporteur).
      */

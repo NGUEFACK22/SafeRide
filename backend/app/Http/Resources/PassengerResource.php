@@ -18,6 +18,8 @@ class PassengerResource extends JsonResource
             'prenom' => $this->prenom,
             'photo_url' => $this->photo_url,
             'statut_verification' => $this->statutVerification(),
+            'average_rating' => $this->averageRating(),
+            'ratings_count' => $this->ratingsCount(),
         ];
     }
 }

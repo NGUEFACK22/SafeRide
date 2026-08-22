@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../models/trip.dart';
 import '../services/trip_service.dart';
+import 'rating_screen.dart';
 
 class TripMapScreen extends StatefulWidget {
   final int tripId;
@@ -131,7 +132,31 @@ class _TripMapScreenState extends State<TripMapScreen> {
     final title = widget.trip?.destinationAddress ?? 'Trajet #${widget.tripId}';
 
     return Scaffold(
-      appBar: AppBar(title: Text('Itinéraire · $title')),
+      appBar: AppBar(
+        title: Text('Itinéraire · $title'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.star_rate),
+            tooltip: 'Noter ce trajet',
+            onPressed: () async {
+              // Le trip complet n'est pas chargé ici, on crée un Trip minimal
+              final tripForRating = widget.trip ??
+                  Trip(
+                    id: widget.tripId,
+                    passagerId: 0,
+                    transporteurId: 0,
+                    vehicleId: 0,
+                    statut: 'TERMINE',
+                    destinationAddress: title,
+                  );
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => RatingScreen(trip: tripForRating)),
+              );
+            },
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

@@ -59,16 +59,7 @@ class IdentityController extends Controller
                 $result = $this->didit->verifyIdDocument($image);
                 $document->update(['ocr_data' => $result]);
 
-                if (($result['status'] ?? '') === 'error') {
-                    $finalStatut = 'A_EXAMINER';
-                } else {
-                    $diditStatus = strtolower($result['id_verification']['status'] ?? 'unknown');
-                    $finalStatut = match ($diditStatus) {
-                        'approved' => 'VERIFIE',
-                        'declined' => 'ECHOUE',
-                        default => 'A_EXAMINER',
-                    };
-                }
+                $finalStatut = $this->determineKycStatus($result);
 
                 $verification->update([
                     'provider_kyc' => 'didit',
@@ -84,8 +75,9 @@ class IdentityController extends Controller
                     $verification->save();
                 }
             } catch (\Throwable $e) {
-                // Échec Didit -> on garde la vérification manuelle
+                // Échec Didit (ex. clés épuisées, réseau) → vérification manuelle
                 $finalStatut = 'EN_ATTENTE';
+                \Log::warning('Didit KYC échec', ['error' => $e->getMessage()]);
             }
         }
 
@@ -129,6 +121,36 @@ class IdentityController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Détermine le statut de vérification KYC suite à l'appel Didit.
+     *
+     * Standing normale :
+     *   - Didit crédités + document approved → VERIFIE (auto)
+     *   - Didit crédités + document declined → ECHOUE (auto)
+     *   - Didit sans crédits / clé absente → EN_ATTENTE (revue manuelle)
+     *   - Didit réponse inattendue / erreur → A_EXAMINER (revue manuelle)
+     *
+     * @param array $result Réponse complète de l'API Didit
+     * @return string      L'un des statuts: VERIFIE, ECHOUE, EN_ATTENTE, A_EXAMINER
+     */
+    protected function determineKycStatus(array $result): string
+    {
+        // 1. Erreur HTTP ou réponse KO de Didit
+        if (($result['status'] ?? '') === 'error') {
+            return 'A_EXAMINER';
+        }
+
+        // 2. Réponse réussie Didit → vérifier le sous-ressultat
+        $diditStatus = strtolower($result['id_verification']['status'] ?? 'unknown');
+
+        return match ($diditStatus) {
+            'approved' => 'VERIFIE',
+            'declined' => 'ECHOUE',
+            // Tout statut inattendu (pending, risk, etc.) → examen manuel
+            default => 'A_EXAMINER',
+        };
     }
 
     public function status(Request $request): JsonResponse

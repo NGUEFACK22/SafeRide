@@ -78,4 +78,9 @@ class Trip extends Model
     {
         return $this->hasMany(SosAlert::class);
     }
+
+    public function ratings(): HasMany
+    {
+        return $this->hasMany(TripRating::class);
+    }
 }

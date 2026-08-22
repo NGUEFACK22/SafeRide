@@ -83,13 +83,19 @@ class TripController extends Controller
                 'statut' => 'SCANNE',
             ]);
 
-            $qr->update(['last_used_at' => now()]);
+            $qr->update(['last_used_at' => now(), 'actif' => false]);
+
+            // Régénérer un nouveau QR code pour le véhicule
+            $newQr = $vehicle->qrCodes()->create([
+                'token' => bin2hex(random_bytes(16)),
+                'actif' => true,
+            ]);
 
             Notification::create([
                 'user_id' => $vehicle->transporteur_id,
                 'type' => 'TRAJET',
-                'titre' => 'Passager scanné - En attente de confirmation',
-                'message' => 'Le passager ' . $request->user()->prenom . ' ' . $request->user()->nom . ' a scanné votre QR Code.',
+                'titre' => 'Passager scanné - QR régénéré',
+                'message' => 'Le passager ' . $request->user()->prenom . ' ' . $request->user()->nom . ' a scanné votre QR Code. Un nouveau QR a été généré.',
             ]);
 
             return $trip;

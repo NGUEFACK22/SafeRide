@@ -149,12 +149,35 @@ Le mobile envoie l'**ID token** Google (`POST /auth/google`), vérifié côté s
 `vehicles` (CRUD), `vehicles/{id}/qr` (générer QR), `vehicles/{id}/qr/toggle`, `vehicles/{id}/position`.
 
 ### Identité (KYC Didit, auth)
-| Méthode | Route | Description |
+
+Le vérificateur d'identité Didit analyse les documents CNI/passeport soumis depuis le mobile.
+
+### Standing normale (flux_type)
+
+| Situation | Statut automatique | Action suivante |
 |---|---|---|
-| POST | `identity/submit` | Soumettre CNI/passeport (URL **ou** upload) |
-| GET | `identity/status` | Statut du dossier |
-| GET | `identity/pending` | Dossiers en attente (gestionnaire/admin) |
-| PUT | `identity/{id}/review` | Validation manuelle (gestionnaire/admin) |
+| **Didit crédités, document approuvé** | `VERIFIE` | Vérification terminée, l'utilisateur est identifié |
+| **Didit crédités, document refusé** | `ECHOUE` | L'utilisateur doit fournir un autre document |
+| **Didit sans crédits (clé valide, solde zéro)** | `EN_ATTENTE` | Un gestionnaire doit réviser le dossier manuellement |
+| **Didit réponse erreur / inattendue** | `A_EXAMINER` | Un gestionnaire doit examiner le dossier manuellement |
+
+### Flux détaillé
+
+1. **Depuis le mobile** : Le passager télécharge une photo de sa CNI/passeport → `POST /api/v1/identity/submit`
+2. **Enregistrement** : Le dossier est créé en statut `EN_ATTENTE` en base de données.
+3. **Tentative Didit** (si clé configurée + image fournie) :
+   - L'API Didit analyse le document et renvoie un statut (`approved`/`declined`) + données OCR.
+   - **Si `approved`** → statut mis à jour en `VERIFIE` automatiquement.
+   - **Si `declined`** → statut mis à jour en `ECHOUE` automatiquement.
+   - **Erreur ou statut inattendu** → statut mis à jour en `A_EXAMINER`.
+4. **Sans clé Didit ou échec** : Le dossier reste en `EN_ATTENTE` et n'entre pas en phase d'analyse automatisée.
+5. **Révision manuelle** : Un gestionnaire voit le dossier en `EN_ATTENTE` ou `A_EXAMINER` via `GET /api/v1/identity/pending` et peut le valider ou le rejeter via `PUT /api/v1/identity/{id}/review` en choisissant `VERIFIE`, `ECHOUE` ou `A_EXAMINER`.
+
+### Enjeu crédits Didit
+
+> La clé API Didit peut être valide mais il faut un **solde de crédits** pour chaque vérification. Sans crédits, l'API renvoie une réponse non concluante et le dossier bascule automatiquement en `A_EXAMINER` ou `EN_ATTENTE` selon le moment du flux. C'est le comportement attendu en démo sans crédits : la clé est bonne, seul le solde manque.
+
+> **À renouveler après la soutenance** : pensez à vérifier le solde Didit avant la soutenance ou à utiliser un compte de démo qui dispose de crédits offerts.
 
 ### SOS (auth)
 | Méthode | Route | Description |

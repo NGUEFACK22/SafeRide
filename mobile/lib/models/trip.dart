@@ -19,6 +19,11 @@ class Trip {
   final String? actualRoutePolyline;
   final String? transporteurNom;
   final String? transporteurPrenom;
+  final double? transporteurAvgRating;
+  final int? transporteurRatingsCount;
+  final Map<String, dynamic>? myRating;
+  final double? ratingsAvg;
+  final int? ratingsCount;
 
   Trip({
     required this.id,
@@ -41,6 +46,11 @@ class Trip {
     this.actualRoutePolyline,
     this.transporteurNom,
     this.transporteurPrenom,
+    this.transporteurAvgRating,
+    this.transporteurRatingsCount,
+    this.myRating,
+    this.ratingsAvg,
+    this.ratingsCount,
   });
 
   factory Trip.fromJson(Map<String, dynamic> json) {
@@ -66,6 +76,11 @@ class Trip {
       actualRoutePolyline: json['actual_route_polyline'],
       transporteurNom: transporteur?['nom'],
       transporteurPrenom: transporteur?['prenom'],
+      transporteurAvgRating: _toDouble(transporteur?['average_rating']),
+      transporteurRatingsCount: transporteur?['ratings_count'] as int?,
+      myRating: json['my_rating'] as Map<String, dynamic>?,
+      ratingsAvg: _toDouble(json['ratings_avg']),
+      ratingsCount: json['ratings_count'] as int?,
     );
   }
 

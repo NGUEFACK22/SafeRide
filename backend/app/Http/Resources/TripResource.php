@@ -32,6 +32,18 @@ class TripResource extends JsonResource
             'passager' => new PassengerResource($this->whenLoaded('passager')),
             'transporteur' => new TransporteurResource($this->whenLoaded('transporteur')),
             'vehicle' => $this->whenLoaded('vehicle'),
+            'my_rating' => $this->when(
+                $request && $request->user(),
+                fn () => \App\Models\TripRating::where('trip_id', $this->id)->where('rater_id', $request->user()->id)->first()
+            ),
+            'ratings_avg' => $this->when(
+                $this->relationLoaded('ratings') || true,
+                fn () => round((float) \App\Models\TripRating::where('trip_id', $this->id)->avg('rating'), 2)
+            ),
+            'ratings_count' => $this->when(
+                true,
+                fn () => \App\Models\TripRating::where('trip_id', $this->id)->count()
+            ),
         ];
     }
 }

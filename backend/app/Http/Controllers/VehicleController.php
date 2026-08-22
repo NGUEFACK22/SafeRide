@@ -109,6 +109,32 @@ class VehicleController extends Controller
     }
 
     /**
+     * Régénère le QR code du véhicule (nouveau token après chaque scan).
+     */
+    public function refreshQr(Request $request, int $id): JsonResponse
+    {
+        $vehicle = Vehicle::where('id', $id)->where('transporteur_id', $request->user()->id)->firstOrFail();
+
+        // Désactiver l'ancien QR
+        $vehicle->qrCodes()->where('actif', true)->update(['actif' => false]);
+
+        // Créer un nouveau QR
+        $qr = $vehicle->qrCodes()->create([
+            'token' => $this->generateSignedToken($vehicle),
+            'actif' => true,
+        ]);
+
+        return response()->json([
+            'message' => 'QR Code régénéré',
+            'qr' => [
+                'token' => $qr->token,
+                'actif' => $qr->actif,
+                'contenu' => $this->qrPayload($qr),
+            ],
+        ]);
+    }
+
+    /**
      * Met à jour la position GPS du véhicule (transporteur).
      * Permet la vérification de proximité lors du scan du QR par le passager.
      */

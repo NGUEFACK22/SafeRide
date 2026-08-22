@@ -8,6 +8,7 @@ import '../services/offline_service.dart';
 import '../services/background_location_service.dart';
 import '../services/geocoding_service.dart';
 import 'package:geolocator/geolocator.dart';
+import 'rating_screen.dart';
 
 class TripActiveScreen extends StatefulWidget {
   final Trip? initialTrip;
@@ -247,6 +248,19 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
               Navigator.of(context).pushReplacementNamed('/home');
             },
             child: const Text('Fermer'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              // Navigation vers notation
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => _RatingWrapper(trip: trip),
+                ),
+              ).then((_) => Navigator.of(context).pushReplacementNamed('/home'));
+            },
+            icon: const Icon(Icons.star_rate),
+            label: const Text('Noter le trajet'),
           ),
         ],
       ),
@@ -513,4 +527,11 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       ],
     );
   }
+}
+
+class _RatingWrapper extends StatelessWidget {
+  final Trip trip;
+  const _RatingWrapper({required this.trip});
+  @override
+  Widget build(BuildContext context) => RatingScreen(trip: trip);
 }
