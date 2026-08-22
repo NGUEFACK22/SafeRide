@@ -17,7 +17,9 @@ Diagrammes couverts :
 
 ---
 
-## 1. Diagramme de cas d'utilisation
+## 1. Diagramme de cas d'utilisation — concordé au code actuel (70 routes, 4 rôles)
+
+> Version mise à jour d'après `backend/routes/api.php:20`, `RolesAndPermissionsSeeder.php:36`, `home_screen.dart:175` et les 3 derniers feats (notation, Vosk offline, empreinte 3 prises, dashboard transporteur). Paiement exclu (hors périmètre).
 
 ```mermaid
 flowchart LR
@@ -27,24 +29,29 @@ flowchart LR
   A[Administrateur]
   SYS[SafeRide AI]
 
-  U1[S'inscrire]
-  U2[Se connecter]
-  U3["Vérifier son identité (CNI / passeport)"]
-  U4[Configurer mot de sécurité + voix]
-  U5[Gérer contacts d'urgence]
-  U6[Scanner le QR d'embarquement]
-  U7[Saisir et confirmer la destination]
-  U8[Déclencher SOS bouton ou vocal]
-  U9[Mettre fin au trajet]
-  U10[Consulter historique et résumé IA]
-  U11[Déclarer un objet perdu]
-  U12[Ouvrir un litige]
-  U13[Gérer véhicules et QR codes]
-  U14[Être notifié d'un embarquement]
-  U15[Traiter les dossiers attribués]
-  U16[Examiner les identités en attente]
-  U17[Gérer comptes et permissions]
-  U18[Consulter les statistiques globales]
+  U1[S'inscrire + choisir rôle passager/transporteur]
+  U2[Se connecter / Google OAuth]
+  U3[Vérifier identité CNI/passeport - Didit]
+  U4[Configurer mot sécurité + empreinte vocale 3 prises ECAPA]
+  U5[Gérer contacts d'urgence - tel + email* + whatsapp*]
+  U6[Scanner QR transporteur - proximité 50m]
+  U7[Saisir/confirmer/modifier destination - OSRM]
+  U8[Suivi GPS temps réel - offline queue]
+  U9[Noter trajet 1-5 + commentaire]
+  U10[Déclencher SOS vocal Vosk offline + ECAPA OU bouton]
+  U11[Fin trajet manuelle/auto 10min]
+  U12[Consulter historique + carte route + Détails]
+  U13[Déclarer objet perdu + voir chronologie véhicule]
+  U14[Ouvrir litige]
+  U15[Consulter Assistant IA summary/weekly/trip/anomalies]
+  U16[Gérer véhicules CRUD + QR toggle/refresh + position]
+  U17[Consulter tableau de bord transporteur - distance/pax/notes]
+  U18[Être notifié embarquement]
+  U19[Dashboard + take/close dossiers OBJET/LITIGE/SOS/IDENTITE]
+  U20[Review KYC pending EN_ATTENTE/A_EXAMINER]
+  U21[Résoudre SOS]
+  U22[Gérer users create/list/toggle suspension]
+  U23[Voir stats globales + stats par gestionnaire]
 
   P --- U1
   P --- U2
@@ -58,26 +65,33 @@ flowchart LR
   P --- U10
   P --- U11
   P --- U12
+  P --- U13
+  P --- U14
+  P --- U15
 
   T --- U2
-  T --- U13
-  T --- U14
+  T --- U16
+  T --- U17
+  T --- U18
 
   G --- U2
-  G --- U15
-  G --- U16
+  G --- U19
+  G --- U20
+  G --- U21
 
   A --- U2
-  A --- U16
-  A --- U17
-  A --- U18
+  A --- U20
+  A --- U22
+  A --- U23
 
-  U3 ..-> KYC[API KYC externe]
-  U10 ..-> IA1[IA SafeRide]
-  U8 ..-> URG[Services d'urgence externes]
+  U3 ..-> KYC[Didit KYC]
+  U10 ..-> WA[Infobip SMS obligatoire + WhatsApp si sur WA + Email SMTP + FCM]
+  U15 ..-> IA[Mistral AI]
+  U7 ..-> MAP[OSM/Nominatim + OSRM]
+  U8 ..-> PUSH[FCM + polling 15s]
 ```
 
-Acteurs : `Passager`, `Transporteur`, `Gestionnaire`, `Administrateur` + systèmes externes (`API KYC`, `IA SafeRide`, `Services d'urgence`).
+Acteurs internes : `Passager`, `Transporteur`, `Gestionnaire`, `Administrateur` (4 `roles.slug`) + externes `Didit`, `Mistral`, `Infobip SMS/WhatsApp`, `FCM`, `OSM/OSRM`. Les 23 cas couvrent les 70 routes `api/v1`.
 
 ---
 
