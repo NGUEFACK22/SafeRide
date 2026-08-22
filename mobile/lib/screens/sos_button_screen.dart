@@ -8,6 +8,7 @@ import '../services/whatsapp_service.dart';
 import '../services/sos_service.dart';
 import '../services/trip_service.dart';
 import '../services/voiceprint_service.dart';
+import '../services/vosk_service.dart';
 
 class SosButtonScreen extends StatefulWidget {
   final Trip? trip;
@@ -22,6 +23,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   final _sosService = SosService();
   final _voiceprint = VoiceprintService();
   final _tripService = TripService();
+  final _vosk = VoskService();
   final stt.SpeechToText _speech = stt.SpeechToText();
 
   Trip? _trip;
@@ -32,6 +34,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   // État du profil vocal
   bool _enrolled = false;
   bool _voiceAvailable = false;
+  bool _voskAvailable = false;
   String? _securityWord;
   bool _listening = false;
   String _heard = '';
@@ -65,6 +68,9 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   Future<void> _initVoiceprint() async {
     final available = await _voiceprint.ensureLoaded();
     if (mounted) setState(() => _voiceAvailable = available);
+    // Tenter Vosk en arrière-plan (ne bloque pas l'UI)
+    final voskOk = await _vosk.ensureLoaded(securityWord: _securityWord);
+    if (mounted) setState(() => _voskAvailable = voskOk);
   }
 
   Future<void> _loadProfile() async {
@@ -119,25 +125,65 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       _noTripMessage();
       return;
     }
-    final available = await _speech.initialize();
-    if (!available) {
+    final word = _securityWord?.trim();
+    if (word == null || word.isEmpty) {
       if (!mounted) return;
-      setState(() => _status = 'Reconnaissance vocale indisponible — utilisez le bouton.');
+      setState(() => _status = 'Définissez d\'abord un mot de sécurité.');
       return;
     }
+
     setState(() {
       _listening = true;
       _heard = '';
       _status = 'Écoute du mot de sécurité…';
     });
+
+    // 1) Tenter Vosk offline en priorité
+    final voskStarted = await _vosk.startListening(
+      securityWord: word,
+      onPartial: (partial) {
+        if (!mounted) return;
+        setState(() {
+          _heard = partial;
+          _status = 'Vosk offline — écoute… "$partial"';
+        });
+      },
+      onResult: (text) {
+        if (!mounted) return;
+        setState(() => _heard = text);
+        if (text.toLowerCase().contains(word.toLowerCase())) {
+          _vosk.stopListening();
+          _verifyVoiceAndSend(word);
+        }
+      },
+      onError: (e) {
+        if (!mounted) return;
+        setState(() => _status = 'Vosk erreur: $e');
+      },
+    );
+
+    if (voskStarted) {
+      if (mounted) setState(() => _voskAvailable = true);
+      return; // Vosk a pris le relais
+    }
+
+    // 2) Fallback Google speech_to_text
+    final available = await _speech.initialize();
+    if (!available) {
+      if (!mounted) return;
+      setState(() {
+        _listening = false;
+        _status = 'Reconnaissance vocale indisponible — utilisez le bouton.';
+      });
+      return;
+    }
     await _speech.listen(onResult: (result) {
       final text = result.recognizedWords;
       if (!mounted) return;
       setState(() => _heard = text);
-      if (_securityWord != null &&
-          text.toLowerCase().contains(_securityWord!.toLowerCase())) {
+      if (text.toLowerCase().contains(word.toLowerCase())) {
         _speech.stop();
-        _verifyVoiceAndSend(_securityWord!);
+        _verifyVoiceAndSend(word);
       }
     });
   }
@@ -145,6 +191,9 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   /// Vérification vocale : capture la voix, calcule l'embedding (biométrie),
   /// puis envoie le SOS. Repli sur le token si le modèle est absent.
   Future<void> _verifyVoiceAndSend(String keyword) async {
+    // Couper toute écoute en cours (Vosk + Google)
+    try { await _vosk.stopListening(); } catch (_) {}
+    try { await _speech.stop(); } catch (_) {}
     setState(() {
       _listening = false;
       _loading = true;
@@ -370,6 +419,17 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
               color: _voiceAvailable ? Colors.green.shade700 : Colors.orange.shade800,
             ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            _voskAvailable
+                ? 'Reconnaissance offline Vosk (FR) : active — SOS sans internet.'
+                : 'Vosk offline absent — repli Google (nécessite internet).',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              color: _voskAvailable ? Colors.green.shade700 : Colors.grey,
+            ),
+          ),
           const SizedBox(height: 16),
           TextField(
             decoration: const InputDecoration(
@@ -487,6 +547,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   @override
   void dispose() {
     _speech.cancel();
+    _vosk.stopListening();
     super.dispose();
   }
 }
