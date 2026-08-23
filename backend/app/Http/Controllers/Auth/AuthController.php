@@ -101,6 +101,14 @@ class AuthController extends Controller
             return response()->json(['message' => 'Jeton Google invalide'], 401);
         }
 
+        // P1-5 : validation stricte des claims requis
+        if (empty($claims['email']) || empty($claims['sub'])) {
+            return response()->json(['message' => 'Jeton Google incomplet (email/sub manquant)'], 401);
+        }
+        if (isset($claims['email_verified']) && $claims['email_verified'] !== true && $claims['email_verified'] !== 'true' && $claims['email_verified'] !== 1 && $claims['email_verified'] !== '1') {
+            return response()->json(['message' => 'Email Google non vérifié'], 401);
+        }
+
         $email = strtolower($claims['email']);
         $user = User::where('email', $email)->first();
 

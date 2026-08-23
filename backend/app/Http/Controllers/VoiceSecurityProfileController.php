@@ -39,11 +39,17 @@ class VoiceSecurityProfileController extends Controller
         ]);
 
         $empreinte = $data['empreinte'];
-        // Harmonie frontend: mobile envoie soit List<double> (ECAPA 192) soit String token sha256 (repli sans modèle)
+        // Validation stricte P1-4 : 192 floats pour ECAPA, ou 64 hex pour token repli
         if (is_array($empreinte)) {
+            if (count($empreinte) !== 192) {
+                return response()->json(['message' => 'Empreinte vocale invalide : 192 valeurs attendues, '.count($empreinte).' reçues'], 422);
+            }
             $request->validate(['empreinte.*' => 'numeric']);
             $stored = json_encode(array_values($empreinte));
         } else {
+            if (!is_string($empreinte) || !preg_match('/^[a-f0-9]{64}$/i', (string) $empreinte)) {
+                return response()->json(['message' => 'Empreinte token invalide : sha256 64 hex attendu'], 422);
+            }
             $stored = json_encode($empreinte);
         }
 

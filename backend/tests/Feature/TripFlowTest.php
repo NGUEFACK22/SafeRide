@@ -46,6 +46,12 @@ class TripFlowTest extends TestCase
 
         $this->assertNotNull($vehicle['qr_codes'][0]['token'] ?? null);
 
+        // 1b. Le transporteur partage sa position (requis pour proximité 50m — P1-1)
+        $this->actingAs($transporteur)->postJson("/api/v1/vehicles/{$vehicle['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
         // 2. Le passager scanne le QR → SCANNE.
         $start = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
             'token' => $vehicle['qr_codes'][0]['token'],

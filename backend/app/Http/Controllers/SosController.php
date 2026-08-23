@@ -58,7 +58,7 @@ class SosController extends Controller
             'details' => $verification['details'],
         ]);
 
-        $this->dispatchAlerts($sos);
+        $alertsSent = $this->dispatchAlerts($sos);
         $this->assignManager($sos);
 
         $transmission = $this->notifyAll($request, $sos, $trip);
@@ -71,7 +71,7 @@ class SosController extends Controller
             default => 'Alerte vocale reçue mais non vérifiée — en cours de vérification.',
         };
 
-        // Contacts d'urgence avec téléphone pour envoi SMS/WhatsApp natif côté mobile
+        // Contacts d'urgence avec téléphone pour envoi SMS/WhatsApp natif côté mobile (fallback)
         $contacts = EmergencyContact::where('user_id', $request->user()->id)
             ->whereNotNull('telephone')
             ->where('telephone', '!=', '')
@@ -83,6 +83,7 @@ class SosController extends Controller
             'sos' => $sos->load('emergencyNotifications'),
             'emergency_contacts' => $contacts,
             'sms_message' => $this->smsMessage($sos, $trip, null),
+            'alerts_sent' => $alertsSent, // P1-3 : canaux réellement envoyés vs tentés
         ], 201);
     }
 
@@ -114,18 +115,19 @@ class SosController extends Controller
         if ($profile && $profile->empreinte_vocale && isset($data['empreinte'])) {
             $stored = json_decode($profile->empreinte_vocale, true);
             $incoming = $data['empreinte'];
-            // Cas 1: deux embeddings ECAPA (array 192) -> cosine
-            if (is_array($stored) && $stored !== [] && is_array($incoming) && $incoming !== []) {
-                // Vérifie que c'est bien un vecteur numérique, pas un token string encodé en array
-                if (is_numeric($stored[0] ?? null) && is_numeric($incoming[0] ?? null)) {
+            // P1-4 : validation stricte 192 valeurs
+            if (is_array($stored) && is_array($incoming) && $stored !== [] && $incoming !== []) {
+                if (count($stored) !== 192 || count($incoming) !== 192) {
+                    \Log::warning('Empreinte taille invalide', ['stored' => count($stored), 'incoming' => count($incoming)]);
+                } elseif (is_numeric($stored[0] ?? null) && is_numeric($incoming[0] ?? null)) {
                     $voiceMatch = $this->cosineSimilarity($stored, $incoming) >= self::VOICE_SIMILARITY_THRESHOLD;
                 }
+            } elseif (is_string($stored) && is_string($incoming)) {
+                // Deux tokens sha256 64 hex -> hash_equals
+                if (preg_match('/^[a-f0-9]{64}$/i', $stored) && preg_match('/^[a-f0-9]{64}$/i', $incoming)) {
+                    $voiceMatch = hash_equals($stored, $incoming);
+                }
             }
-            // Cas 2: deux tokens string (repli sans modèle) -> égalité stricte
-            elseif (is_string($stored) && is_string($incoming)) {
-                $voiceMatch = hash_equals($stored, $incoming);
-            }
-            // Cas 3: token stocké string vs incoming string enveloppé en JSON -> déjà géré par json_decode
         }
 
         $passed = $keywordMatch && $voiceMatch;
@@ -204,51 +206,66 @@ class SosController extends Controller
         ]);
     }
 
-    protected function dispatchAlerts(SosAlert $sos): void
+    protected function dispatchAlerts(SosAlert $sos): array
     {
         $trip = $sos->trip;
         $smsMessage = $this->smsMessage($sos, $trip, null);
         $smsService = app(SmsService::class);
         $waService = app(WhatsappService::class);
 
-        // Contacts d'urgence du passager -> SMS TOUJOURS + WhatsApp si numéro sur WhatsApp + email
+        $perContact = [];
+
+        // Contacts d'urgence -> SMS TOUJOURS (obligatoire) + WhatsApp si sur WA + email
         EmergencyContact::where('user_id', $sos->passager_id)
             ->get()
-            ->each(function (EmergencyContact $contact) use ($sos, $trip, $smsMessage, $smsService, $waService) {
+            ->each(function (EmergencyContact $contact) use ($sos, $trip, $smsMessage, $smsService, $waService, &$perContact) {
+                $smsSent = false;
+                $smsTried = false;
+                $waSent = false;
+                $waTried = false;
+                $emailSent = false;
                 $canaux = [];
 
-                // 1) SMS — canal obligatoire (fonctionne sans internet côté destinataire)
-                $smsSent = false;
+                // 1) SMS — canal obligatoire
                 if ($contact->telephone) {
+                    $smsTried = true;
                     $smsSent = $smsService->send($contact->telephone, $smsMessage);
-                    // Même si Infobip sans crédit / clé vide, on log et on continue (fallback WhatsApp côté mobile)
                     $canaux[] = $smsSent ? 'SMS (' . $contact->telephone . ')' : 'SMS tenté (' . $contact->telephone . ')';
                 }
 
-                // 2) WhatsApp — complémentaire si le numéro WhatsApp est sur WhatsApp
-                // On privilégie whatsapp_telephone si renseigné, sinon on retombe sur telephone
+                // 2) WhatsApp — complémentaire si numéro sur WhatsApp
                 $waNumber = $contact->whatsapp_telephone ?: $contact->telephone;
-                $waSent = false;
                 if ($waNumber && $waService->ready()) {
+                    $waTried = true;
                     if ($waService->isOnWhatsApp($waNumber)) {
                         $waSent = $waService->send($waNumber, $smsMessage);
-                        if ($waSent) {
-                            $canaux[] = 'WhatsApp (' . $waNumber . ')';
-                        }
+                        if ($waSent) $canaux[] = 'WhatsApp (' . $waNumber . ')';
                     } else {
                         \Illuminate\Support\Facades\Log::info('Contact non WhatsApp, SMS seul', ['to' => $waNumber]);
                     }
                 }
 
-                // 3) Email réel (SMTP)
+                // 3) Email
                 if ($contact->email) {
                     try {
                         Mail::to($contact->email)->send(new SosAlertMail($sos, $trip, $contact->nom));
+                        $emailSent = true;
                         $canaux[] = 'email (' . $contact->email . ')';
-                    } catch (\Throwable $e) {
-                        // La notification DB reste créée même si l'email échoue
-                    }
+                    } catch (\Throwable $e) {}
                 }
+
+                $perContact[] = [
+                    'contact_id' => $contact->id,
+                    'nom' => $contact->nom,
+                    'telephone' => $contact->telephone,
+                    'whatsapp' => $waNumber,
+                    'sms_tried' => $smsTried,
+                    'sms_sent' => $smsSent,
+                    'whatsapp_tried' => $waTried,
+                    'whatsapp_sent' => $waSent,
+                    'email_sent' => $emailSent,
+                    'canaux' => $canaux,
+                ];
 
                 Notification::create([
                     'user_id' => $sos->passager_id,
@@ -259,21 +276,23 @@ class SosController extends Controller
                 ]);
             });
 
-        // Services d'urgence -> email réel + journalisation de la transmission
+        // Services d'urgence
         EmergencyService::get()->each(function (EmergencyService $service) use ($sos, $trip) {
             if ($service->email) {
-                try {
-                    Mail::to($service->email)->send(new SosAlertMail($sos, $trip, $service->nom));
-                } catch (\Throwable $e) {
-                }
+                try { Mail::to($service->email)->send(new SosAlertMail($sos, $trip, $service->nom)); } catch (\Throwable $e) {}
             }
-
-            $sos->emergencyNotifications()->create([
-                'emergency_service_id' => $service->id,
-                'notifie_le' => now(),
-                'statut' => 'TRANSMISE',
-            ]);
+            $sos->emergencyNotifications()->create(['emergency_service_id' => $service->id, 'notifie_le' => now(), 'statut' => 'TRANSMISE']);
         });
+
+        $summary = [
+            'contacts_total' => count($perContact),
+            'sms_sent' => collect($perContact)->where('sms_sent', true)->count(),
+            'sms_tried' => collect($perContact)->where('sms_tried', true)->count(),
+            'whatsapp_sent' => collect($perContact)->where('whatsapp_sent', true)->count(),
+            'email_sent' => collect($perContact)->where('email_sent', true)->count(),
+        ];
+
+        return ['per_contact' => $perContact, 'summary' => $summary];
     }
 
     /**

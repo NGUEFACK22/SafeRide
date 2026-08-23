@@ -71,43 +71,54 @@ class TripController extends Controller
             ], 422);
         }
 
-        $trip = DB::transaction(function () use ($request, $data, $vehicle, $qr) {
-            $trip = Trip::create([
-                'passager_id' => $request->user()->id,
-                'transporteur_id' => $vehicle->transporteur_id,
-                'vehicle_id' => $vehicle->id,
-                'qr_token' => $qr->token,
-                'start_latitude' => $data['latitude'],
-                'start_longitude' => $data['longitude'],
-                'started_at' => now(),
-                'statut' => 'SCANNE',
-            ]);
+        try {
+            $trip = DB::transaction(function () use ($request, $data, $vehicle, $qr) {
+                // Lock FOR UPDATE sur le QR pour éviter double démarrage (P1-2)
+                $lockedQr = QrCode::where('id', $qr->id)->lockForUpdate()->first();
+                if (!$lockedQr || !$lockedQr->actif) {
+                    throw new \RuntimeException('QR déjà utilisé');
+                }
+                $lockedQr->update(['last_used_at' => now(), 'actif' => false]);
 
-            $qr->update(['last_used_at' => now(), 'actif' => false]);
+                $trip = Trip::create([
+                    'passager_id' => $request->user()->id,
+                    'transporteur_id' => $vehicle->transporteur_id,
+                    'vehicle_id' => $vehicle->id,
+                    'qr_token' => $lockedQr->token,
+                    'start_latitude' => $data['latitude'],
+                    'start_longitude' => $data['longitude'],
+                    'started_at' => now(),
+                    'statut' => 'SCANNE',
+                ]);
 
-            // Régénérer un nouveau QR code pour le véhicule
-            $newQr = $vehicle->qrCodes()->create([
-                'token' => bin2hex(random_bytes(16)),
-                'actif' => true,
-            ]);
+                // Régénérer un nouveau QR code pour le véhicule
+                $vehicle->qrCodes()->create([
+                    'token' => bin2hex(random_bytes(16)),
+                    'actif' => true,
+                ]);
 
-            Notification::create([
-                'user_id' => $vehicle->transporteur_id,
-                'type' => 'TRAJET',
-                'titre' => '🚕 Nouvelle course démarrée',
-                'message' => 'Vous débutez une nouvelle course avec ' . $request->user()->prenom . ' ' . $request->user()->nom . ' (' . $request->user()->telephone . '). Vérifiez le passager et confirmez le départ.',
-            ]);
+                Notification::create([
+                    'user_id' => $vehicle->transporteur_id,
+                    'type' => 'TRAJET',
+                    'titre' => '🚕 Nouvelle course démarrée',
+                    'message' => 'Vous débutez une nouvelle course avec ' . $request->user()->prenom . ' ' . $request->user()->nom . ' (' . $request->user()->telephone . '). Vérifiez le passager et confirmez le départ.',
+                ]);
 
-            // Notification passager avec récap transporteur
-            Notification::create([
-                'user_id' => $request->user()->id,
-                'type' => 'TRAJET',
-                'titre' => 'Transporteur identifié',
-                'message' => 'Véhicule ' . $vehicle->marque . ' ' . $vehicle->modele . ' (' . $vehicle->immatriculation . ') - Transporteur ' . $vehicle->transporteur->prenom . ' ' . $vehicle->transporteur->nom . '. Voulez-vous commencer la course ?',
-            ]);
+                Notification::create([
+                    'user_id' => $request->user()->id,
+                    'type' => 'TRAJET',
+                    'titre' => 'Transporteur identifié',
+                    'message' => 'Véhicule ' . $vehicle->marque . ' ' . $vehicle->modele . ' (' . $vehicle->immatriculation . ') - Transporteur ' . $vehicle->transporteur->prenom . ' ' . $vehicle->transporteur->nom . '. Voulez-vous commencer la course ?',
+                ]);
 
-            return $trip;
-        });
+                return $trip;
+            });
+        } catch (\RuntimeException $e) {
+            if ($e->getMessage() === 'QR déjà utilisé') {
+                return response()->json(['message' => 'QR Code déjà utilisé — veuillez scanner le nouveau QR du véhicule'], 422);
+            }
+            throw $e;
+        }
 
         $trip->load('passager', 'transporteur', 'vehicle');
 
@@ -542,20 +553,32 @@ class TripController extends Controller
 
     /**
      * Vérifie que le passager est à proximité immédiate du véhicule (±50m).
-     * Si le véhicule n'a pas encore partagé sa position, la vérification est
-     * considérée comme non-bloquante (MVP) mais signalée comme non vérifiée.
+     * Bloquant : si le véhicule n'a pas partagé sa position récemment, le départ est refusé
+     * (corrige faille GPS manipulable — P1-1).
      */
     protected function checkProximity(float $passagerLat, float $passagerLng, Vehicle $vehicle): array
     {
         $maxDistanceM = 50;
+        $maxAgeSeconds = 300; // 5 min
 
         if ($vehicle->last_latitude === null || $vehicle->last_longitude === null) {
             return [
-                'ok' => true,
+                'ok' => false,
                 'verified' => false,
                 'distance_m' => null,
                 'max_distance_m' => $maxDistanceM,
                 'reason' => 'vehicle_position_unknown',
+            ];
+        }
+
+        // Position trop ancienne -> refus (évite spoof avec vieille position)
+        if ($vehicle->last_position_at && $vehicle->last_position_at->diffInSeconds(now()) > $maxAgeSeconds) {
+            return [
+                'ok' => false,
+                'verified' => false,
+                'distance_m' => null,
+                'max_distance_m' => $maxDistanceM,
+                'reason' => 'vehicle_position_stale',
             ];
         }
 
