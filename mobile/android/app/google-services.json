@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "841219332616",
+    "project_id": "saferide-e482f",
+    "storage_bucket": "saferide-e482f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:841219332616:android:78f43db208857f68640fbd",
+        "android_client_info": {
+          "package_name": "com.tech.saveride"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "841219332616-007e6v8ho3jdnkbr2pfo0v50jnbujd2e.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tech.saveride",
+            "certificate_hash": "5e8f16062ea3d391f349a44349632456a1f3a2d8"
+          }
+        },
+        {
+          "client_id": "841219332616-ib3ge6r9a3n6nrpt9pp7q7u7ia5mi60a.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJiA4h44Y059hB83PnYGzStwa864zSAzc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "841219332616-ib3ge6r9a3n6nrpt9pp7q7u7ia5mi60a.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

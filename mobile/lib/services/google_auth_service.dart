@@ -35,6 +35,9 @@ class GoogleAuthService {
         return null;
       }
       rethrow;
+    } on UnimplementedError catch (e) {
+      // Plugin non implémenté sur cette plateforme/version — fallback propre
+      throw Exception('Google Sign-In non disponible sur cet appareil/émulateur : $e. Utilisez email/mot de passe.');
     }
 
     final auth = account.authentication;
