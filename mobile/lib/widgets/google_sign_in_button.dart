@@ -40,12 +40,17 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
 
   @override
   Widget build(BuildContext context) {
-    if (ApiConfig.googleClientId.isEmpty &&
-        ApiConfig.googleAndroidClientId.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    // Toujours afficher le bouton — si non configuré, on informe l'utilisateur
+    final isConfigured = ApiConfig.googleClientId.isNotEmpty || ApiConfig.googleAndroidClientId.isNotEmpty;
 
     return OutlinedButton.icon(
+      onPressed: _loading
+          ? null
+          : isConfigured
+              ? _signIn
+              : () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Google non configuré — utilisez email/mot de passe ou rebuild avec --dart-define=GOOGLE_CLIENT_ID=...')),
+                  ),
       onPressed: _loading ? null : _signIn,
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(48),

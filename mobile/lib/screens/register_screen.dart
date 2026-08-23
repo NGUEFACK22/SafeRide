@@ -142,54 +142,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   validator: (v) => (v == null || v.length < 8) ? 'Minimum 8 caractères' : null,
                 ),
                 const SizedBox(height: 16),
-                // Sélecteur de rôle
-                Text(
-                  'Vous êtes :',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
+                // Sélecteur de rôle — design maquette compact (corrigé overflow)
+                const Text('Vous êtes :', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
                 const SizedBox(height: 8),
-                RadioGroup<String>(
-                  groupValue: _selectedRole,
-                  onChanged: (v) => setState(() => _selectedRole = v!),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: RadioListTile<String>(
-                          title: const Text('Passager'),
-                          subtitle: const Text('Je cherche un transport'),
-                          value: 'passager',
-                          secondary: const Icon(Icons.person),
-                          activeColor: Theme.of(context).colorScheme.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(
-                              color: _selectedRole == 'passager'
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Colors.grey.shade300,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: RadioListTile<String>(
-                          title: const Text('Transporteur'),
-                          subtitle: const Text('Je propose un transport'),
-                          value: 'transporteur',
-                          secondary: const Icon(Icons.local_taxi),
-                          activeColor: Theme.of(context).colorScheme.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(
-                              color: _selectedRole == 'transporteur'
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Colors.grey.shade300,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                Row(
+                  children: [
+                    Expanded(child: _roleCard('passager', Icons.person, 'Passager', 'Je cherche')),
+                    const SizedBox(width: 10),
+                    Expanded(child: _roleCard('transporteur', Icons.local_taxi, 'Transporteur', 'Je propose')),
+                  ],
                 ),
                 // Indicateur force très léger maquette
                 Align(alignment: Alignment.centerRight, child: const Text('Force : Faible', style: TextStyle(fontSize: 11, color: AppTheme.textGrey))),
@@ -222,6 +183,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _roleCard(String value, IconData icon, String title, String subtitle) {
+    final selected = _selectedRole == value;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedRole = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          color: selected ? AppTheme.lightBlueBadge : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: selected ? AppTheme.primaryBlue : Colors.grey.shade300, width: selected ? 1.6 : 1),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(color: selected ? AppTheme.primaryBlue : Colors.grey.shade100, shape: BoxShape.circle),
+              child: Icon(icon, size: 18, color: selected ? Colors.white : AppTheme.textGrey),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: selected ? AppTheme.primaryBlue : AppTheme.textDark)),
+                Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+              ]),
+            ),
+            if (selected) const Icon(Icons.check_circle, size: 18, color: AppTheme.primaryBlue),
+          ],
         ),
       ),
     );
