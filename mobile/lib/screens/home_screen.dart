@@ -400,6 +400,17 @@ class _TransporteurView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Card(
+            color: AppTheme.primaryBlue.withValues(alpha: 0.08),
+            child: ListTile(
+              leading: const Icon(Icons.hearing, size: 28, color: AppTheme.primaryBlue),
+              title: const Text('Course en cours — écoute auto', style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: const Text('Protection vocale active pour vous et le passager'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.pushNamed(context, '/trip-active'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
             child: ListTile(
               leading: const Icon(Icons.dashboard, size: 32, color: Colors.green),
               title: const Text('Tableau de bord'),
@@ -408,7 +419,7 @@ class _TransporteurView extends StatelessWidget {
               onTap: () => Navigator.pushNamed(context, '/transporteur-dashboard'),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Card(
             child: ListTile(
               leading: const Icon(Icons.directions_car, size: 32),
@@ -418,12 +429,11 @@ class _TransporteurView extends StatelessWidget {
               onTap: () => Navigator.pushNamed(context, '/vehicles'),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Card(
             child: ListTile(
-              leading: const Icon(Icons.trip_origin, size: 32),
-              title: const Text('Trajets en cours'),
-              subtitle: const Text('Passagers embarqués dans vos véhicules'),
+              leading: const Icon(Icons.history, size: 28),
+              title: const Text('Historique'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.pushNamed(context, '/history'),
             ),

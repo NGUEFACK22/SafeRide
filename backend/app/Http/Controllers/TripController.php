@@ -94,8 +94,16 @@ class TripController extends Controller
             Notification::create([
                 'user_id' => $vehicle->transporteur_id,
                 'type' => 'TRAJET',
-                'titre' => 'Passager scanné - QR régénéré',
-                'message' => 'Le passager ' . $request->user()->prenom . ' ' . $request->user()->nom . ' a scanné votre QR Code. Un nouveau QR a été généré.',
+                'titre' => '🚕 Nouvelle course démarrée',
+                'message' => 'Vous débutez une nouvelle course avec ' . $request->user()->prenom . ' ' . $request->user()->nom . ' (' . $request->user()->telephone . '). Vérifiez le passager et confirmez le départ.',
+            ]);
+
+            // Notification passager avec récap transporteur
+            Notification::create([
+                'user_id' => $request->user()->id,
+                'type' => 'TRAJET',
+                'titre' => 'Transporteur identifié',
+                'message' => 'Véhicule ' . $vehicle->marque . ' ' . $vehicle->modele . ' (' . $vehicle->immatriculation . ') - Transporteur ' . $vehicle->transporteur->prenom . ' ' . $vehicle->transporteur->nom . '. Voulez-vous commencer la course ?',
             ]);
 
             return $trip;
@@ -104,8 +112,26 @@ class TripController extends Controller
         $trip->load('passager', 'transporteur', 'vehicle');
 
         return response()->json([
-            'message' => 'QR Code scanné. En attente de confirmation d\'embarquement.',
+            'message' => 'Transporteur identifié. Voulez-vous commencer la course ?',
             'trip' => new TripResource($trip),
+            'transporteur' => [
+                'id' => $vehicle->transporteur->id,
+                'prenom' => $vehicle->transporteur->prenom,
+                'nom' => $vehicle->transporteur->nom,
+                'telephone' => $vehicle->transporteur->telephone,
+                'photo_url' => $vehicle->transporteur->photo_url,
+                'average_rating' => $vehicle->transporteur->averageRating(),
+                'ratings_count' => $vehicle->transporteur->ratingsCount(),
+                'verifie' => $vehicle->transporteur->statutVerification(),
+            ],
+            'vehicle' => [
+                'id' => $vehicle->id,
+                'marque' => $vehicle->marque,
+                'modele' => $vehicle->modele,
+                'immatriculation' => $vehicle->immatriculation,
+                'type' => $vehicle->type,
+                'couleur' => $vehicle->couleur,
+            ],
             'proximity' => $proximity,
             'next_step' => 'confirm_embarquement',
         ], 201);
@@ -131,15 +157,32 @@ class TripController extends Controller
             ? $trip->transporteur_id
             : $trip->passager_id;
 
-        Notification::create([
-            'user_id' => $otherUserId,
-            'type' => 'TRAJET',
-            'titre' => 'Embarquement confirmé',
-            'message' => 'L\'embarquement a été confirmé. Vous pouvez maintenant définir la destination.',
-        ]);
+        // Message adapté selon qui confirme
+        $isPassenger = $trip->passager_id === $request->user()->id;
+        if ($isPassenger) {
+            Notification::create([
+                'user_id' => $trip->transporteur_id,
+                'type' => 'TRAJET',
+                'titre' => '✅ Course acceptée par le passager',
+                'message' => 'Le passager a accepté de commencer la course. Destination à définir. La surveillance vocale démarre pour vous deux.',
+            ]);
+            Notification::create([
+                'user_id' => $trip->passager_id,
+                'type' => 'TRAJET',
+                'titre' => 'Course démarrée',
+                'message' => 'Vous avez accepté la course. Définissez votre destination. La protection vocale est active pour vous et le transporteur.',
+            ]);
+        } else {
+            Notification::create([
+                'user_id' => $trip->passager_id,
+                'type' => 'TRAJET',
+                'titre' => 'Transporteur a confirmé la course',
+                'message' => 'Le transporteur confirme la course. Définissez votre destination.',
+            ]);
+        }
 
         return response()->json([
-            'message' => 'Embarquement confirmé. Définissez votre destination.',
+            'message' => $isPassenger ? 'Course acceptée. Définissez votre destination — écoute automatique activée des deux côtés.' : 'Embarquement confirmé.',
             'trip' => new TripResource($trip->fresh()->load('passager', 'transporteur', 'vehicle')),
             'next_step' => 'set_destination',
         ]);

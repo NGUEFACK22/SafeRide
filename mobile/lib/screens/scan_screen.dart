@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../models/trip.dart';
+import '../services/api_service.dart';
 import '../services/trip_service.dart';
 import '../theme/app_theme.dart';
+import 'course_confirm_screen.dart';
 
 class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});
@@ -13,7 +16,7 @@ class ScanScreen extends StatefulWidget {
 }
 
 class _ScanScreenState extends State<ScanScreen> {
-  final _tripService = TripService();
+  final _api = ApiService();
   final MobileScannerController _scanner = MobileScannerController();
   bool _loading = false;
 
@@ -33,20 +36,26 @@ class _ScanScreenState extends State<ScanScreen> {
     setState(() => _loading = true);
     await _scanner.stop();
     try {
-      // Position réelle du passager au moment du scan (validation de proximité ±50 m)
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
-      final trip = await _tripService.startTrip(
-        code,
-        position.latitude,
-        position.longitude,
-      );
+      // Appel direct pour récupérer transporteur + véhicule (nouveau flux)
+      final data = await _api.post('/trips/start', {
+        'token': code,
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+      });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Trajet démarré ! ${trip.transporteurFullName}')),
+      final trip = Trip.fromJson(data['trip'] as Map<String, dynamic>);
+      final transporteur = (data['transporteur'] as Map<String, dynamic>?) ?? {};
+      final vehicle = (data['vehicle'] as Map<String, dynamic>?) ?? {};
+
+      // Afficher les infos transporteur + bouton "Commencer la course ?"
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => CourseConfirmScreen(trip: trip, transporteur: transporteur, vehicle: vehicle),
+        ),
       );
-      Navigator.of(context).pushReplacementNamed('/trip-active', arguments: trip);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
