@@ -22,9 +22,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   bool _loading = false;
   String _selectedRole = 'passager';
+  bool _acceptTerms = false;
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (!_acceptTerms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez accepter les Conditions d\'utilisation et la Politique de confidentialité')),
+      );
+      return;
+    }
 
     setState(() => _loading = true);
     try {
@@ -157,7 +164,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 8),
                 Row(children: [Expanded(child: Container(height: 3, color: AppTheme.lightBlueBadge)), const SizedBox(width: 4), Expanded(child: Container(height: 3, color: AppTheme.lightBlueBadge)), const SizedBox(width: 4), Expanded(child: Container(height: 3, color: AppTheme.lightBlueBadge))]),
                 const SizedBox(height: 12),
-                Row(children: [Checkbox(value: false, onChanged: (_) {}, activeColor: AppTheme.primaryBlue), const Expanded(child: Text.rich(TextSpan(text: "J'accepte les ", style: TextStyle(fontSize: 12), children: [TextSpan(text: "Conditions d'utilisation", style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w600)), TextSpan(text: " et la "), TextSpan(text: "Politique de confidentialité.", style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w600))])))]),
+                Row(children: [Checkbox(value: _acceptTerms, onChanged: (v) => setState(() => _acceptTerms = v ?? false), activeColor: AppTheme.primaryBlue), const Expanded(child: Text.rich(TextSpan(text: "J'accepte les ", style: TextStyle(fontSize: 12), children: [TextSpan(text: "Conditions d'utilisation", style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w600)), TextSpan(text: " et la "), TextSpan(text: "Politique de confidentialité.", style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w600))])))]),
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: _loading ? null : _submit,
