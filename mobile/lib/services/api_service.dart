@@ -132,6 +132,7 @@ class ApiService {
     Map<String, String> fields, {
     File? file,
     String fileField = 'fichier',
+    Map<String, File>? files,
     bool auth = true,
   }) async {
     final uri = Uri.parse('${ApiConfig.baseUrl}$path');
@@ -148,6 +149,11 @@ class ApiService {
 
     if (file != null) {
       request.files.add(await http.MultipartFile.fromPath(fileField, file.path));
+    }
+    if (files != null) {
+      for (final entry in files.entries) {
+        request.files.add(await http.MultipartFile.fromPath(entry.key, entry.value.path));
+      }
     }
 
     final streamed = await request.send();

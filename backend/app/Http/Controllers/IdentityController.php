@@ -23,74 +23,90 @@ class IdentityController extends Controller
         $data = $request->validate([
             'type' => 'required|in:CNI,PASSEPORT,AUTRE',
             'numero' => 'nullable|string|max:100',
-            'fichier_url' => 'nullable|string',
+            // Nouveau flux : selfie avec pièce en main + recto + verso obligatoires (ou ancien fichier unique/url pour tests)
+            'fichier_recto' => 'required_without_all:fichier,fichier_url|file|image|max:10240',
+            'fichier_verso' => 'required_without_all:fichier,fichier_url|file|image|max:10240',
+            'fichier_selfie' => 'required_without_all:fichier,fichier_url|file|image|max:10240',
             'fichier' => 'nullable|file|image|max:10240',
+            'fichier_url' => 'nullable|string',
         ]);
 
+        // Nouveau flux : 3 fichiers obligatoires, sinon fallback ancien flux (tests)
+        if ($request->hasFile('fichier_recto') && $request->hasFile('fichier_verso') && $request->hasFile('fichier_selfie')) {
+            $rectoPath = $request->file('fichier_recto')->store('identity', 'public');
+            $versoPath = $request->file('fichier_verso')->store('identity', 'public');
+            $selfiePath = $request->file('fichier_selfie')->store('identity', 'public');
+
+            $verification = IdentityVerification::create([
+                'user_id' => $request->user()->id,
+                'type' => $data['type'],
+                'statut' => 'EN_ATTENTE',
+                'recto_url' => $rectoPath,
+                'verso_url' => $versoPath,
+                'selfie_url' => $selfiePath,
+            ]);
+
+            $base = ['user_id' => $request->user()->id, 'verification_id' => $verification->id, 'type' => $data['type'], 'numero' => $data['numero'] ?? null];
+            $docRecto = IdentityDocument::create(array_merge($base, ['fichier_url' => $rectoPath]));
+            $docVerso = IdentityDocument::create(array_merge($base, ['fichier_url' => $versoPath]));
+            $docSelfie = IdentityDocument::create(array_merge($base, ['fichier_url' => $selfiePath]));
+
+            $finalStatut = 'EN_ATTENTE';
+
+            if ($this->didit->isEnabled()) {
+                try {
+                    $rectoContents = file_get_contents($request->file('fichier_recto')->getRealPath());
+                    $versoContents = file_get_contents($request->file('fichier_verso')->getRealPath());
+                    $result = $this->didit->verifyIdDocument($rectoContents, $versoContents);
+                    $docRecto->update(['ocr_data' => $result]);
+                    $finalStatut = $this->determineKycStatus($result);
+                    $verification->update(['provider_kyc' => 'didit', 'statut' => $finalStatut, 'verifie_le' => now()]);
+                    $extracted = $result['id_verification']['form_values']['document_number'] ?? $result['id_verification']['extracted_data']['document_number'] ?? null;
+                    if ($extracted) $verification->update(['recto_url' => $rectoPath]);
+                } catch (\Throwable $e) {
+                    $finalStatut = 'EN_ATTENTE';
+                    \Log::warning('Didit KYC échec', ['error' => $e->getMessage()]);
+                }
+            }
+
+            if (in_array($finalStatut, ['EN_ATTENTE', 'A_EXAMINER', 'VERIFIE'], true) && $selfiePath) {
+                if ($finalStatut === 'VERIFIE') {
+                    $finalStatut = 'A_EXAMINER';
+                    $verification->update(['statut' => 'A_EXAMINER']);
+                }
+                $this->assignIdentityReview($verification);
+            } elseif (in_array($finalStatut, ['EN_ATTENTE', 'A_EXAMINER'], true)) {
+                $this->assignIdentityReview($verification);
+            }
+
+            return response()->json([
+                'message' => $finalStatut === 'VERIFIE' ? 'Identité vérifiée automatiquement via Didit' : 'Documents soumis (recto, verso, selfie) — vérification en cours'.($this->didit->isEnabled() ? ' (Didit + selfie à valider)' : ''),
+                'verification' => $verification->load('document'),
+            ], 201);
+        }
+
+        // Fallback ancien flux (single fichier) pour compat tests
         if (! $request->filled('fichier_url') && ! $request->hasFile('fichier')) {
             return response()->json(['message' => 'Un document (fichier_url ou fichier) est requis.'], 422);
         }
-
-        $verification = IdentityVerification::create([
-            'user_id' => $request->user()->id,
-            'type' => $data['type'],
-            'statut' => 'EN_ATTENTE',
-        ]);
-
+        $verification = IdentityVerification::create(['user_id' => $request->user()->id, 'type' => $data['type'], 'statut' => 'EN_ATTENTE']);
         $docUrl = $request->input('fichier_url');
-        if ($request->hasFile('fichier')) {
-            $docUrl = $request->file('fichier')->getClientOriginalName();
-        }
-
-        $document = IdentityDocument::create([
-            'user_id' => $request->user()->id,
-            'verification_id' => $verification->id,
-            'type' => $data['type'],
-            'numero' => $data['numero'] ?? null,
-            'fichier_url' => $docUrl,
-        ]);
-
+        if ($request->hasFile('fichier')) $docUrl = $request->file('fichier')->getClientOriginalName();
+        $document = IdentityDocument::create(['user_id' => $request->user()->id, 'verification_id' => $verification->id, 'type' => $data['type'], 'numero' => $data['numero'] ?? null, 'fichier_url' => $docUrl]);
         $finalStatut = 'EN_ATTENTE';
-
-        // Vérification réelle via Didit si la clé est configurée et une image est disponible
         $image = $this->resolveImageContents($request);
         if ($image && $this->didit->isEnabled()) {
             try {
                 $result = $this->didit->verifyIdDocument($image);
                 $document->update(['ocr_data' => $result]);
-
                 $finalStatut = $this->determineKycStatus($result);
-
-                $verification->update([
-                    'provider_kyc' => 'didit',
-                    'statut' => $finalStatut,
-                    'verifie_le' => now(),
-                ]);
-
-                $extracted = $result['id_verification']['form_values']['document_number']
-                    ?? $result['id_verification']['extracted_data']['document_number']
-                    ?? null;
-                if ($extracted && ! $verification->numero) {
-                    $verification->numero = $extracted;
-                    $verification->save();
-                }
-            } catch (\Throwable $e) {
-                // Échec Didit (ex. clés épuisées, réseau) → vérification manuelle
-                $finalStatut = 'EN_ATTENTE';
-                \Log::warning('Didit KYC échec', ['error' => $e->getMessage()]);
-            }
+                $verification->update(['provider_kyc' => 'didit', 'statut' => $finalStatut, 'verifie_le' => now()]);
+                $extracted = $result['id_verification']['form_values']['document_number'] ?? $result['id_verification']['extracted_data']['document_number'] ?? null;
+                if ($extracted && ! $verification->numero) { $verification->numero = $extracted; $verification->save(); }
+            } catch (\Throwable $e) { $finalStatut = 'EN_ATTENTE'; \Log::warning('Didit KYC échec', ['error' => $e->getMessage()]); }
         }
-
-        if (in_array($finalStatut, ['EN_ATTENTE', 'A_EXAMINER'], true)) {
-            $this->assignIdentityReview($verification);
-        }
-
-        return response()->json([
-            'message' => $finalStatut === 'VERIFIE'
-                ? 'Identité vérifiée automatiquement via Didit'
-                : 'Document soumis à vérification'.($this->didit->isEnabled() ? ' (Didit)' : ''),
-            'verification' => $verification->load('document'),
-        ], 201);
+        if (in_array($finalStatut, ['EN_ATTENTE', 'A_EXAMINER'], true)) $this->assignIdentityReview($verification);
+        return response()->json(['message' => $finalStatut === 'VERIFIE' ? 'Identité vérifiée automatiquement via Didit' : 'Document soumis à vérification'.($this->didit->isEnabled() ? ' (Didit)' : ''), 'verification' => $verification->load('document')], 201);
     }
 
     /**

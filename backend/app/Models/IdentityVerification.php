@@ -17,6 +17,9 @@ class IdentityVerification extends Model
         'statut',
         'provider_kyc',
         'verifie_le',
+        'recto_url',
+        'verso_url',
+        'selfie_url',
     ];
 
     protected function casts(): array
