@@ -170,6 +170,15 @@ class AuthController extends Controller
         return response()->json(['user' => $this->userPayload($user)]);
     }
 
+    public function deleteAccount(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $user->tokens()->delete();
+        $user->delete();
+
+        return response()->json(['message' => 'Compte supprimé avec succès']);
+    }
+
     public function forgotPassword(Request $request): JsonResponse
     {
         $data = $request->validate(['email' => 'required|email']);
