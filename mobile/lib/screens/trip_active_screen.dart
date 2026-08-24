@@ -13,6 +13,7 @@ import '../services/vosk_service.dart';
 import '../services/voiceprint_service.dart';
 import '../services/sos_service.dart';
 import '../services/whatsapp_service.dart';
+import '../theme/app_theme.dart';
 import 'rating_screen.dart';
 
 class TripActiveScreen extends StatefulWidget {
