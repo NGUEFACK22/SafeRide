@@ -43,6 +43,16 @@ class SosController extends Controller
             return response()->json(['message' => 'Aucun trajet actif pour cet utilisateur'], 422);
         }
 
+        // P2-9 : anti double SOS / replay 30s
+        $recent = SosAlert::where('trip_id', $trip->id)
+            ->where('passager_id', $request->user()->id)
+            ->where('created_at', '>', now()->subSeconds(30))
+            ->whereNotIn('statut', ['RESOLU', 'CLOTE', 'FAUSSE_ALERTE'])
+            ->first();
+        if ($recent) {
+            return response()->json(['message' => 'Alerte déjà envoyée il y a moins de 30s — anti-spam', 'sos' => $recent], 429);
+        }
+
         // Vérification SOS vocal : mot-clé + empreinte vocale (Point 9)
         $verification = $this->verifyVoice($request->user(), $data);
         $statut = $verification['statut'];

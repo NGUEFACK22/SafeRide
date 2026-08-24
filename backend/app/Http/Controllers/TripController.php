@@ -436,7 +436,7 @@ class TripController extends Controller
 
     public function history(Request $request): JsonResponse
     {
-        $role = $request->user()->roles()->first()->slug;
+        $role = $request->user()->roles()->first()?->slug;
 
         $query = Trip::with('passager', 'transporteur', 'vehicle')
             ->where('statut', 'TERMINE');
@@ -444,6 +444,11 @@ class TripController extends Controller
         if ($role === 'transporteur') {
             $query->where('transporteur_id', $request->user()->id);
         } elseif ($role === 'passager') {
+            $query->where('passager_id', $request->user()->id);
+        } elseif (in_array($role, ['gestionnaire', 'admin'], true)) {
+            // Gestionnaire/Admin voient tous les trajets (P2-12)
+        } else {
+            // Fallback : passager par défaut
             $query->where('passager_id', $request->user()->id);
         }
 

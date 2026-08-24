@@ -79,8 +79,14 @@ class IdentityController extends Controller
                 $this->assignIdentityReview($verification);
             }
 
+            $msg = match (true) {
+                $finalStatut === 'VERIFIE' => 'Identité vérifiée automatiquement via Didit',
+                !$this->didit->isEnabled() => 'Documents soumis (recto, verso, selfie) — La vérification Didit nécessite une clé API. Votre dossier sera revu manuellement par un gestionnaire sous 24h.',
+                $finalStatut === 'EN_ATTENTE' => 'Documents soumis — La vérification Didit nécessite des crédits. Votre dossier est en attente de revue manuelle par un gestionnaire.',
+                default => 'Documents soumis (recto, verso, selfie) — vérification en cours (Didit + selfie à valider)',
+            };
             return response()->json([
-                'message' => $finalStatut === 'VERIFIE' ? 'Identité vérifiée automatiquement via Didit' : 'Documents soumis (recto, verso, selfie) — vérification en cours'.($this->didit->isEnabled() ? ' (Didit + selfie à valider)' : ''),
+                'message' => $msg,
                 'verification' => $verification->load('document'),
             ], 201);
         }
@@ -219,7 +225,7 @@ class IdentityController extends Controller
         $verifications = IdentityVerification::with('user', 'document')
             ->where('statut', 'EN_ATTENTE')
             ->latest()
-            ->get();
+            ->paginate(20);
 
         return response()->json(['verifications' => $verifications]);
     }

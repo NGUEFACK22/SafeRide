@@ -56,8 +56,8 @@ Route::post('auth/google', [AuthController::class, 'google']);
         Route::post('identity/submit', [IdentityController::class, 'submit']);
         Route::get('identity/status', [IdentityController::class, 'status']);
 
-        // SOS
-        Route::post('sos', [SosController::class, 'create']);
+        // SOS — rate limit 5/min anti-spam (P2-15) + anti double 30s dans controller (P2-9)
+        Route::post('sos', [SosController::class, 'create'])->middleware('throttle:5,1');
         Route::get('sos/my', [SosController::class, 'myAlerts']);
 
         // Contacts d'urgence (notifiés lors d'un SOS)

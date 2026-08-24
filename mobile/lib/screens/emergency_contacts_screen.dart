@@ -25,8 +25,17 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
     try {
       final data = await _api.get('/emergency-contacts');
       if (!mounted) return;
+      final raw = data['contacts'];
+      List<dynamic> list;
+      if (raw is List) {
+        list = raw;
+      } else if (raw is Map && raw['data'] is List) {
+        list = raw['data'] as List<dynamic>;
+      } else {
+        list = [];
+      }
       setState(() {
-        _contacts = data['contacts'] as List<dynamic>? ?? [];
+        _contacts = list;
         _error = null;
         _loading = false;
       });

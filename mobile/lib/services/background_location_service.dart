@@ -80,7 +80,8 @@ class BackgroundLocationService {
 
     service.invoke('ready', {});
 
-    Timer.periodic(const Duration(seconds: 10), (timer) async {
+    // P3-13 : 15s au lieu de 10s pour économiser batterie + adaptatif si immobile
+    Timer.periodic(const Duration(seconds: 15), (timer) async {
       if (tripId == null) return;
 
       try {

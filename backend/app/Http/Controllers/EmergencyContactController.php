@@ -12,7 +12,7 @@ class EmergencyContactController extends Controller
     {
         $contacts = EmergencyContact::where('user_id', $request->user()->id)
             ->orderBy('created_at')
-            ->get();
+            ->paginate(20);
 
         return response()->json(['contacts' => $contacts]);
     }
