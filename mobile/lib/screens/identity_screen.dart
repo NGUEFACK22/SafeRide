@@ -117,7 +117,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
     }
   }
 
-  Widget _pickCard({required String title, required String subtitle, required XFile? file, required VoidCallback onCamera, required VoidCallback onGallery}) {
+  Widget _pickCard({required String title, required String subtitle, required XFile? file, required VoidCallback onCamera, required VoidCallback onGallery, bool galleryAllowed = true}) {
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: file != null ? AppTheme.primaryBlue : Colors.grey.shade300, width: file != null ? 1.4 : 1)),
       padding: const EdgeInsets.all(12),
@@ -135,11 +135,18 @@ class _IdentityScreenState extends State<IdentityScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: OutlinedButton.icon(onPressed: onCamera, icon: const Icon(Icons.camera_alt, size: 16), label: const Text('Caméra', style: TextStyle(fontSize: 12)), style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)))),
-              const SizedBox(width: 8),
-              Expanded(child: OutlinedButton.icon(onPressed: onGallery, icon: const Icon(Icons.photo_library, size: 16), label: const Text('Galerie', style: TextStyle(fontSize: 12)), style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)))),
+              Expanded(child: OutlinedButton.icon(onPressed: onCamera, icon: const Icon(Icons.camera_alt, size: 16), label: Text(galleryAllowed ? 'Caméra' : 'Caméra (direct)', style: const TextStyle(fontSize: 12)), style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)))),
+              if (galleryAllowed) ...[
+                const SizedBox(width: 8),
+                Expanded(child: OutlinedButton.icon(onPressed: onGallery, icon: const Icon(Icons.photo_library, size: 16), label: const Text('Galerie', style: TextStyle(fontSize: 12)), style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)))),
+              ],
             ],
           ),
+          if (!galleryAllowed)
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text('⚠️ Selfie en direct obligatoire — galerie désactivée pour sécurité', style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w600)),
+            ),
           if (file != null) ...[
             const SizedBox(height: 8),
             ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(File(file.path), height: 120, width: double.infinity, fit: BoxFit.cover)),
@@ -196,7 +203,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
             const SizedBox(height: 4),
             const Text('Tenez votre CNI / passeport à côté de votre visage, bien visible.', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
             const SizedBox(height: 6),
-            _pickCard(title: 'Selfie + pièce', subtitle: 'Visage + document', file: _selfie, onCamera: () => _pickSelfie(ImageSource.camera), onGallery: () => _pickSelfie(ImageSource.gallery)),
+            _pickCard(title: 'Selfie + pièce', subtitle: 'Visage + document (direct)', file: _selfie, onCamera: () => _pickSelfie(ImageSource.camera), onGallery: () {}, galleryAllowed: false),
             const SizedBox(height: 18),
             FilledButton(
               onPressed: _loading ? null : _submit,
