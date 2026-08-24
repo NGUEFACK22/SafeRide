@@ -28,17 +28,24 @@ class LostItemController extends Controller
             'trip_id' => 'required|exists:trips,id',
             'objet' => 'required|string|max:150',
             'description' => 'nullable|string',
+            'image' => 'nullable|file|image|mimes:jpeg,jpg,png|mimetypes:image/jpeg,image/png|max:10240',
         ]);
 
         $trip = Trip::where('id', $data['trip_id'])
             ->where('passager_id', $request->user()->id)
             ->firstOrFail();
 
+        $imageUrl = null;
+        if ($request->hasFile('image')) {
+            $imageUrl = $request->file('image')->store('lost-items', 'public');
+        }
+
         $report = LostItemReport::create([
             'trip_id' => $trip->id,
             'passager_id' => $request->user()->id,
             'objet' => $data['objet'],
             'description' => $data['description'] ?? null,
+            'image_url' => $imageUrl,
             'statut' => 'SIGNALE',
         ]);
 

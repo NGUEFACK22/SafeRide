@@ -15,6 +15,7 @@ class LostItemReport extends Model
         'passager_id',
         'objet',
         'description',
+        'image_url',
         'statut',
     ];
 

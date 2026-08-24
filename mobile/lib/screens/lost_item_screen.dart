@@ -1,6 +1,11 @@
-import 'package:flutter/material.dart';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../config/api_config.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 
 class LostItemScreen extends StatefulWidget {
   const LostItemScreen({super.key});
@@ -110,14 +115,17 @@ class _LostReportsTabState extends State<_LostReportsTab> {
         itemBuilder: (context, index) {
           final report = _reports[index];
           final (label, color) = _reportStatus(report['statut'] as String?);
+          final hasImage = report['image_url'] != null && (report['image_url'] as String).isNotEmpty;
           return Card(
             margin: const EdgeInsets.symmetric(vertical: 4),
             child: ListTile(
-              leading: Icon(Icons.work_outline, color: color),
+              leading: hasImage
+                  ? ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network('${ApiConfig.baseUrl.replaceAll('/api/v1', '')}/storage/${report['image_url']}', width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(Icons.work_outline, color: color)))
+                  : Icon(Icons.work_outline, color: color),
               title: Text(report['objet'] ?? 'Objet'),
               subtitle: Text(
                 'Trajet #${report['trip_id']} · '
-                '${_dateOnly(report['created_at'] as String?)}',
+                '${_dateOnly(report['created_at'] as String?)}${hasImage ? ' · 📷' : ''}',
               ),
               trailing: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -213,6 +221,8 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
   List<dynamic> _trips = [];
   bool _loadingTrips = true;
   bool _submitting = false;
+  XFile? _image;
+  final _picker = ImagePicker();
 
   @override
   void initState() {
@@ -241,6 +251,11 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
     }
   }
 
+  Future<void> _pickImage(ImageSource source) async {
+    final picked = await _picker.pickImage(source: source, imageQuality: 70);
+    if (picked != null && mounted) setState(() => _image = picked);
+  }
+
   Future<void> _submit() async {
     if (_selectedTripId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -257,13 +272,23 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
 
     setState(() => _submitting = true);
     try {
-      await _api.post('/lost-items', {
-        'trip_id': _selectedTripId,
-        'objet': _objet.text.trim(),
-        'description': _description.text.trim().isEmpty
-            ? null
-            : _description.text.trim(),
-      });
+      if (_image != null) {
+        await _api.postMultipart(
+          '/lost-items',
+          {
+            'trip_id': _selectedTripId.toString(),
+            'objet': _objet.text.trim(),
+            'description': _description.text.trim(),
+          },
+          files: {'image': File(_image!.path)},
+        );
+      } else {
+        await _api.post('/lost-items', {
+          'trip_id': _selectedTripId,
+          'objet': _objet.text.trim(),
+          'description': _description.text.trim().isEmpty ? null : _description.text.trim(),
+        });
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -273,7 +298,10 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
       );
       _objet.clear();
       _description.clear();
-      setState(() => _selectedTripId = null);
+      setState(() {
+        _selectedTripId = null;
+        _image = null;
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -335,7 +363,31 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
               border: OutlineInputBorder(),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
+          const Text('Photo de l\'objet (facultatif)', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Container(
+            decoration: BoxDecoration(border: Border.all(color: _image != null ? AppTheme.primaryBlue : Colors.grey.shade300, width: _image != null ? 1.4 : 1), borderRadius: BorderRadius.circular(12), color: Colors.white),
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: OutlinedButton.icon(onPressed: () => _pickImage(ImageSource.camera), icon: const Icon(Icons.camera_alt, size: 16), label: const Text('Caméra', style: TextStyle(fontSize: 12)))),
+                    const SizedBox(width: 8),
+                    Expanded(child: OutlinedButton.icon(onPressed: () => _pickImage(ImageSource.gallery), icon: const Icon(Icons.photo_library, size: 16), label: const Text('Galerie', style: TextStyle(fontSize: 12)))),
+                  ],
+                ),
+                if (_image != null) ...[
+                  const SizedBox(height: 8),
+                  ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(File(_image!.path), height: 140, width: double.infinity, fit: BoxFit.cover)),
+                  const SizedBox(height: 6),
+                  TextButton.icon(onPressed: () => setState(() => _image = null), icon: const Icon(Icons.delete_outline, size: 16), label: const Text('Retirer la photo')),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: _submitting ? null : _submit,
             icon: const Icon(Icons.report_problem),

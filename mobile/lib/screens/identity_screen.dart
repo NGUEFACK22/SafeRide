@@ -56,8 +56,12 @@ class _IdentityScreenState extends State<IdentityScreen> {
   }
 
   Future<void> _pickSelfie(ImageSource source) async {
-    final picked = await _picker.pickImage(source: source, imageQuality: 80, preferredCameraDevice: CameraDevice.front);
-    if (picked != null && mounted) setState(() => _selfie = picked);
+    try {
+      final picked = await _picker.pickImage(source: source, imageQuality: 60, preferredCameraDevice: CameraDevice.front);
+      if (picked != null && mounted) setState(() => _selfie = picked);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Caméra selfie indisponible: $e')));
+    }
   }
 
   String _labelForType(String t) {
