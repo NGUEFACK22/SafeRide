@@ -452,6 +452,12 @@ class TripController extends Controller
             $query->where('passager_id', $request->user()->id);
         }
 
+        // Filtres avancés P4 : ?from=2025-01-01&to=2025-12-31&vehicle_id=1&statut=TERMINE
+        if ($request->filled('from')) $query->whereDate('started_at', '>=', $request->query('from'));
+        if ($request->filled('to')) $query->whereDate('started_at', '<=', $request->query('to'));
+        if ($request->filled('vehicle_id')) $query->where('vehicle_id', $request->query('vehicle_id'));
+        if ($request->filled('statut')) $query->where('statut', $request->query('statut'));
+
         $trips = $query->latest('ended_at')->paginate(15);
 
         return response()->json(['trips' => TripResource::collection($trips)]);

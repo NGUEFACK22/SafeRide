@@ -64,7 +64,8 @@ class EmergencyContactTest extends TestCase
             'telephone' => '690000074',
         ]);
 
-        $contacts = $this->getJson('/api/v1/emergency-contacts')->assertOk()->json('contacts');
+        $json = $this->getJson('/api/v1/emergency-contacts')->assertOk()->json('contacts');
+        $contacts = isset($json['data']) ? $json['data'] : $json;
         $this->assertCount(1, $contacts);
         $this->assertEquals('Frère', $contacts[0]['nom']);
     }
