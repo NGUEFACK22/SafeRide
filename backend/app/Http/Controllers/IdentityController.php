@@ -21,9 +21,9 @@ class IdentityController extends Controller
     public function submit(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'type' => 'required|in:CNI,PASSEPORT,AUTRE',
+            'type' => 'required|in:CNI,PASSEPORT,AUTRE,RECIPISSE,CARTE_SCOLAIRE',
             'numero' => 'nullable|string|max:100',
-            // Nouveau flux : selfie + recto/verso obligatoires, vérif MIME réelle (G.28)
+            // Nouveau flux : selfie avec pièce en main + recto + verso obligatoires (ou ancien fichier unique/url pour tests)
             'fichier_recto' => 'required_without_all:fichier,fichier_url|file|image|mimes:jpeg,jpg,png|mimetypes:image/jpeg,image/png|max:10240',
             'fichier_verso' => 'required_without_all:fichier,fichier_url|file|image|mimes:jpeg,jpg,png|mimetypes:image/jpeg,image/png|max:10240',
             'fichier_selfie' => 'required_without_all:fichier,fichier_url|file|image|mimes:jpeg,jpg,png|mimetypes:image/jpeg,image/png|max:10240',

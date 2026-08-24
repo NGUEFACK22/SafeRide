@@ -28,7 +28,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
   String? _resultStatut;
   bool _error = false;
 
-  static const _types = ['CNI', 'PASSEPORT', 'AUTRE'];
+  static const _types = ['CNI', 'PASSEPORT', 'RECIPISSE', 'CARTE_SCOLAIRE', 'AUTRE'];
 
   @override
   void initState() {
@@ -58,6 +58,21 @@ class _IdentityScreenState extends State<IdentityScreen> {
   Future<void> _pickSelfie(ImageSource source) async {
     final picked = await _picker.pickImage(source: source, imageQuality: 80, preferredCameraDevice: CameraDevice.front);
     if (picked != null && mounted) setState(() => _selfie = picked);
+  }
+
+  String _labelForType(String t) {
+    switch (t) {
+      case 'CNI':
+        return 'CNI';
+      case 'PASSEPORT':
+        return 'Passeport';
+      case 'RECIPISSE':
+        return 'Récépissé CNI';
+      case 'CARTE_SCOLAIRE':
+        return 'Carte scolaire';
+      default:
+        return 'Autre';
+    }
   }
 
   Color _statusColor(String? statut) {
@@ -182,7 +197,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
             DropdownButtonFormField<String>(
               initialValue: _type,
               decoration: const InputDecoration(labelText: 'Type de document', border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
-              items: _types.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+              items: _types.map((t) => DropdownMenuItem(value: t, child: Text(_labelForType(t)))).toList(),
               onChanged: (v) => setState(() => _type = v!),
             ),
             const SizedBox(height: 12),
