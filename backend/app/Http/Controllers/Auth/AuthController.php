@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\GoogleAuthService;
+use App\Mail\VerificationMail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 
@@ -39,10 +41,17 @@ class AuthController extends Controller
 
         $user->assignRole($role);
 
+        // I.31b : envoi email de vérification (non bloquant)
+        try {
+            Mail::to($user->email)->send(new VerificationMail($user));
+        } catch (\Throwable $e) {
+            \Log::warning('Verification email failed', ['email' => $user->email, 'error' => $e->getMessage()]);
+        }
+
         $token = $user->createToken('auth')->plainTextToken;
 
         return response()->json([
-            'message' => 'Inscription réussie',
+            'message' => 'Inscription réussie — vérifiez votre email',
             'token' => $token,
             'user' => $this->userPayload($user),
         ], 201);
@@ -177,6 +186,33 @@ class AuthController extends Controller
         $user->delete();
 
         return response()->json(['message' => 'Compte supprimé avec succès']);
+    }
+
+    public function sendVerification(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if ($user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'Email déjà vérifié']);
+        }
+        $user->sendEmailVerificationNotification();
+        // Fallback si notification non configurée : envoi direct
+        try {
+            \Mail::to($user->email)->send(new \App\Mail\VerificationMail($user));
+        } catch (\Throwable $e) {}
+        return response()->json(['message' => 'Email de vérification envoyé']);
+    }
+
+    public function verifyEmail(Request $request, int $id, string $hash): JsonResponse
+    {
+        $user = User::findOrFail($id);
+        if (! hash_equals(sha1($user->email), $hash)) {
+            return response()->json(['message' => 'Lien invalide'], 400);
+        }
+        if (!$request->hasValidSignature()) {
+            return response()->json(['message' => 'Lien expiré'], 400);
+        }
+        $user->markEmailAsVerified();
+        return response()->json(['message' => 'Email vérifié avec succès']);
     }
 
     public function forgotPassword(Request $request): JsonResponse

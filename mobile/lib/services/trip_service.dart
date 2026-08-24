@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/trip.dart';
 import 'api_service.dart';
 import 'offline_service.dart';
@@ -63,9 +67,27 @@ class TripService {
   }
 
   Future<List<Trip>> history() async {
-    final data = await _api.get('/trips/history');
-    final items = data['trips']['data'] as List<dynamic>? ?? [];
-    return items.map((e) => Trip.fromJson(e as Map<String, dynamic>)).toList();
+    try {
+      final data = await _api.get('/trips/history');
+      final items = data['trips']['data'] as List<dynamic>? ?? [];
+      // Cache offline (I.31g)
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('cached_history', jsonEncode(items));
+      } catch (_) {}
+      return items.map((e) => Trip.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      // Hors-ligne : charger cache
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final raw = prefs.getString('cached_history');
+        if (raw != null) {
+          final items = jsonDecode(raw) as List<dynamic>;
+          return items.map((e) => Trip.fromJson(e as Map<String, dynamic>)).toList();
+        }
+      } catch (_) {}
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> getRoute(int tripId) async {

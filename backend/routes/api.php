@@ -26,12 +26,14 @@ Route::post('auth/login', [AuthController::class, 'login']);
 Route::post('auth/google', [AuthController::class, 'google']);
 Route::post('auth/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('auth/reset-password', [AuthController::class, 'resetPassword']);
+Route::get('auth/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail'])->name('verification.verify')->middleware('signed');
 
     // ==== Routes authentifiées ====
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('auth/profile', [AuthController::class, 'profile']);
         Route::delete('auth/account', [AuthController::class, 'deleteAccount']);
+        Route::post('auth/send-verification', [AuthController::class, 'sendVerification']);
 
         // Trajets
         Route::get('trips/current', [TripController::class, 'current']);

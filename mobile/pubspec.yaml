@@ -45,6 +45,7 @@ dependencies:
   speech_to_text: ^7.0.0
   # vosk_flutter temporairement désactivé pour build (AGP namespace + permission_handler v1) — réactivation après fix
   # vosk_flutter: ^0.3.48
+  flutter_local_notifications: ^18.0.1
   crypto: ^3.0.3
 
 dependency_overrides:
