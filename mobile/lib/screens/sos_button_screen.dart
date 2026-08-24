@@ -36,6 +36,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   bool _voiceAvailable = false;
   bool _voskAvailable = false;
   String? _securityWord;
+  final _wordController = TextEditingController();
   bool _listening = false;
   String _heard = '';
   String _status = '';
@@ -76,11 +77,16 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   Future<void> _loadProfile() async {
     final prefs = await SharedPreferences.getInstance();
     _securityWord = prefs.getString('voice_security_word');
+    _wordController.text = _securityWord ?? '';
     try {
       final data = await _sosService.profile();
       final profile = data['profile'] as Map<String, dynamic>?;
       if (mounted) {
         setState(() => _enrolled = profile != null && (profile['enrolled'] == true));
+        if (profile != null && profile['mot_securite'] != null) {
+          _wordController.text = profile['mot_securite'] as String;
+          _securityWord = profile['mot_securite'] as String;
+        }
       }
     } catch (_) {
       // hors-ligne : on se base sur le cache local
@@ -88,8 +94,16 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   }
 
   Future<void> _enroll() async {
-    final word = _securityWord?.trim();
-    if (word == null || word.isEmpty) return;
+    final word = (_wordController.text.trim().isNotEmpty ? _wordController.text.trim() : _securityWord?.trim());
+    if (word == null || word.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez saisir un mot de sécurité (3-40 caractères)')));
+      return;
+    }
+    if (word.length < 3) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mot trop court (min 3 caractères)')));
+      return;
+    }
+    _securityWord = word;
     setState(() => _loading = true);
     try {
       await _sosService.setSecurityWord(word);
@@ -454,12 +468,15 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
           ),
           const SizedBox(height: 16),
           TextField(
+            controller: _wordController,
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
-              labelText: 'Mot de sécurité',
+              labelText: 'Mot de sécurité (3-40 caractères)',
               prefixIcon: Icon(Icons.mic),
+              helperText: 'Ex: au secours, help me, danger',
             ),
             onChanged: (v) => _securityWord = v,
+            textCapitalization: TextCapitalization.sentences,
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
@@ -572,6 +589,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   void dispose() {
     _speech.cancel();
     _vosk.stopListening();
+    _wordController.dispose();
     super.dispose();
   }
 }
