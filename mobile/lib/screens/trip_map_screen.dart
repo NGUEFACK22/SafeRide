@@ -39,8 +39,23 @@ class _TripMapScreenState extends State<TripMapScreen> {
     _load();
   }
 
+  Future<void> _ensurePermission() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Activez la localisation (GPS) pour voir votre position')));
+    }
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.deniedForever && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission localisation refusée définitivement — activez-la dans les paramètres')));
+    }
+  }
+
   Future<void> _load() async {
     try {
+      await _ensurePermission();
       final data = await _tripService.getRoute(widget.tripId);
       final rawPoints = (data['points'] as List<dynamic>? ?? []);
 
@@ -69,12 +84,18 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
       LatLng? user;
       try {
+        // Essaye haute précision, sinon dernière connue, sinon Yaoundé
         final position = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 8)),
         );
         user = LatLng(position.latitude, position.longitude);
       } catch (_) {
-        user = null;
+        try {
+          final last = await Geolocator.getLastKnownPosition();
+          if (last != null) user = LatLng(last.latitude, last.longitude);
+        } catch (_) {
+          user = null;
+        }
       }
 
       if (!mounted) return;
