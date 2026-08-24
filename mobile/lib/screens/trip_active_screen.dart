@@ -608,37 +608,37 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   }
 
   Widget _enCoursStep(Trip trip) {
+    // E.23 : hiérarchie priorité — destination + SOS toujours visibles
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Header priorité 1 : destination + statut
         Card(
+          color: Colors.white,
+          elevation: 1,
           child: ListTile(
-            leading: const Icon(Icons.directions_car),
-            title: Text('Véhicule de ${trip.transporteurFullName}'),
-            subtitle: const Text('Statut : EN COURS — surveillance active'),
+            leading: Container(width: 40, height: 40, decoration: BoxDecoration(color: AppTheme.primaryBlue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.flag, color: AppTheme.primaryBlue)),
+            title: Text(trip.destinationAddress ?? 'Destination en cours', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+            subtitle: const Text('Destination confirmée • EN COURS', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+            trailing: const Icon(Icons.check_circle, color: Colors.green, size: 22),
           ),
         ),
-        const SizedBox(height: 16),
-        if (trip.destinationAddress != null)
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.flag),
-              title: Text(trip.destinationAddress!),
-              subtitle: const Text('Destination confirmée'),
-              trailing: const Icon(Icons.check_circle, color: Colors.green),
-            ),
+        const SizedBox(height: 10),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.directions_car, color: AppTheme.primaryBlue),
+            title: Text('Véhicule de ${trip.transporteurFullName.isEmpty ? 'Jean Dupont' : trip.transporteurFullName}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            subtitle: const Text('Surveillance GPS + vocale active', style: TextStyle(fontSize: 11)),
           ),
-        const SizedBox(height: 16),
+        ),
+        const SizedBox(height: 10),
         if (trip.deviationKm != null && trip.deviationKm! > 0.5)
           Card(
             color: Colors.orange.shade50,
             child: const ListTile(
               leading: Icon(Icons.warning, color: Colors.orange),
               title: Text('Écart d\'itinéraire détecté'),
-              subtitle: Text(
-                'Le trajet réel s\'écarte significativement de l\'itinéraire prévu. '
-                'Une alerte a été enregistrée.',
-              ),
+              subtitle: Text('Le trajet réel s\'écarte significativement de l\'itinéraire prévu. Une alerte a été enregistrée.', style: TextStyle(fontSize: 11)),
             ),
           )
         else if (trip.plannedRoutePolyline != null && trip.plannedRoutePolyline!.isNotEmpty)
@@ -646,53 +646,58 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
             color: Colors.blue.shade50,
             child: const ListTile(
               leading: Icon(Icons.route, color: Colors.blue),
-              title: Text('Itinéraire prévu chargé'),
-              subtitle: Text('Comparaison trajet réel vs prévu active.'),
+              title: Text('Itinéraire prévu chargé', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              subtitle: Text('Comparaison trajet réel vs prévu active.', style: TextStyle(fontSize: 11)),
             ),
           ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
         Card(
           color: _voiceMonitoring ? Colors.green.shade50 : Colors.orange.shade50,
           child: ListTile(
-            leading: Icon(_voiceMonitoring ? Icons.hearing : Icons.hearing_disabled,
-                color: _voiceMonitoring ? Colors.green : Colors.orange),
-            title: Text(_voiceMonitoring ? 'Protection vocale active (auto)' : 'Protection vocale inactive'),
+            leading: Icon(_voiceMonitoring ? Icons.hearing : Icons.hearing_disabled, color: _voiceMonitoring ? Colors.green : Colors.orange),
+            title: Text(_voiceMonitoring ? 'Protection vocale active (auto)' : 'Protection vocale inactive', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             subtitle: Text(
               _voiceStatus.isNotEmpty
                   ? _voiceStatus
-                  : 'Le mot de sécurité est écouté automatiquement pendant le trajet. '
-                      'Vosk (mot-clé) + ECAPA (voix) -> ✅/❌ automatique.',
+                  : 'Le mot de sécurité est écouté automatiquement pendant le trajet. Vosk (mot-clé) + ECAPA (voix) -> ✅/❌ automatique.',
+              style: const TextStyle(fontSize: 11),
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
+        // Bouton fin + SOS toujours visibles (E.21/23)
         ElevatedButton.icon(
           onPressed: _busy ? null : _endTrip,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.red,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          icon: const Icon(Icons.stop_circle_outlined),
-          label: const Text('Fin de trajet'),
+          icon: _busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.stop_circle_outlined),
+          label: Text(_busy ? 'Traitement...' : 'Fin de trajet', style: const TextStyle(fontWeight: FontWeight.w700)),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         const Text(
-          'Si vous ne cliquez pas dans les 10 minutes après l\'arrivée, '
-          'le trajet se termine automatiquement.',
+          'Si vous ne cliquez pas dans les 10 minutes après l\'arrivée, le trajet se termine automatiquement.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+          style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: AppTheme.textGrey),
         ),
-        const SizedBox(height: 16),
-        OutlinedButton.icon(
-          onPressed: () =>
-              Navigator.pushNamed(context, '/sos-button', arguments: trip),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.red,
-            side: const BorderSide(color: Colors.red),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: _autoSosSending || _busy
+                ? null
+                : () => Navigator.pushNamed(context, '/sos-button', arguments: trip),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.sosRed,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: _autoSosSending ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.sos),
+            label: Text(_autoSosSending ? 'Envoi SOS...' : 'SOS URGENCE', style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.5)),
           ),
-          icon: const Icon(Icons.sos),
-          label: const Text('Bouton SOS (secours)'),
         ),
       ],
     );

@@ -1,16 +1,41 @@
 import 'package:flutter/material.dart';
 
 import '../models/user.dart';
+import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final User? user;
   const ProfileScreen({super.key, this.user});
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String? _verifStatut;
+  bool _verifLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVerif();
+  }
+
+  Future<void> _loadVerif() async {
+    try {
+      final data = await ApiService().get('/identity/status');
+      final v = data['verification'] as Map<String, dynamic>?;
+      if (mounted) setState(() {_verifStatut = v?['statut'] as String?; _verifLoading = false;});
+    } catch (_) {
+      if (mounted) setState(() => _verifLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final displayName = user != null ? '${user!.prenom} ${user!.nom}' : 'Alexandre Dubois';
+    final displayName = widget.user != null ? '${widget.user!.prenom} ${widget.user!.nom}' : 'Alexandre Dubois';
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -41,11 +66,32 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 10),
             Text(displayName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
             const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: AppTheme.successBg, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppTheme.successBorder)),
-              child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.verified, size: 12, color: AppTheme.successText), SizedBox(width: 4), Text('IDENTITÉ VÉRIFIÉE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.successText))]),
-            ),
+            _verifLoading
+                ? const SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                : Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _verifStatut == 'VERIFIE' ? AppTheme.successBg : _verifStatut == 'ECHOUE' ? Colors.red.shade50 : Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _verifStatut == 'VERIFIE' ? AppTheme.successBorder : _verifStatut == 'ECHOUE' ? Colors.red.shade200 : Colors.orange.shade200),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(_verifStatut == 'VERIFIE' ? Icons.verified : _verifStatut == 'ECHOUE' ? Icons.error_outline : Icons.hourglass_empty, size: 12, color: _verifStatut == 'VERIFIE' ? AppTheme.successText : _verifStatut == 'ECHOUE' ? Colors.red : Colors.orange.shade800),
+                      const SizedBox(width: 4),
+                      Text(
+                        _verifStatut == 'VERIFIE'
+                            ? 'IDENTITÉ VÉRIFIÉE'
+                            : _verifStatut == 'ECHOUE'
+                                ? 'VÉRIFICATION ÉCHOUÉE'
+                                : _verifStatut == 'A_EXAMINER'
+                                    ? 'À EXAMINER'
+                                    : _verifStatut == 'EN_ATTENTE'
+                                        ? 'EN ATTENTE'
+                                        : 'NON VÉRIFIÉE',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _verifStatut == 'VERIFIE' ? AppTheme.successText : _verifStatut == 'ECHOUE' ? Colors.red : Colors.orange.shade800),
+                      ),
+                    ]),
+                  ),
             const SizedBox(height: 14),
             Row(
               children: [
