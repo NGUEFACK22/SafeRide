@@ -413,6 +413,53 @@ class _TransporteurView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Carte comme passager — pour transporteur aussi
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  child: Container(
+                    height: 110,
+                    color: const Color(0xFFEAF0FF),
+                    child: Stack(
+                      children: [
+                        Container(
+                          decoration: const BoxDecoration(
+                            image: DecorationImage(image: NetworkImage('https://tile.openstreetmap.org/3/2/1.png'), fit: BoxFit.cover),
+                          ),
+                        ),
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(color: AppTheme.primaryBlue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+                            child: const Text('EN SERVICE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.primaryBlue)),
+                          ),
+                        ),
+                        const Center(child: Text('Yaoundé', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.textDark))),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      Container(width: 44, height: 44, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.local_taxi, color: AppTheme.primaryBlue)),
+                      const SizedBox(width: 12),
+                      const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Véhicule en service', style: TextStyle(fontWeight: FontWeight.w800)), Text('Prêt à recevoir une course', style: TextStyle(fontSize: 11, color: AppTheme.textGrey))])),
+                      const Icon(Icons.my_location, color: AppTheme.primaryBlue, size: 20),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           Card(
             color: AppTheme.primaryBlue.withValues(alpha: 0.08),
             child: ListTile(
