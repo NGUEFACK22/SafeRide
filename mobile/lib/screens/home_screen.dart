@@ -60,13 +60,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBody() {
-    // Bottom nav index mapping
     if (_selectedIndex == 1) return const _HistoryPreview();
-    if (_selectedIndex == 2) return const _ScanPreview();
-    if (_selectedIndex == 3) return _AlertsPreview(unread: _unread, onOpen: _openNotifications);
-    if (_selectedIndex == 4) return _ProfilePreview(user: _user, onLogout: _logout);
+    if (_selectedIndex == 2) return _AlertsPreview(unread: _unread, onOpen: _openNotifications);
+    if (_selectedIndex == 3) return _ProfilePreview(user: _user, onLogout: _logout);
 
-    // Home (0) -> role view
+    // Home (0) -> role view — Scan est dans le dashboard, plus en bas
     if (_user.hasRole('admin')) return const _AdminView();
     if (_user.hasRole('transporteur')) return const _TransporteurView();
     if (_user.hasRole('gestionnaire')) return const _GestionnaireView();
@@ -130,17 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        onTap: (i) {
-          if (i == 2) {
-            if (_user.hasRole('transporteur')) {
-              Navigator.pushNamed(context, '/vehicles');
-            } else {
-              Navigator.pushNamed(context, '/scan');
-            }
-            return;
-          }
-          setState(() => _selectedIndex = i);
-        },
+        onTap: (i) => setState(() => _selectedIndex = i),
         backgroundColor: Colors.white,
         selectedItemColor: AppTheme.primaryBlue,
         unselectedItemColor: const Color(0xFF9AA0AE),
@@ -148,15 +136,6 @@ class _HomeScreenState extends State<HomeScreen> {
         items: [
           const BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),
           const BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Trips'),
-          BottomNavigationBarItem(
-            icon: Container(
-              width: 44,
-              height: 44,
-              decoration: const BoxDecoration(color: AppTheme.primaryBlue, shape: BoxShape.circle),
-              child: Icon(_user.hasRole('transporteur') ? Icons.qr_code : Icons.qr_code_scanner, color: Colors.white, size: 22),
-            ),
-            label: _user.hasRole('transporteur') ? 'QR' : 'Scan',
-          ),
           BottomNavigationBarItem(
             icon: Stack(clipBehavior: Clip.none, children: [
               const Icon(Icons.notifications_outlined),

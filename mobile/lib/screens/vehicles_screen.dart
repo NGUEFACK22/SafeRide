@@ -167,14 +167,13 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            tooltip: _vehicles.length >= 1 ? 'Un seul véhicule autorisé' : 'Ajouter un véhicule',
-            onPressed: _vehicles.length >= 1 ? null : _addVehicle,
+            tooltip: 'Nouveau véhicule (remplace l\'ancien)',
+            onPressed: _addVehicle,
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _vehicles.length >= 1 ? null : _addVehicle,
-        backgroundColor: _vehicles.length >= 1 ? Colors.grey.shade400 : null,
+        onPressed: _addVehicle,
         child: const Icon(Icons.add),
       ),
       body: _loading

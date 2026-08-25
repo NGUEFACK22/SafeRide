@@ -22,8 +22,11 @@ class VehicleController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        if (Vehicle::where('transporteur_id', $request->user()->id)->exists()) {
-            return response()->json(['message' => 'Vous ne pouvez avoir qu\'un seul véhicule. Supprimez l\'existant pour en créer un nouveau.'], 422);
+        $existing = Vehicle::where('transporteur_id', $request->user()->id)->first();
+        if ($existing) {
+            // Remplacement automatique : ancien passe en INACTIF + QR désactivés
+            $existing->update(['statut' => 'INACTIF']);
+            $existing->qrCodes()->update(['actif' => false]);
         }
 
         $data = $request->validate([
