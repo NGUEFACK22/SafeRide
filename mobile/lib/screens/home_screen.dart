@@ -356,15 +356,21 @@ class _PassagerView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          // Accès rapides secondaires (blanc/bleu)
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          // Section ordonnée : Mes services en grille 2x2
+          const Text('Mes services', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          const SizedBox(height: 10),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 2.7,
             children: [
-              _quickChip(Icons.trip_origin, 'Trajet en cours', () => Navigator.pushNamed(context, '/trip-active')),
-              _quickChip(Icons.work_outline, 'Objet perdu', () => Navigator.pushNamed(context, '/lost-item')),
-              _quickChip(Icons.gavel_outlined, 'Litige', () => Navigator.pushNamed(context, '/dispute')),
-              _quickChip(Icons.verified_user, 'Identité', () => Navigator.pushNamed(context, '/identity')),
+              _serviceCard(Icons.trip_origin, 'Trajet en cours', 'Suivi GPS', () => Navigator.pushNamed(context, '/trip-active')),
+              _serviceCard(Icons.work_outline, 'Objet perdu', 'Signaler', () => Navigator.pushNamed(context, '/lost-item')),
+              _serviceCard(Icons.gavel_outlined, 'Litige', 'Signaler', () => Navigator.pushNamed(context, '/dispute')),
+              _serviceCard(Icons.verified_user, 'Identité', 'Vérifier', () => Navigator.pushNamed(context, '/identity'), color: AppTheme.primaryBlue),
             ],
           ),
         ],
@@ -379,6 +385,42 @@ class _PassagerView extends StatelessWidget {
       backgroundColor: Colors.white,
       side: BorderSide(color: Colors.grey.shade200),
       onPressed: onTap,
+    );
+  }
+
+  Widget _serviceCard(IconData icon, String title, String subtitle, VoidCallback onTap, {Color? color}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(color: (color ?? AppTheme.primaryBlue).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+              child: Icon(icon, size: 20, color: color ?? AppTheme.primaryBlue),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+                  Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 16, color: AppTheme.textGrey),
+          ],
+        ),
+      ),
     );
   }
 }
