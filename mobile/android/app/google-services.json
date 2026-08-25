@@ -17,7 +17,8 @@
           "client_id": "841219332616-007e6v8ho3jdnkbr2pfo0v50jnbujd2e.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.tech.saveride"
+            "package_name": "com.tech.saveride",
+            "certificate_hash": "0400567d5d314888c497df396f8a68d15c86c81b"
           }
         },
         {
