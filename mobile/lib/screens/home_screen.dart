@@ -132,7 +132,11 @@ class _HomeScreenState extends State<HomeScreen> {
         currentIndex: _selectedIndex,
         onTap: (i) {
           if (i == 2) {
-            Navigator.pushNamed(context, '/scan');
+            if (_user.hasRole('transporteur')) {
+              Navigator.pushNamed(context, '/vehicles');
+            } else {
+              Navigator.pushNamed(context, '/scan');
+            }
             return;
           }
           setState(() => _selectedIndex = i);
@@ -149,9 +153,9 @@ class _HomeScreenState extends State<HomeScreen> {
               width: 44,
               height: 44,
               decoration: const BoxDecoration(color: AppTheme.primaryBlue, shape: BoxShape.circle),
-              child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 22),
+              child: Icon(_user.hasRole('transporteur') ? Icons.qr_code : Icons.qr_code_scanner, color: Colors.white, size: 22),
             ),
-            label: 'Scan',
+            label: _user.hasRole('transporteur') ? 'QR' : 'Scan',
           ),
           BottomNavigationBarItem(
             icon: Stack(clipBehavior: Clip.none, children: [
