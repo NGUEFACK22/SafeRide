@@ -163,17 +163,18 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mes véhicules'),
+        title: const Text('Mon véhicule'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            tooltip: 'Ajouter un véhicule',
-            onPressed: _addVehicle,
+            tooltip: _vehicles.length >= 1 ? 'Un seul véhicule autorisé' : 'Ajouter un véhicule',
+            onPressed: _vehicles.length >= 1 ? null : _addVehicle,
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _addVehicle,
+        onPressed: _vehicles.length >= 1 ? null : _addVehicle,
+        backgroundColor: _vehicles.length >= 1 ? Colors.grey.shade400 : null,
         child: const Icon(Icons.add),
       ),
       body: _loading

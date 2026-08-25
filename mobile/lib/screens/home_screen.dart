@@ -461,6 +461,16 @@ class _TransporteurView extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Card(
+            child: ListTile(
+              leading: const Icon(Icons.mic, size: 28, color: AppTheme.sosRed),
+              title: const Text('Mot de sécurité', style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: const Text('Configurer votre mot vocal (3 prises)'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.pushNamed(context, '/sos-button'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
             color: AppTheme.primaryBlue.withValues(alpha: 0.08),
             child: ListTile(
               leading: const Icon(Icons.hearing, size: 28, color: AppTheme.primaryBlue),

@@ -22,6 +22,10 @@ class VehicleController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if (Vehicle::where('transporteur_id', $request->user()->id)->exists()) {
+            return response()->json(['message' => 'Vous ne pouvez avoir qu\'un seul véhicule. Supprimez l\'existant pour en créer un nouveau.'], 422);
+        }
+
         $data = $request->validate([
             'marque' => 'required|string|max:60',
             'modele' => 'required|string|max:60',
