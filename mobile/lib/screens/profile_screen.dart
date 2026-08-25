@@ -104,6 +104,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 16),
             _menuTile(Icons.person_outline, 'Informations personnelles', onTap: () => _showInfo(context)),
+            _menuTile(Icons.mic, 'Mot de sécurité', onTap: () => Navigator.pushNamed(context, '/sos-button'), color: AppTheme.lightBlueBadge, iconColor: AppTheme.primaryBlue),
             _menuTile(Icons.shield_outlined, 'Sécurité & SOS', onTap: () => Navigator.pushNamed(context, '/emergency-contacts'), color: const Color(0xFFFFE9E9), iconColor: AppTheme.sosRed),
             _menuTile(Icons.history, 'Historique des trajets', onTap: () => Navigator.pushNamed(context, '/history')),
             _menuTile(Icons.support_agent, 'Support • Assistant IA', onTap: () => Navigator.pushNamed(context, '/ai')),
