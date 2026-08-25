@@ -7,6 +7,7 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/push_service.dart';
 import '../theme/app_theme.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final User user;
