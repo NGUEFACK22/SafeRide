@@ -62,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildBody() {
     if (_selectedIndex == 1) return const _HistoryPreview();
     if (_selectedIndex == 2) return _AlertsPreview(unread: _unread, onOpen: _openNotifications);
-    if (_selectedIndex == 3) return _ProfilePreview(user: _user, onLogout: _logout);
+    if (_selectedIndex == 3) return ProfileScreen(user: _user);
 
     // Home (0) -> role view — Scan est dans le dashboard, plus en bas
     if (_user.hasRole('admin')) return const _AdminView();
