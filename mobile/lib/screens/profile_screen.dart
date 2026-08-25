@@ -103,7 +103,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
             const SizedBox(height: 16),
+            _menuTile(Icons.person_outline, 'Informations personnelles', onTap: () => _showInfo(context)),
             _menuTile(Icons.shield_outlined, 'Sécurité & SOS', onTap: () => Navigator.pushNamed(context, '/emergency-contacts'), color: const Color(0xFFFFE9E9), iconColor: AppTheme.sosRed),
+            _menuTile(Icons.credit_card, 'Moyens de paiement', onTap: () => _showPayment(context)),
             _menuTile(Icons.history, 'Historique des trajets', onTap: () => Navigator.pushNamed(context, '/history')),
             _menuTile(Icons.support_agent, 'Support • Assistant IA', onTap: () => Navigator.pushNamed(context, '/ai')),
             _menuTile(Icons.verified_user, 'Vérification d\'identité', onTap: () => Navigator.pushNamed(context, '/identity')),
@@ -129,6 +131,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.notifications_outlined), label: 'Alerts'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
+      ),
+    );
+  }
+
+  static void _showInfo(BuildContext context) {
+    final user = (ModalRoute.of(context)?.settings.arguments as dynamic);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Informations personnelles'),
+        content: const Text('Nom, email, téléphone et statut sont visibles dans votre profil.\n\nPour modifier, contactez le support.'),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer'))],
+      ),
+    );
+  }
+
+  static void _showPayment(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Moyens de paiement'),
+        content: const Text('Paiement hors périmètre SafeRide (sécurisation des trajets uniquement).\n\nAucun paiement n\'est géré dans l\'app.'),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
       ),
     );
   }
