@@ -84,19 +84,30 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
       LatLng? user;
       try {
-        // Essaye haute précision, sinon dernière connue, sinon Yaoundé
+        // 1. Haute précision avec timeout court
         final position = await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 8)),
         );
         user = LatLng(position.latitude, position.longitude);
       } catch (_) {
         try {
+          // 2. Dernière connue
           final last = await Geolocator.getLastKnownPosition();
-          if (last != null) user = LatLng(last.latitude, last.longitude);
+          if (last != null) {
+            user = LatLng(last.latitude, last.longitude);
+          } else {
+            // 3. Basse précision en dernier recours
+            final low = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(accuracy: LocationAccuracy.low, timeLimit: Duration(seconds: 6)),
+            );
+            user = LatLng(low.latitude, low.longitude);
+          }
         } catch (_) {
           user = null;
         }
       }
+      // Si toujours null et trip a un start, utilise-le comme position approximative
+      if (user == null && start != null) user = start;
 
       if (!mounted) return;
       setState(() {
