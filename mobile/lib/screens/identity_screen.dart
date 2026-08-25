@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
@@ -45,17 +46,39 @@ class _IdentityScreenState extends State<IdentityScreen> {
     } catch (_) {}
   }
 
+  Future<bool> _ensurePermission(ImageSource source) async {
+    Permission perm = source == ImageSource.camera ? Permission.camera : Permission.photos;
+    // Android 13+ : photos, sinon storage
+    if (source == ImageSource.gallery) {
+      final photos = await Permission.photos.status;
+      final storage = await Permission.storage.status;
+      if (photos.isGranted || storage.isGranted) return true;
+      final req = await (await Permission.photos.request()).isGranted || (await Permission.storage.request()).isGranted;
+      if (!req && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission galerie refusée — activez-la dans les paramètres')));
+      return req;
+    } else {
+      final status = await perm.status;
+      if (status.isGranted) return true;
+      final req = await perm.request();
+      if (!req.isGranted && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission caméra refusée')));
+      return req.isGranted;
+    }
+  }
+
   Future<void> _pickRecto(ImageSource source) async {
-    final picked = await _picker.pickImage(source: source, imageQuality: 80);
+    if (!await _ensurePermission(source)) return;
+    final picked = await _picker.pickImage(source: source, imageQuality: 70);
     if (picked != null && mounted) setState(() => _recto = picked);
   }
 
   Future<void> _pickVerso(ImageSource source) async {
-    final picked = await _picker.pickImage(source: source, imageQuality: 80);
+    if (!await _ensurePermission(source)) return;
+    final picked = await _picker.pickImage(source: source, imageQuality: 70);
     if (picked != null && mounted) setState(() => _verso = picked);
   }
 
   Future<void> _pickSelfie(ImageSource source) async {
+    if (!await _ensurePermission(source)) return;
     try {
       final picked = await _picker.pickImage(source: source, imageQuality: 60, preferredCameraDevice: CameraDevice.front);
       if (picked != null && mounted) setState(() => _selfie = picked);
