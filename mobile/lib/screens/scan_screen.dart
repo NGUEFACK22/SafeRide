@@ -4,6 +4,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../models/trip.dart';
 import '../services/api_service.dart';
+import '../services/permission_service.dart';
 import '../services/trip_service.dart';
 import '../theme/app_theme.dart';
 import 'course_confirm_screen.dart';
@@ -21,6 +22,12 @@ class _ScanScreenState extends State<ScanScreen> {
   bool _loading = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => PermissionService.camera(context));
+  }
+
+  @override
   void dispose() {
     _scanner.dispose();
     super.dispose();
@@ -36,6 +43,9 @@ class _ScanScreenState extends State<ScanScreen> {
     setState(() => _loading = true);
     await _scanner.stop();
     try {
+      if (!await PermissionService.location(context)) {
+        throw Exception('Permission localisation refusée');
+      }
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );

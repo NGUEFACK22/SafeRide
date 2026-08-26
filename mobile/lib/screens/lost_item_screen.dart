@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../config/api_config.dart';
 import '../services/api_service.dart';
+import '../services/permission_service.dart';
 import '../theme/app_theme.dart';
 
 class LostItemScreen extends StatefulWidget {

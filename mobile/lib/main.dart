@@ -21,6 +21,7 @@ import 'screens/trip_map_screen.dart';
 import 'screens/rating_screen.dart';
 import 'screens/transporteur_dashboard_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/profile_edit_screen.dart';
 import 'screens/admin_screen.dart';
 import 'screens/emergency_contacts_screen.dart';
 import 'theme/app_theme.dart';
@@ -88,6 +89,7 @@ class SafeRideApp extends StatelessWidget {
           final arg = ModalRoute.of(ctx)?.settings.arguments;
           return ProfileScreen(user: arg as dynamic);
         },
+        '/profile-edit': (ctx) => const ProfileEditScreen(),
       },
     );
   }

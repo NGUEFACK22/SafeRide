@@ -179,6 +179,24 @@ class AuthController extends Controller
         return response()->json(['user' => $this->userPayload($user)]);
     }
 
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $data = $request->validate([
+            'nom' => 'sometimes|required|string|max:100',
+            'prenom' => 'sometimes|required|string|max:100',
+            'email' => 'sometimes|required|email|unique:users,email,' . $user->id,
+            'telephone' => 'sometimes|required|string|max:20|unique:users,telephone,' . $user->id,
+        ]);
+
+        $user->update($data);
+
+        return response()->json([
+            'message' => 'Profil mis à jour',
+            'user' => $this->userPayload($user->fresh()->load('roles', 'vehicles')),
+        ]);
+    }
+
     public function deleteAccount(Request $request): JsonResponse
     {
         $user = $request->user();

@@ -32,6 +32,7 @@ Route::get('auth/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('auth/profile', [AuthController::class, 'profile']);
+        Route::put('auth/profile', [AuthController::class, 'updateProfile']);
         Route::delete('auth/account', [AuthController::class, 'deleteAccount']);
         Route::post('auth/send-verification', [AuthController::class, 'sendVerification']);
 
