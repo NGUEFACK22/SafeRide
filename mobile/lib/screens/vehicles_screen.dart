@@ -271,8 +271,7 @@ class _QrDialogState extends State<_QrDialog> {
         setState(() => _token = qr['token']);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('🔄 QR régénéré après scan !'),
+            const SnackBar(                  content: Text('QR régénéré après scan !'),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
