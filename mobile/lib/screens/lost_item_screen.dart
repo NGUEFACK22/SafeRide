@@ -126,7 +126,7 @@ class _LostReportsTabState extends State<_LostReportsTab> {
               title: Text(report['objet'] ?? 'Objet'),
               subtitle: Text(
                 'Trajet #${report['trip_id']} · '
-                '${_dateOnly(report['created_at'] as String?)}${hasImage ? ' · 📷' : ''}',
+                '${_dateOnly(report['created_at'] as String?)}${hasImage ? ' · image jointe' : ''}',
               ),
               trailing: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
