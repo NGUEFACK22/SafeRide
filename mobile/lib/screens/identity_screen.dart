@@ -185,9 +185,15 @@ class _IdentityScreenState extends State<IdentityScreen> {
             ],
           ),
           if (!galleryAllowed)
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: Text('⚠️ Selfie en direct obligatoire — galerie désactivée pour sécurité', style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w600)),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                children: const [
+                  Icon(Icons.warning, size: 12, color: Colors.orange),
+                  SizedBox(width: 4),
+                  Expanded(child: Text('Selfie en direct obligatoire — galerie désactivée pour sécurité', style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w600))),
+                ],
+              ),
             ),
           if (file != null) ...[
             const SizedBox(height: 8),
