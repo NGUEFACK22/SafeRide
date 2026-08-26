@@ -193,7 +193,7 @@ class _TransporteurDashboardScreenState extends State<TransporteurDashboardScree
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Row(
                   children: [
-                    Text('$s★', style: const TextStyle(fontSize: 12)),
+                    Row(children: [Text('$s', style: const TextStyle(fontSize: 12)), const Icon(Icons.star, size: 12, color: Colors.amber)]),
                     const SizedBox(width: 8),
                     Expanded(
                       child: LinearProgressIndicator(value: pct, backgroundColor: Colors.grey.shade200),
