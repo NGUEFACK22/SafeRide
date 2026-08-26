@@ -143,7 +143,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(isAvg
-              ? 'Empreinte vocale créée (3 prises moyennées). SOS vocal activé ✅'
+              ? 'Empreinte vocale créée (3 prises moyennées). SOS vocal activé.'
               : 'Profil vocal enrôlé (mode repli : modèle vocal absent).'),
         ),
       );
