@@ -11,6 +11,7 @@ use App\Models\Trip;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class AdminController extends Controller
 {
@@ -45,7 +46,7 @@ class AdminController extends Controller
             'prenom' => $data['prenom'],
             'email' => $data['email'],
             'telephone' => $data['telephone'],
-            'password' => $data['password'],
+            'password' => Hash::make($data['password']),
             'statut' => 'ACTIF',
         ]);
 

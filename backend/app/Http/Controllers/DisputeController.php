@@ -15,8 +15,10 @@ class DisputeController extends Controller
     public function index(Request $request): JsonResponse
     {
         $disputes = Dispute::with('trip', 'passager', 'transporteur')
-            ->where('passager_id', $request->user()->id)
-            ->orWhere('transporteur_id', $request->user()->id)
+            ->where(function ($q) use ($request) {
+                $q->where('passager_id', $request->user()->id)
+                  ->orWhere('transporteur_id', $request->user()->id);
+            })
             ->latest()
             ->paginate(15);
 

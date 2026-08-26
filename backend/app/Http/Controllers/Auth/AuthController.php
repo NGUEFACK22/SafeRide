@@ -212,11 +212,12 @@ class AuthController extends Controller
         if ($user->hasVerifiedEmail()) {
             return response()->json(['message' => 'Email déjà vérifié']);
         }
-        $user->sendEmailVerificationNotification();
-        // Fallback si notification non configurée : envoi direct
+        // Envoi unique : notification Laravel (si configurée) OU envoi direct
         try {
             \Mail::to($user->email)->send(new \App\Mail\VerificationMail($user));
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+            \Log::warning('Verification email failed', ['email' => $user->email, 'error' => $e->getMessage()]);
+        }
         return response()->json(['message' => 'Email de vérification envoyé']);
     }
 

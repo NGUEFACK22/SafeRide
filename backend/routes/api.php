@@ -142,5 +142,9 @@ Route::get('auth/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail
             Route::get('managers/stats', [AdminController::class, 'managerStats']);
             Route::get('managers/{manager}/stats', [AdminController::class, 'statsByManager']);
         });
+
+        // Clôture automatique des trajets inactifs (>10 min sans activité)
+        Route::post('trips/auto-end-inactive', [TripController::class, 'autoEndInactive'])
+            ->middleware(['role:admin']);
     });
 });

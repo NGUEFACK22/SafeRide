@@ -61,5 +61,13 @@ php artisan key:generate --force --no-interaction
 # Lancer les migrations
 php artisan migrate --force --no-interaction
 
+# Optimiser pour la production
+cache_flags=""
+if [ "$APP_ENV" = "production" ]; then
+  php artisan config:cache --no-interaction
+  php artisan route:cache --no-interaction
+  php artisan view:cache --no-interaction 2>/dev/null || true
+fi
+
 # Lancer le serveur
 php artisan serve --host=0.0.0.0 --port=${PORT:-8000}

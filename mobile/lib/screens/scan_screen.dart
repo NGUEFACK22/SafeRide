@@ -91,7 +91,6 @@ class _ScanScreenState extends State<ScanScreen> {
       ),
       body: Stack(
         children: [
-          MobileScanner(controller: _scanner, onDetect: _onDetect),
           // Overlay sombre + consigne
           Container(color: Colors.black.withValues(alpha: 0.35)),
           Positioned(

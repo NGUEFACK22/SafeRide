@@ -25,9 +25,9 @@ class TripController extends Controller
 
     public function current(Request $request): JsonResponse
     {
-        $role = $request->user()->roles()->first()->slug;
+        $role = $request->user()->roles()->first()?->slug ?? 'passager';
 
-        $query = Trip::with('passager', 'transporteur', 'vehicle', 'locations');
+        $query = Trip::with('passager', 'transporteur', 'vehicle', 'locations', 'ratings');
 
         if ($role === 'transporteur') {
             $query->where('transporteur_id', $request->user()->id);
@@ -438,7 +438,7 @@ class TripController extends Controller
     {
         $role = $request->user()->roles()->first()?->slug;
 
-        $query = Trip::with('passager', 'transporteur', 'vehicle')
+        $query = Trip::with('passager', 'transporteur', 'vehicle', 'ratings')
             ->where('statut', 'TERMINE');
 
         if ($role === 'transporteur') {
@@ -464,12 +464,16 @@ class TripController extends Controller
     }
 
     /**
-     * Récupère un trajet actif du passateur (tous statuts sauf TERMINE/ANNULE)
+     * Récupère un trajet actif (passager ou transporteur, tous statuts sauf TERMINE/ANNULE)
      */
     protected function ownActiveTrip(Request $request, int $id): Trip
     {
+        $userId = $request->user()->id;
         $trip = Trip::where('id', $id)
-            ->where('passager_id', $request->user()->id)
+            ->where(function ($q) use ($userId) {
+                $q->where('passager_id', $userId)
+                  ->orWhere('transporteur_id', $userId);
+            })
             ->whereNotIn('statut', ['TERMINE', 'ANNULE'])
             ->firstOrFail();
 
@@ -477,12 +481,16 @@ class TripController extends Controller
     }
 
     /**
-     * Récupère un trajet en cours de suivi GPS (statut EN_COURS seulement)
+     * Récupère un trajet en cours de suivi GPS (passager ou transporteur, statut EN_COURS)
      */
     protected function ownTrackingTrip(Request $request, int $id): Trip
     {
+        $userId = $request->user()->id;
         $trip = Trip::where('id', $id)
-            ->where('passager_id', $request->user()->id)
+            ->where(function ($q) use ($userId) {
+                $q->where('passager_id', $userId)
+                  ->orWhere('transporteur_id', $userId);
+            })
             ->where('statut', 'EN_COURS')
             ->firstOrFail();
 

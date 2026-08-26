@@ -47,7 +47,8 @@ class FcmService
             'exp' => $now + 3600,
         ]));
 
-        $privateKey = str_replace('\\n', "\n", $this->account['private_key']);
+        // json_decode() convertit déjà les \n en newline réels
+        $privateKey = $this->account['private_key'];
         $signature = '';
         openssl_sign($header.'.'.$claims, $signature, $privateKey, 'sha256WithRSAEncryption');
 

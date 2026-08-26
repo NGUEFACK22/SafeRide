@@ -34,15 +34,30 @@ class TripResource extends JsonResource
             'vehicle' => $this->whenLoaded('vehicle'),
             'my_rating' => $this->when(
                 $request && $request->user(),
-                fn () => \App\Models\TripRating::where('trip_id', $this->id)->where('rater_id', $request->user()->id)->first()
+                function () use ($request) {
+                    $ratings = $this->relationLoaded('ratings')
+                        ? $this->ratings
+                        : \App\Models\TripRating::where('trip_id', $this->id)->get();
+                    return $ratings->firstWhere('rater_id', $request->user()->id);
+                }
             ),
             'ratings_avg' => $this->when(
-                $this->relationLoaded('ratings') || true,
-                fn () => round((float) \App\Models\TripRating::where('trip_id', $this->id)->avg('rating'), 2)
+                true,
+                function () {
+                    $ratings = $this->relationLoaded('ratings')
+                        ? $this->ratings
+                        : \App\Models\TripRating::where('trip_id', $this->id)->get();
+                    return round((float) $ratings->avg('rating'), 2);
+                }
             ),
             'ratings_count' => $this->when(
                 true,
-                fn () => \App\Models\TripRating::where('trip_id', $this->id)->count()
+                function () {
+                    $ratings = $this->relationLoaded('ratings')
+                        ? $this->ratings
+                        : \App\Models\TripRating::where('trip_id', $this->id)->get();
+                    return $ratings->count();
+                }
             ),
         ];
     }

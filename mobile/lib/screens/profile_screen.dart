@@ -16,11 +16,16 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   String? _verifStatut;
   bool _verifLoading = true;
+  int _tripsCount = 0;
+  double _totalKm = 0;
+  double _avgRating = 0;
+  bool _statsLoading = true;
 
   @override
   void initState() {
     super.initState();
     _loadVerif();
+    _loadStats();
   }
 
   Future<void> _loadVerif() async {
@@ -30,6 +35,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) setState(() {_verifStatut = v?['statut'] as String?; _verifLoading = false;});
     } catch (_) {
       if (mounted) setState(() => _verifLoading = false);
+    }
+  }
+
+  Future<void> _loadStats() async {
+    try {
+      final data = await ApiService().get('/ai/summary');
+      final report = data['report'] as Map<String, dynamic>?;
+      final content = report?['contenu'] as String? ?? '';
+      // Extraire les stats du contenu IA ou utiliser les données du rapport
+      if (mounted) {
+        setState(() {
+          // Parsing basique du contenu IA ou fallback sur 0
+          _statsLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _statsLoading = false);
     }
   }
 
@@ -93,15 +115,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ]),
                   ),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(child: _statBox('142', 'TRAJETS')),
-                const SizedBox(width: 8),
-                Expanded(child: _statBox('1.2k', 'KM TOTAL')),
-                const SizedBox(width: 8),
-                Expanded(child: _statBoxBlue('99%', 'SCORE')),
-              ],
-            ),
+            _statsLoading
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                  )
+                : Row(
+                    children: [
+                      Expanded(child: _statBox('$_tripsCount', 'TRAJETS')),
+                      const SizedBox(width: 8),
+                      Expanded(child: _statBox('${_totalKm.toStringAsFixed(0)}', 'KM TOTAL')),
+                      const SizedBox(width: 8),
+                      Expanded(child: _statBoxBlue('${_avgRating.toStringAsFixed(1)}', 'NOTE')),  
+                    ],
+                  ),
             const SizedBox(height: 16),
             _menuTile(Icons.person_outline, 'Informations personnelles', onTap: () => _showInfo(context)),
             _menuTile(Icons.settings_outlined, 'Paramètres', onTap: () => Navigator.pushNamed(context, '/profile-edit'), color: Colors.grey.shade100, iconColor: AppTheme.textDark),

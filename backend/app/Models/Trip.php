@@ -41,6 +41,7 @@ class Trip extends Model
             'destination_longitude' => 'decimal:7',
             'distance_km' => 'decimal:2',
             'deviation_km' => 'decimal:2',
+            'deviation_alert' => 'boolean',
         ];
     }
 
