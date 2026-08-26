@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 
 class EmergencyContactsScreen extends StatefulWidget {
   const EmergencyContactsScreen({super.key});
@@ -141,12 +142,12 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('📞 ${contact['telephone'] ?? ''}'),
+                                  Row(children: [const Icon(Icons.phone, size: 14, color: AppTheme.primaryBlue), const SizedBox(width: 4), Text(contact['telephone'] ?? '')]),
                                   if (contact['whatsapp_telephone'] != null)
-                                    Text('💬 WhatsApp: ${contact['whatsapp_telephone']}'),
+                                    Row(children: [const Icon(Icons.message, size: 14, color: Color(0xFF25D366)), const SizedBox(width: 4), Text('WhatsApp: ${contact['whatsapp_telephone']}')]),
                                   if (contact['relation'] != null)
                                     Text('Relation : ${contact['relation']}'),
-                                  Text('✉️ ${contact['email'] ?? ''}'),
+                                  Row(children: [const Icon(Icons.email, size: 14, color: AppTheme.primaryBlue), const SizedBox(width: 4), Text(contact['email'] ?? '')]),
                                 ],
                               ),
                               trailing: Row(
