@@ -276,7 +276,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       if (started && mounted) {
         setState(() {
           _voiceMonitoring = true;
-          _voiceStatus = '🔴 Écoute automatique Vosk active ("$_securityWord")';
+          _voiceStatus = 'Ecoute automatique Vosk active ("$_securityWord")';
         });
       }
     } catch (e) {
@@ -340,11 +340,11 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       final details = (data['sos'] as Map<String, dynamic>?)?['details'] as Map<String, dynamic>?;
       final passed = details?['verification_passed'] == true;
       if (!mounted) return;
-      setState(() => _voiceStatus = passed ? '✅ SOS vérifié et transmis !' : '❌ Voix différente — alerte en vérification');
+      setState(() => _voiceStatus = passed ? 'SOS vérifié et transmis !' : 'Voix différente — alerte en vérification');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: passed ? Colors.green.shade700 : Colors.orange.shade800,
-          content: Text(passed ? '✅ Voix correspondante — SOS déclenché !' : '❌ Voix différente — alerte en vérification'),
+          content: Text(passed ? 'Voix correspondante — SOS déclenché !' : 'Voix différente — alerte en vérification'),
           duration: const Duration(seconds: 4),
         ),
       );
@@ -660,7 +660,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
             subtitle: Text(
               _voiceStatus.isNotEmpty
                   ? _voiceStatus
-                  : 'Le mot de sécurité est écouté automatiquement pendant le trajet. Vosk (mot-clé) + ECAPA (voix) -> ✅/❌ automatique.',
+                  : 'Le mot de sécurité est écouté automatiquement pendant le trajet. Vosk (mot-clé) + ECAPA (voix) — vérification automatique.',
               style: const TextStyle(fontSize: 11),
             ),
           ),
