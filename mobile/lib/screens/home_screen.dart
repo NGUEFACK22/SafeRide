@@ -259,7 +259,7 @@ class _PassagerView extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                     decoration: BoxDecoration(color: AppTheme.sosRed, borderRadius: BorderRadius.circular(14)),
                     child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Text('✳', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                      Icon(Icons.sos, color: Colors.white, size: 18),
                       SizedBox(width: 8),
                       Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
                     ]),
