@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../config/api_config.dart';
@@ -9,20 +11,33 @@ class GoogleAuthService {
   Future<GoogleSignIn> _instance() async {
     if (_initialized) return _googleSignIn;
     try {
+      // Vérification préalable de la configuration
+      if (ApiConfig.googleClientId.isEmpty && ApiConfig.googleAndroidClientId.isEmpty) {
+        throw Exception(
+          'Google Sign-In non configuré. '
+          'Buildz avec --dart-define=GOOGLE_CLIENT_ID=<votre-web-client-id> '
+          'pour activer la connexion Google.',
+        );
+      }
+
       // serverClientId (Web) est obligatoire pour obtenir un idToken vérifiable côté backend.
       // clientId (Android) est optionnel — on ne le passe que s'il est renseigné via --dart-define.
       if (ApiConfig.googleAndroidClientId.isNotEmpty) {
+        developer.log('Initialisation GoogleSignIn avec clientId Android + serverClientId Web');
         await _googleSignIn.initialize(
           clientId: ApiConfig.googleAndroidClientId,
           serverClientId: ApiConfig.googleClientId,
         );
       } else if (ApiConfig.googleClientId.isNotEmpty) {
+        developer.log('Initialisation GoogleSignIn avec serverClientId Web uniquement');
         await _googleSignIn.initialize(serverClientId: ApiConfig.googleClientId);
       } else {
         await _googleSignIn.initialize();
       }
       _initialized = true;
+      developer.log('GoogleSignIn initialisé avec succès');
     } on UnimplementedError catch (e) {
+      developer.log('GoogleSignIn non supporté sur cet appareil: $e');
       throw Exception('Google Sign-In non disponible sur cet appareil : $e');
     }
     return _googleSignIn;
@@ -40,6 +55,7 @@ class GoogleAuthService {
       );
     } on GoogleSignInException catch (e) {
       final code = e.code;
+      developer.log('GoogleSignInException: code=$code, description=${e.description}');
       if (code == GoogleSignInExceptionCode.canceled ||
           code == GoogleSignInExceptionCode.interrupted ||
           code == GoogleSignInExceptionCode.uiUnavailable) {
@@ -61,7 +77,19 @@ class GoogleAuthService {
     }
 
     final auth = account.authentication;
-    return auth.idToken;
+    final idToken = auth.idToken;
+
+    if (idToken == null || idToken.isEmpty) {
+      developer.log('⚠️ GoogleSignIn: auth.idToken est NULL — vérifiez la configuration OAuth dans Google Cloud Console');
+      throw Exception(
+        'Google a retourné un token vide. '
+        'Vérifiez que l\'API "Google+ ID" ou "Google Identity" est activée '
+        'dans Google Cloud Console pour ce Client ID.',
+      );
+    }
+
+    developer.log('GoogleSignIn: idToken obtenu (${idToken.length} caractères)');
+    return idToken;
   }
 
   Future<void> signOut() async {

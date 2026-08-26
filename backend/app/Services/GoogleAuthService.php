@@ -19,13 +19,19 @@ class GoogleAuthService
                 'id_token' => $idToken,
             ]);
         } catch (\Throwable $e) {
-            Log::warning('Google tokeninfo call failed', ['error' => $e->getMessage()]);
+            Log::warning('Google tokeninfo call failed', [
+                'error' => $e->getMessage(),
+                'token_length' => strlen($idToken),
+            ]);
 
             return null;
         }
 
         if (! $response->successful()) {
-            Log::warning('Google tokeninfo rejected', ['status' => $response->status()]);
+            Log::warning('Google tokeninfo rejected', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
 
             return null;
         }
@@ -33,6 +39,11 @@ class GoogleAuthService
         $claims = $response->json();
 
         if (! is_array($claims) || empty($claims['email']) || empty($claims['sub'])) {
+            Log::warning('Google tokeninfo: missing required claims', [
+                'has_email' => !empty($claims['email']),
+                'has_sub' => !empty($claims['sub']),
+            ]);
+
             return null;
         }
 
@@ -43,10 +54,18 @@ class GoogleAuthService
         ]));
 
         if ($allowed !== [] && ! in_array($claims['aud'] ?? null, $allowed, true)) {
-            Log::warning('Google token aud mismatch', ['aud' => $claims['aud'] ?? null]);
+            Log::warning('Google token aud mismatch', [
+                'token_aud' => $claims['aud'] ?? null,
+                'allowed_auds' => $allowed,
+            ]);
 
             return null;
         }
+
+        Log::info('Google token verified successfully', [
+            'email' => $claims['email'],
+            'aud' => $claims['aud'] ?? null,
+        ]);
 
         return $claims;
     }

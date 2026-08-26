@@ -13,6 +13,10 @@ class ApiConfig {
   //                             doit correspondre à services.google.client_id du backend)
   //   GOOGLE_ANDROID_CLIENT_ID→ OAuth client ID Android (optionnel sur Android,
   //                             auto-détecté via google-services.json s'il est présent)
+  //
+  // IMPORTANT : Sans ces valeurs, le bouton Google affichera un message d'erreur.
+  // Build avec :
+  //   flutter run --dart-define=GOOGLE_CLIENT_ID=<web-client-id> --dart-define=GOOGLE_ANDROID_CLIENT_ID=<android-client-id>
   static const String googleClientId = String.fromEnvironment(
     'GOOGLE_CLIENT_ID',
     defaultValue: '',
@@ -22,4 +26,13 @@ class ApiConfig {
     'GOOGLE_ANDROID_CLIENT_ID',
     defaultValue: '',
   );
+
+  /// Vérifie si la connexion Google est configurée.
+  /// Retourne un message d'erreur si non configuré, null sinon.
+  static String? get googleNotConfiguredMessage {
+    if (googleClientId.isEmpty && googleAndroidClientId.isEmpty) {
+      return 'Google non configuré. Build avec --dart-define=GOOGLE_CLIENT_ID=<id> pour activer.';
+    }
+    return null;
+  }
 }

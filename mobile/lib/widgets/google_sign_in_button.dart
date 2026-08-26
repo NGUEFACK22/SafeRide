@@ -31,7 +31,14 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Connexion Google impossible : $e')),
+        SnackBar(
+          content: Text('Connexion Google impossible : $e'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'OK',
+            onPressed: () {},
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -40,16 +47,18 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
 
   @override
   Widget build(BuildContext context) {
-    // Toujours afficher le bouton — si non configuré, on informe l'utilisateur
-    final isConfigured = ApiConfig.googleClientId.isNotEmpty || ApiConfig.googleAndroidClientId.isNotEmpty;
+    final notConfiguredMsg = ApiConfig.googleNotConfiguredMessage;
 
     return OutlinedButton.icon(
       onPressed: _loading
           ? null
-          : isConfigured
+          : notConfiguredMsg == null
               ? _signIn
               : () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Google non configuré — utilisez email/mot de passe ou rebuild avec --dart-define=GOOGLE_CLIENT_ID=...')),
+                    SnackBar(
+                      content: Text(notConfiguredMsg),
+                      duration: const Duration(seconds: 4),
+                    ),
                   ),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(48),
@@ -61,7 +70,12 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           : const Icon(Icons.g_mobiledata, size: 26),
-      label: const Text('Continuer avec Google'),
+      label: Text(
+        _loading ? 'Connexion en cours...' : 'Continuer avec Google',
+        style: TextStyle(
+          color: notConfiguredMsg != null ? Colors.grey : null,
+        ),
+      ),
     );
   }
 }

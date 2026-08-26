@@ -108,8 +108,17 @@ class AuthController extends Controller
         $claims = app(GoogleAuthService::class)->verifyIdToken($data['id_token']);
 
         if ($claims === null) {
+            \Log::warning('Google auth failed: token verification returned null', [
+                'token_length' => strlen($data['id_token']),
+                'ip' => $request->ip(),
+            ]);
             return response()->json(['message' => 'Jeton Google invalide'], 401);
         }
+
+        \Log::info('Google auth: token verified successfully', [
+            'email' => $claims['email'] ?? 'unknown',
+            'aud' => $claims['aud'] ?? 'unknown',
+        ]);
 
         // P1-5 : validation stricte des claims requis
         if (empty($claims['email']) || empty($claims['sub'])) {
