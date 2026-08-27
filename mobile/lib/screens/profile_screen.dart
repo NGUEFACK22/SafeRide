@@ -40,9 +40,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadStats() async {
     try {
-      final data = await ApiService().get('/ai/summary');
-      final report = data['report'] as Map<String, dynamic>?;
-      final content = report?['contenu'] as String? ?? '';
+      await ApiService().get('/ai/summary');
       // Extraire les stats du contenu IA ou utiliser les données du rapport
       if (mounted) {
         setState(() {
@@ -66,7 +64,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         leading: IconButton(icon: const Icon(Icons.arrow_back, color: AppTheme.textDark), onPressed: () => Navigator.pop(context)),
         title: const Text('SafeRide AI', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800)),
         centerTitle: true,
-        actions: const [Padding(padding: EdgeInsets.only(right: 12), child: CircleAvatar(radius: 16, backgroundImage: NetworkImage('https://i.pravatar.cc/100?img=12')))],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -76,7 +73,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Stack(
               alignment: Alignment.bottomRight,
               children: [
-                const CircleAvatar(radius: 44, backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=15')),
+                CircleAvatar(radius: 44, backgroundColor: AppTheme.primaryBlue, child: Text(displayName.isNotEmpty ? displayName[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700))),
                 Container(
                   width: 22,
                   height: 22,
@@ -122,11 +119,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   )
                 : Row(
                     children: [
-                      Expanded(child: _statBox('$_tripsCount', 'TRAJETS')),
+                      Expanded(child: _statBox(_tripsCount.toString(), 'TRAJETS')),
                       const SizedBox(width: 8),
-                      Expanded(child: _statBox('${_totalKm.toStringAsFixed(0)}', 'KM TOTAL')),
+                      Expanded(child: _statBox(_totalKm.toStringAsFixed(0), 'KM TOTAL')),
                       const SizedBox(width: 8),
-                      Expanded(child: _statBoxBlue('${_avgRating.toStringAsFixed(1)}', 'NOTE')),  
+                      Expanded(child: _statBoxBlue(_avgRating.toStringAsFixed(1), 'NOTE')),
                     ],
                   ),
             const SizedBox(height: 16),
@@ -148,6 +145,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (i == 0) Navigator.pushReplacementNamed(context, '/home');
           if (i == 1) Navigator.pushNamed(context, '/history');
           if (i == 2) Navigator.pushNamed(context, '/scan');
+          if (i == 3) Navigator.pushNamed(context, '/notifications');
         },
         selectedItemColor: AppTheme.primaryBlue,
         unselectedItemColor: const Color(0xFF9AA0AE),
@@ -164,24 +162,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   static void _showInfo(BuildContext context) {
-    final user = (ModalRoute.of(context)?.settings.arguments as dynamic);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Informations personnelles'),
         content: const Text('Nom, email, téléphone et statut sont visibles dans votre profil.\n\nPour modifier, contactez le support.'),
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer'))],
-      ),
-    );
-  }
-
-  static void _showPayment(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Moyens de paiement'),
-        content: const Text('Paiement hors périmètre SafeRide (sécurisation des trajets uniquement).\n\nAucun paiement n\'est géré dans l\'app.'),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
       ),
     );
   }
