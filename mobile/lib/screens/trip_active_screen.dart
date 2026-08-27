@@ -628,7 +628,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
         Card(
           child: ListTile(
             leading: const Icon(Icons.directions_car, color: AppTheme.primaryBlue),
-            title: Text('Véhicule de ${trip.transporteurFullName.isEmpty ? 'Jean Dupont' : trip.transporteurFullName}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            title: Text('Véhicule de ${trip.transporteurFullName.isNotEmpty ? trip.transporteurFullName : 'Transporteur'}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
             subtitle: const Text('Surveillance GPS + vocale active', style: TextStyle(fontSize: 11)),
           ),
         ),
