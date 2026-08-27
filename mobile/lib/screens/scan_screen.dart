@@ -86,7 +86,7 @@ class _ScanScreenState extends State<ScanScreen> {
         leading: IconButton(icon: const Icon(Icons.shield, color: Colors.white), onPressed: () => Navigator.pop(context)),
         title: const Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
         centerTitle: true,
-        actions: const [Padding(padding: EdgeInsets.only(right: 12), child: CircleAvatar(radius: 14, backgroundImage: NetworkImage('https://i.pravatar.cc/100')))],
+        actions: const [Padding(padding: EdgeInsets.only(right: 12), child: CircleAvatar(radius: 14, backgroundColor: Color(0xFF1E3A5F), child: Icon(Icons.person, size: 16, color: Colors.white)))],
       ),
       body: Stack(
         children: [

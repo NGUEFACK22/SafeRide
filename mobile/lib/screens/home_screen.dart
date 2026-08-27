@@ -387,7 +387,7 @@ class _TransporteurView extends StatelessWidget {
               title: const Text('Mot de sécurité', style: TextStyle(fontWeight: FontWeight.w700)),
               subtitle: const Text('Configurer votre mot vocal (3 prises)'),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.pushNamed(context, '/sos-button'),
+              onTap: () => Navigator.pushNamed(context, '/profile-edit'),
             ),
           ),
           const SizedBox(height: 12),
