@@ -389,23 +389,16 @@ class _PassagerViewState extends State<_PassagerView> {
             ),
           ),
           const SizedBox(height: 12),
-          // Section ordonnée : Mes services en grille 2x2
+          // Section ordonnée : Mes services en grille 2x2 (layout manuel)
           const Text('Mes services', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 10),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 2.8,
-            children: [
-              _serviceCard(Icons.trip_origin, 'Trajet en cours', 'Suivi GPS', () => Navigator.pushNamed(context, '/trip-active')),
-              _serviceCard(Icons.work_outline, 'Objet perdu', 'Signaler', () => Navigator.pushNamed(context, '/lost-item')),
-              _serviceCard(Icons.gavel_outlined, 'Litige', 'Signaler', () => Navigator.pushNamed(context, '/dispute')),
-              _serviceCard(Icons.verified_user, 'Identité', 'Vérifier', () => Navigator.pushNamed(context, '/identity'), color: AppTheme.primaryBlue),
-            ],
-          ),
+          _serviceCard(Icons.trip_origin, 'Trajet en cours', 'Suivi GPS', () => Navigator.pushNamed(context, '/trip-active')),
+          const SizedBox(height: 10),
+          _serviceCard(Icons.work_outline, 'Objet perdu', 'Signaler', () => Navigator.pushNamed(context, '/lost-item')),
+          const SizedBox(height: 10),
+          _serviceCard(Icons.gavel_outlined, 'Litige', 'Signaler', () => Navigator.pushNamed(context, '/dispute')),
+          const SizedBox(height: 10),
+          _serviceCard(Icons.verified_user, 'Identité', 'Vérifier', () => Navigator.pushNamed(context, '/identity'), color: AppTheme.primaryBlue),
         ],
       ),
     );
