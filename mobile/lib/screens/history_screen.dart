@@ -69,8 +69,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       child: ListView(
                         padding: const EdgeInsets.all(16),
                         children: [
-                          const Text('Trip History', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
-                          const Text('Review your recent activity', style: TextStyle(color: AppTheme.textGrey, fontSize: 13)),
+                          const Text('Historique des trajets', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+                          const Text('Consultez vos trajets récents', style: TextStyle(color: AppTheme.textGrey, fontSize: 13)),
                           const SizedBox(height: 16),
                           _section('Aujourd\'hui', _trips.take(1).toList()),
                           const SizedBox(height: 16),
