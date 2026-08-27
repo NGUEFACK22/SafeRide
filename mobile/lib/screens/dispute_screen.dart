@@ -48,7 +48,7 @@ class _DisputeScreenState extends State<DisputeScreen> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Litiges & Signalements'),
+          title: const Text('Litiges'),
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Mes litiges'),

@@ -389,16 +389,24 @@ class _PassagerViewState extends State<_PassagerView> {
             ),
           ),
           const SizedBox(height: 12),
-          // Section ordonnée : Mes services en grille 2x2 (layout manuel)
+          // Section ordonnée : Mes services en grille 2x2
           const Text('Mes services', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 10),
-          _serviceCard(Icons.trip_origin, 'Trajet en cours', 'Suivi GPS', () => Navigator.pushNamed(context, '/trip-active')),
+          Row(
+            children: [
+              Expanded(child: _serviceCard(Icons.trip_origin, 'Trajet', 'Suivi GPS', () => Navigator.pushNamed(context, '/trip-active'))),
+              const SizedBox(width: 10),
+              Expanded(child: _serviceCard(Icons.work_outline, 'Objet perdu', 'Signaler', () => Navigator.pushNamed(context, '/lost-item'))),
+            ],
+          ),
           const SizedBox(height: 10),
-          _serviceCard(Icons.work_outline, 'Objet perdu', 'Signaler', () => Navigator.pushNamed(context, '/lost-item')),
-          const SizedBox(height: 10),
-          _serviceCard(Icons.gavel_outlined, 'Litige', 'Signaler', () => Navigator.pushNamed(context, '/dispute')),
-          const SizedBox(height: 10),
-          _serviceCard(Icons.verified_user, 'Identité', 'Vérifier', () => Navigator.pushNamed(context, '/identity'), color: AppTheme.primaryBlue),
+          Row(
+            children: [
+              Expanded(child: _serviceCard(Icons.gavel_outlined, 'Litige', 'Signaler', () => Navigator.pushNamed(context, '/dispute'))),
+              const SizedBox(width: 10),
+              Expanded(child: _serviceCard(Icons.verified_user, 'Identité', 'Vérifier', () => Navigator.pushNamed(context, '/identity'), color: AppTheme.primaryBlue)),
+            ],
+          ),
         ],
       ),
     );
