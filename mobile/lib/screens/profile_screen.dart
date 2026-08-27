@@ -16,6 +16,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  final _api = ApiService();
   String? _verifStatut;
   bool _verifLoading = true;
   int _tripsCount = 0;
@@ -23,16 +24,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
   double _avgRating = 0;
   bool _statsLoading = true;
 
+  // Champs éditables inline
+  final _emailController = TextEditingController();
+  final _telephoneController = TextEditingController();
+  final _motSecuriteController = TextEditingController();
+  bool _fieldsLoading = true;
+  bool _saving = false;
+
   @override
   void initState() {
     super.initState();
     _loadVerif();
     _loadStats();
+    _loadFields();
   }
 
   Future<void> _loadVerif() async {
     try {
-      final data = await ApiService().get('/identity/status');
+      final data = await _api.get('/identity/status');
       final v = data['verification'] as Map<String, dynamic>?;
       if (mounted) setState(() {_verifStatut = v?['statut'] as String?; _verifLoading = false;});
     } catch (_) {
@@ -42,8 +51,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadStats() async {
     try {
-      // 1. Nombre de trajets
-      final historyData = await ApiService().get('/trips/history');
+      final historyData = await _api.get('/trips/history');
       final tripsList = (historyData['trips'] as Map<String, dynamic>?)?['data'] as List<dynamic>? ?? [];
       double totalKm = 0;
       double totalRating = 0;
@@ -68,30 +76,83 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _loadFields() async {
+    try {
+      final profile = await _api.get('/auth/profile');
+      final user = profile['user'] as Map<String, dynamic>;
+      final voice = await _api.get('/voice/profile').catchError((_) => <String, dynamic>{});
+      final vp = voice['profile'] as Map<String, dynamic>?;
+      if (!mounted) return;
+      setState(() {
+        _emailController.text = user['email'] ?? '';
+        _telephoneController.text = user['telephone'] ?? '';
+        _motSecuriteController.text = vp?['mot_securite'] ?? '';
+        _fieldsLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _fieldsLoading = false);
+    }
+  }
+
+  Future<void> _saveFields() async {
+    setState(() => _saving = true);
+    try {
+      await _api.put('/auth/profile', {
+        'email': _emailController.text.trim(),
+        'telephone': _telephoneController.text.trim(),
+      });
+      final mot = _motSecuriteController.text.trim();
+      if (mot.isNotEmpty) {
+        await _api.post('/voice/security-word', {'mot_securite': mot});
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Paramètres enregistrés'), backgroundColor: AppTheme.primaryBlue),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _telephoneController.dispose();
+    _motSecuriteController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final displayName = widget.user != null ? '${widget.user!.prenom} ${widget.user!.nom}' : 'Alexandre Dubois';
     final content = SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            const SizedBox(height: 8),
-            Stack(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Avatar + nom + badge ──
+          const SizedBox(height: 8),
+          Center(
+            child: Stack(
               alignment: Alignment.bottomRight,
               children: [
                 CircleAvatar(radius: 44, backgroundColor: AppTheme.primaryBlue, child: Text(displayName.isNotEmpty ? displayName[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700))),
                 Container(
-                  width: 22,
-                  height: 22,
+                  width: 22, height: 22,
                   decoration: BoxDecoration(color: AppTheme.primaryBlue, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
                   child: const Icon(Icons.verified, size: 12, color: Colors.white),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Text(displayName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
-            const SizedBox(height: 6),
-            _verifLoading
+          ),
+          const SizedBox(height: 10),
+          Center(child: Text(displayName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.textDark))),
+          const SizedBox(height: 6),
+          Center(
+            child: _verifLoading
                 ? const SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2))
                 : Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -104,47 +165,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Icon(_verifStatut == 'VERIFIE' ? Icons.verified : _verifStatut == 'ECHOUE' ? Icons.error_outline : Icons.hourglass_empty, size: 12, color: _verifStatut == 'VERIFIE' ? AppTheme.successText : _verifStatut == 'ECHOUE' ? Colors.red : Colors.orange.shade800),
                       const SizedBox(width: 4),
                       Text(
-                        _verifStatut == 'VERIFIE'
-                            ? 'IDENTITÉ VÉRIFIÉE'
-                            : _verifStatut == 'ECHOUE'
-                                ? 'VÉRIFICATION ÉCHOUÉE'
-                                : _verifStatut == 'A_EXAMINER'
-                                    ? 'À EXAMINER'
-                                    : _verifStatut == 'EN_ATTENTE'
-                                        ? 'EN ATTENTE'
-                                        : 'NON VÉRIFIÉE',
+                        _verifStatut == 'VERIFIE' ? 'IDENTITÉ VÉRIFIÉE' : _verifStatut == 'ECHOUE' ? 'VÉRIFICATION ÉCHOUÉE' : _verifStatut == 'A_EXAMINER' ? 'À EXAMINER' : _verifStatut == 'EN_ATTENTE' ? 'EN ATTENTE' : 'NON VÉRIFIÉE',
                         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _verifStatut == 'VERIFIE' ? AppTheme.successText : _verifStatut == 'ECHOUE' ? Colors.red : Colors.orange.shade800),
                       ),
                     ]),
                   ),
-            const SizedBox(height: 14),
-            _statsLoading
-                ? const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                  )
-                : Row(
-                    children: [
-                      Expanded(child: _statBox(_tripsCount.toString(), 'TRAJETS')),
-                      const SizedBox(width: 8),
-                      Expanded(child: _statBox(_totalKm.toStringAsFixed(0), 'KM TOTAL')),
-                      const SizedBox(width: 8),
-                      Expanded(child: _statBoxBlue(_avgRating.toStringAsFixed(1), 'NOTE')),
-                    ],
-                  ),
-            const SizedBox(height: 16),
-            _menuTile(Icons.person_outline, 'Informations personnelles', onTap: () => Navigator.pushNamed(context, '/profile-edit')),
-            _menuTile(Icons.settings_outlined, 'Paramètres', onTap: () => Navigator.pushNamed(context, '/profile-edit'), color: Colors.grey.shade100, iconColor: AppTheme.textDark),
-            _menuTile(Icons.mic, 'Mot de sécurité', onTap: () => Navigator.pushNamed(context, '/profile-edit'), color: AppTheme.lightBlueBadge, iconColor: AppTheme.primaryBlue),
-            _menuTile(Icons.shield_outlined, 'Gestion Contacts Urgence', onTap: () => Navigator.pushNamed(context, '/emergency-contacts'), color: const Color(0xFFFFE9E9), iconColor: AppTheme.sosRed),
-            _menuTile(Icons.history, 'Historique des trajets', onTap: () => Navigator.pushNamed(context, '/history')),
-            _menuTile(Icons.support_agent, 'Support • Assistant IA', onTap: () => Navigator.pushNamed(context, '/ai')),
-            _menuTile(Icons.verified_user, 'Vérification d\'identité', onTap: () => Navigator.pushNamed(context, '/identity')),
-            const SizedBox(height: 16),
-            FilledButton.icon(onPressed: () async { await AuthService().logout(); if (context.mounted) Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false); }, style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppTheme.sosRed, side: BorderSide(color: Colors.grey.shade300)), icon: const Icon(Icons.logout), label: const Text('Déconnexion')),
+          ),
+
+          // ── Stats ──
+          const SizedBox(height: 14),
+          _statsLoading
+              ? const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)))
+              : Row(
+                  children: [
+                    Expanded(child: _statBox(_tripsCount.toString(), 'TRAJETS')),
+                    const SizedBox(width: 8),
+                    Expanded(child: _statBox(_totalKm.toStringAsFixed(0), 'KM TOTAL')),
+                    const SizedBox(width: 8),
+                    Expanded(child: _statBoxBlue(_avgRating.toStringAsFixed(1), 'NOTE')),
+                  ],
+                ),
+
+          // ── Informations personnelles (nom/prénom non éditables) ──
+          const SizedBox(height: 20),
+          const Text('Informations personnelles', style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          const SizedBox(height: 10),
+          _fieldRow(Icons.person_outline, 'Nom', widget.user?.nom ?? '—', editable: false),
+          const SizedBox(height: 8),
+          _fieldRow(Icons.person_outline, 'Prénom', widget.user?.prenom ?? '—', editable: false),
+
+          // ── Contact & sécurité (éditables) ──
+          const SizedBox(height: 20),
+          const Text('Contact & sécurité', style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          const SizedBox(height: 10),
+          if (_fieldsLoading)
+            const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)))
+          else ...[
+            _editableField(Icons.mail_outline, 'Email', _emailController, keyboardType: TextInputType.emailAddress),
+            const SizedBox(height: 8),
+            _editableField(Icons.phone_outlined, 'Téléphone', _telephoneController, keyboardType: TextInputType.phone),
+            const SizedBox(height: 8),
+            _editableField(Icons.mic, 'Mot de sécurité', _motSecuriteController, hint: 'Ex: au secours'),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _saving ? null : _saveFields,
+                icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save),
+                label: const Text('Enregistrer', style: TextStyle(fontWeight: FontWeight.w700)),
+                style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
+              ),
+            ),
           ],
-        ),
-      );
+
+          // ── Menu actions ──
+          const SizedBox(height: 20),
+          _menuTile(Icons.shield_outlined, 'Gestion Contacts Urgence', onTap: () => Navigator.pushNamed(context, '/emergency-contacts'), color: const Color(0xFFFFE9E9), iconColor: AppTheme.sosRed),
+          _menuTile(Icons.history, 'Historique des trajets', onTap: () => Navigator.pushNamed(context, '/history')),
+          _menuTile(Icons.support_agent, 'Support • Assistant IA', onTap: () => Navigator.pushNamed(context, '/ai')),
+          _menuTile(Icons.verified_user, 'Vérification d\'identité', onTap: () => Navigator.pushNamed(context, '/identity')),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: () async { await AuthService().logout(); if (context.mounted) Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false); },
+            style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppTheme.sosRed, side: BorderSide(color: Colors.grey.shade300)),
+            icon: const Icon(Icons.logout),
+            label: const Text('Déconnexion'),
+          ),
+        ],
+      ),
+    );
 
     if (widget.embedded) return content;
 
@@ -158,6 +247,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
         centerTitle: true,
       ),
       body: content,
+    );
+  }
+
+  // ── Champ non éditable (nom, prénom) ──
+  static Widget _fieldRow(IconData icon, String label, String value, {bool editable = true}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: AppTheme.textGrey),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label, style: const TextStyle(fontSize: 13, color: AppTheme.textGrey))),
+          Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
+          const SizedBox(width: 6),
+          const Icon(Icons.lock_outline, size: 14, color: AppTheme.textGrey),
+        ],
+      ),
+    );
+  }
+
+  // ── Champ éditable inline ──
+  static Widget _editableField(IconData icon, String label, TextEditingController controller, {TextInputType? keyboardType, String? hint}) {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: const TextStyle(fontSize: 14),
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: Icon(icon, size: 18),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        ),
+      ),
     );
   }
 
