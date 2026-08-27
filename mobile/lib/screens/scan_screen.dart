@@ -5,7 +5,6 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../models/trip.dart';
 import '../services/api_service.dart';
 import '../services/permission_service.dart';
-import '../services/trip_service.dart';
 import '../theme/app_theme.dart';
 import 'course_confirm_screen.dart';
 
@@ -114,7 +113,7 @@ class _ScanScreenState extends State<ScanScreen> {
           ),
           if (_loading)
             Container(color: Colors.black54, child: const Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue))),
-          // Bottom sheet maquette "Transporteur identifié"
+          // Bottom sheet maquette "Mode scan"
           Positioned(
             bottom: 0,
             left: 0,
@@ -125,12 +124,12 @@ class _ScanScreenState extends State<ScanScreen> {
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
               child: Row(
                 children: [
-                  Container(width: 44, height: 44, decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.verified_user, color: AppTheme.primaryBlue)),
+                  Container(width: 44, height: 44, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.qr_code_scanner, color: AppTheme.primaryBlue)),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Transporteur identifié', style: TextStyle(fontWeight: FontWeight.w800)),
-                      Text('Jean Dupont - Véhicule certifié', style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+                      Text('Mode scan actif', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                      Text('Alignez le QR code du transporteur', style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
                     ]),
                   ),
                 ],
