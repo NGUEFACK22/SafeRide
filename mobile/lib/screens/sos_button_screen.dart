@@ -104,6 +104,11 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mot trop court (min 3 caractères)')));
       return;
     }
+    // Demander la permission microphone avant l'enrôlement
+    if (!await PermissionService.microphone(context)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission microphone requise pour l\'enrôlement vocal')));
+      return;
+    }
     _securityWord = word;
     setState(() => _loading = true);
     try {

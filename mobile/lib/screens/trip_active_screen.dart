@@ -3,13 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../models/trip.dart';
 import '../services/trip_service.dart';
 import '../services/offline_service.dart';
 import '../services/background_location_service.dart';
 import '../services/geocoding_service.dart';
-import '../services/vosk_service.dart';
+import '../services/permission_service.dart';
 import '../services/voiceprint_service.dart';
 import '../services/sos_service.dart';
 import '../services/whatsapp_service.dart';
@@ -28,7 +29,7 @@ class TripActiveScreen extends StatefulWidget {
 class _TripActiveScreenState extends State<TripActiveScreen> {
   final _tripService = TripService();
   final _offline = OfflineService.instance;
-  final _voskMonitor = VoskService();
+  final _speech = stt.SpeechToText();
   final _voiceprint = VoiceprintService();
   final _sosService = SosService();
   Trip? _trip;
@@ -48,6 +49,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   bool _autoSosSending = false;
   DateTime? _lastAutoSosAt;
   String _voiceStatus = '';
+  bool _voiceConsentGiven = false;
 
   @override
   void initState() {
@@ -66,6 +68,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   void dispose() {
     _tracker?.cancel();
     _stopVoiceMonitoring();
+    _speech.cancel();
     _destinationController.dispose();
     super.dispose();
   }
@@ -97,10 +100,50 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       // Foreground Service Android : suivi GPS en arrière-plan
       Geolocator.requestPermission().then((_) {}, onError: (_) {});
       BackgroundLocationService().startTripTracking(_trip!.id);
-      _startVoiceMonitoring();
+      _askVoiceConsent();
     } else {
       _tracker?.cancel();
       _stopVoiceMonitoring();
+    }
+  }
+
+  /// Demande à l'utilisateur s'il souhaite activer l'écoute vocale automatique.
+  Future<void> _askVoiceConsent() async {
+    // Vérifier si un mot de sécurité est configuré
+    final prefs = await SharedPreferences.getInstance();
+    _securityWord = prefs.getString('voice_security_word');
+    if (_securityWord == null || _securityWord!.trim().isEmpty) return;
+    // Vérifier si consentement déjà donné (pour ce trajet)
+    if (_voiceConsentGiven) {
+      _startVoiceMonitoring();
+      return;
+    }
+    if (!mounted) return;
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.hearing, color: AppTheme.primaryBlue, size: 36),
+        title: const Text('Écoute vocale'),
+        content: Text(
+          'Activer l\'écoute automatique de votre mot de sécurité ("$_securityWord") pendant ce trajet ?\n\n'
+          'Votre microphone sera utilisé pour détecter le mot et déclencher l\'alerte SOS si nécessaire.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Non, merci'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Autoriser'),
+          ),
+        ],
+      ),
+    );
+    if (result == true) {
+      _voiceConsentGiven = true;
+      _startVoiceMonitoring();
     }
   }
 
@@ -238,56 +281,85 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     }
   }
 
-  // ===== Surveillance vocale automatique (flux 3-5) =====
+  // ===== Surveillance vocale automatique avec speech_to_text (flux 3-5) =====
 
   Future<void> _startVoiceMonitoring() async {
     if (_voiceMonitoring) return;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      _securityWord = prefs.getString('voice_security_word');
+      if (_securityWord == null || _securityWord!.trim().isEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        _securityWord = prefs.getString('voice_security_word');
+      }
       if (_securityWord == null || _securityWord!.trim().isEmpty) {
         if (mounted) setState(() => _voiceStatus = 'Mot de sécurité non configuré');
         return;
       }
-      _voiceAvailable = await _voiceprint.ensureLoaded();
-      final voskOk = await _voskMonitor.ensureLoaded(securityWord: _securityWord);
-      if (!voskOk) {
-        if (mounted) setState(() => _voiceStatus = 'Écoute auto indisponible — utilisez le bouton SOS vocal depuis l\'écran SOS');
+      // Demander permission microphone
+      if (!await PermissionService.microphone(context)) {
+        if (mounted) setState(() => _voiceStatus = 'Permission microphone refusée');
         return;
       }
-      if (mounted) setState(() => _voiceStatus = 'Écoute automatique active…');
-      final started = await _voskMonitor.startListening(
-        securityWord: _securityWord!,
-        onPartial: (partial) {
-          if (!mounted) return;
-          setState(() => _voiceStatus = 'Écoute… "$partial"');
-        },
-        onResult: (text) async {
-          if (_autoSosSending) return;
-          // Cooldown 30s pour éviter double déclenchement
-          if (_lastAutoSosAt != null && DateTime.now().difference(_lastAutoSosAt!).inSeconds < 30) return;
-          await _onAutoKeywordDetected(text);
-        },
+      // Initialiser speech_to_text
+      final available = await _speech.initialize(
         onError: (e) {
           if (!mounted) return;
-          setState(() => _voiceStatus = 'Erreur écoute: $e');
+          setState(() => _voiceStatus = 'Erreur écoute: ${e.errorMsg}');
+          // Auto-redémarrer après 3s sauf si errorListening
+          if (e.errorMsg != 'errorListening' && _voiceMonitoring) {
+            Future.delayed(const Duration(seconds: 3), () {
+              if (mounted && _voiceMonitoring) _startListeningContinuous();
+            });
+          }
+        },
+        onStatus: (status) {
+          if (!mounted) return;
+          if (status == 'notListening' && _voiceMonitoring) {
+            // Relancer automatiquement
+            Future.delayed(const Duration(seconds: 1), () {
+              if (mounted && _voiceMonitoring) _startListeningContinuous();
+            });
+          }
         },
       );
-      if (started && mounted) {
+      if (!available) {
+        if (mounted) setState(() => _voiceStatus = 'Reconnaissance vocale indisponible');
+        return;
+      }
+      _voiceAvailable = await _voiceprint.ensureLoaded();
+      if (mounted) {
         setState(() {
           _voiceMonitoring = true;
-          _voiceStatus = 'Ecoute automatique Vosk active ("$_securityWord")';
+          _voiceStatus = 'Écoute automatique active ("$_securityWord")';
         });
       }
+      _startListeningContinuous();
     } catch (e) {
       if (mounted) setState(() => _voiceStatus = 'Écoute impossible: $e');
     }
   }
 
+  void _startListeningContinuous() {
+    if (!_voiceMonitoring) return;
+    _speech.listen(
+      onResult: (result) {
+        if (!mounted || _autoSosSending) return;
+        final text = result.recognizedWords;
+        if (text.isNotEmpty) {
+          setState(() => _voiceStatus = 'Écoute… "$text"');
+          if (_securityWord != null && text.toLowerCase().contains(_securityWord!.toLowerCase())) {
+            if (_lastAutoSosAt != null && DateTime.now().difference(_lastAutoSosAt!).inSeconds < 30) return;
+            _onAutoKeywordDetected(text);
+          }
+        }
+      },
+      listenOptions: stt.SpeechListenOptions(listenMode: stt.ListenMode.dictation),
+    );
+  }
+
   Future<void> _stopVoiceMonitoring() async {
     if (!_voiceMonitoring) return;
     try {
-      await _voskMonitor.stopListening();
+      await _speech.stop();
     } catch (_) {}
     if (mounted) {
       setState(() {
@@ -311,7 +383,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     _autoSosSending = true;
     try {
       // Pause temporaire de l'écoute pendant la vérif biométrique
-      await _voskMonitor.stopListening();
+      await _speech.stop();
       if (mounted) setState(() => _voiceStatus = 'Vérification biométrique (ECAPA)…');
       Object empreinte;
       if (_voiceAvailable) {
