@@ -7,6 +7,33 @@ import '../config/api_config.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
+/// Type de dossier dans l'onglet unifié.
+enum _DossierType { dispute, lostItem, sos }
+
+/// Objet unifié affiché dans la liste "Mes litiges".
+class _UnifiedDossier {
+  final _DossierType type;
+  final String title;
+  final String subtitle;
+  final String statusLabel;
+  final Color statusColor;
+  final IconData icon;
+  final DateTime? date;
+  final dynamic raw;
+
+  _UnifiedDossier({
+    required this.type,
+    required this.title,
+    required this.subtitle,
+    required this.statusLabel,
+    required this.statusColor,
+    required this.icon,
+    this.date,
+    required this.raw,
+  });
+}
+
+// ── Écran principal ───────────────────────────────────────────
 class DisputeScreen extends StatefulWidget {
   const DisputeScreen({super.key});
 
@@ -18,22 +45,20 @@ class _DisputeScreenState extends State<DisputeScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Litiges & Objets perdus'),
+          title: const Text('Litiges & Signalements'),
           bottom: const TabBar(
             tabs: [
-              Tab(text: 'Litiges'),
-              Tab(text: 'Objets perdus'),
+              Tab(text: 'Mes litiges'),
               Tab(text: 'Ouvrir'),
             ],
           ),
         ),
         body: const TabBarView(
           children: [
-            _DisputesTab(),
-            _LostItemsTab(),
+            _UnifiedLitigesTab(),
             _CreateTab(),
           ],
         ),
@@ -42,17 +67,17 @@ class _DisputeScreenState extends State<DisputeScreen> {
   }
 }
 
-// ── Tab 1 : Mes litiges ──────────────────────────────────────
-class _DisputesTab extends StatefulWidget {
-  const _DisputesTab();
+// ── Tab 1 : Mes litiges (unifié) ─────────────────────────────
+class _UnifiedLitigesTab extends StatefulWidget {
+  const _UnifiedLitigesTab();
 
   @override
-  State<_DisputesTab> createState() => _DisputesTabState();
+  State<_UnifiedLitigesTab> createState() => _UnifiedLitigesTabState();
 }
 
-class _DisputesTabState extends State<_DisputesTab> {
+class _UnifiedLitigesTabState extends State<_UnifiedLitigesTab> {
   final _api = ApiService();
-  List<dynamic> _disputes = [];
+  List<_UnifiedDossier> _dossiers = [];
   bool _loading = true;
   String? _error;
 
@@ -64,12 +89,91 @@ class _DisputesTabState extends State<_DisputesTab> {
 
   Future<void> _load() async {
     try {
-      final data = await _api.get('/disputes');
+      // Chargement parallèle des 3 sources
+      final results = await Future.wait([
+        _api.get('/disputes'),
+        _api.get('/lost-items'),
+        _api.get('/sos/my'),
+      ]);
+
+      final disputesData = results[0];
+      final lostItemsData = results[1];
+      final sosData = results[2];
+
+      final dossiers = <_UnifiedDossier>[];
+
+      // 1) Litiges
+      final disputes =
+          (disputesData['disputes'] as Map<String, dynamic>)['data']
+                  as List<dynamic>? ??
+              [];
+      for (final d in disputes) {
+        final (label, color) = _disputeStatus(d['statut'] as String?);
+        dossiers.add(_UnifiedDossier(
+          type: _DossierType.dispute,
+          title: d['motif'] ?? 'Litige',
+          subtitle: 'Trajet #${d['trip_id']}',
+          statusLabel: label,
+          statusColor: color,
+          icon: Icons.gavel_outlined,
+          date: _parseDate(d['created_at'] as String?),
+          raw: d,
+        ));
+      }
+
+      // 2) Objets perdus
+      final lostItems =
+          (lostItemsData['reports'] as Map<String, dynamic>)['data']
+                  as List<dynamic>? ??
+              [];
+      for (final l in lostItems) {
+        final (label, color) = _reportStatus(l['statut'] as String?);
+        final hasImage = l['image_url'] != null &&
+            (l['image_url'] as String).isNotEmpty;
+        dossiers.add(_UnifiedDossier(
+          type: _DossierType.lostItem,
+          title: l['objet'] ?? 'Objet perdu',
+          subtitle:
+              'Trajet #${l['trip_id']}${hasImage ? ' · image jointe' : ''}',
+          statusLabel: label,
+          statusColor: color,
+          icon: Icons.work_outline,
+          date: _parseDate(l['created_at'] as String?),
+          raw: l,
+        ));
+      }
+
+      // 3) Alertes SOS
+      final sosAlerts =
+          (sosData['alerts'] as Map<String, dynamic>?)?['data']
+                  as List<dynamic>? ??
+              [];
+      for (final s in sosAlerts) {
+        final (label, color) = _sosStatus(s['statut'] as String?);
+        final declenchement = s['declenchement'] ?? 'BOUTON';
+        dossiers.add(_UnifiedDossier(
+          type: _DossierType.sos,
+          title: 'Alerte SOS ($declenchement)',
+          subtitle: 'Trajet #${s['trip_id']}',
+          statusLabel: label,
+          statusColor: color,
+          icon: Icons.sos,
+          date: _parseDate(s['created_at'] as String?),
+          raw: s,
+        ));
+      }
+
+      // Tri par date décroissante
+      dossiers.sort((a, b) {
+        if (a.date == null && b.date == null) return 0;
+        if (a.date == null) return 1;
+        if (b.date == null) return -1;
+        return b.date!.compareTo(a.date!);
+      });
+
       if (!mounted) return;
       setState(() {
-        _disputes = (data['disputes'] as Map<String, dynamic>)['data']
-                as List<dynamic>? ??
-            [];
+        _dossiers = dossiers;
         _error = null;
         _loading = false;
       });
@@ -89,24 +193,35 @@ class _DisputesTabState extends State<_DisputesTab> {
     }
     if (_error != null) {
       return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_error!, textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            FilledButton.tonal(onPressed: _load, child: const Text('Réessayer')),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: AppTheme.sosRed),
+              const SizedBox(height: 12),
+              Text(_error!, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              FilledButton.tonal(
+                  onPressed: _load, child: const Text('Réessayer')),
+            ],
+          ),
         ),
       );
     }
-    if (_disputes.isEmpty) {
+    if (_dossiers.isEmpty) {
       return const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.gavel_outlined, size: 48, color: AppTheme.textGrey),
-            SizedBox(height: 12),
-            Text('Aucun litige pour le moment'),
+            Icon(Icons.folder_open, size: 56, color: AppTheme.textGrey),
+            SizedBox(height: 16),
+            Text('Aucun litige pour le moment',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            SizedBox(height: 6),
+            Text('Signalez un litige ou un objet perdu depuis l\'onglet "Ouvrir"',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.textGrey, fontSize: 13)),
           ],
         ),
       );
@@ -115,176 +230,193 @@ class _DisputesTabState extends State<_DisputesTab> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: _disputes.length,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        itemCount: _dossiers.length,
         itemBuilder: (context, index) {
-          final dispute = _disputes[index];
-          final (label, color) = _disputeStatus(dispute['statut'] as String?);
+          final d = _dossiers[index];
           return Card(
             margin: const EdgeInsets.symmetric(vertical: 4),
             child: ListTile(
-              leading: Icon(Icons.gavel_outlined, color: color),
-              title: Text(dispute['motif'] ?? 'Litige'),
-              subtitle: Text(
-                'Trajet #${dispute['trip_id']} · '
-                '${_dateOnly(dispute['created_at'] as String?)}'
-                '${dispute['description'] != null ? '\n${dispute['description']}' : ''}',
+              leading: CircleAvatar(
+                backgroundColor: d.statusColor.withValues(alpha: 0.12),
+                child: Icon(d.icon, color: d.statusColor, size: 20),
               ),
+              title: Text(d.title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 14)),
+              subtitle: Text(d.subtitle,
+                  style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)),
               trailing: Chip(
-                label: Text(label, style: const TextStyle(fontSize: 11)),
-                backgroundColor: color.withValues(alpha: 0.15),
+                label: Text(d.statusLabel,
+                    style: const TextStyle(fontSize: 10)),
+                backgroundColor: d.statusColor.withValues(alpha: 0.15),
                 visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
               ),
+              onTap: () => _showDetails(d),
             ),
           );
         },
       ),
     );
   }
+
+  void _showDetails(_UnifiedDossier dossier) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _DossierDetailSheet(dossier: dossier),
+    );
+  }
 }
 
-// ── Tab 2 : Objets perdus ────────────────────────────────────
-class _LostItemsTab extends StatefulWidget {
-  const _LostItemsTab();
-
-  @override
-  State<_LostItemsTab> createState() => _LostItemsTabState();
-}
-
-class _LostItemsTabState extends State<_LostItemsTab> {
-  final _api = ApiService();
-  List<dynamic> _reports = [];
-  bool _loading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final data = await _api.get('/lost-items');
-      if (!mounted) return;
-      setState(() {
-        _reports = (data['reports'] as Map<String, dynamic>)['data']
-                as List<dynamic>? ??
-            [];
-        _error = null;
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
-    }
-  }
-
-  Future<void> _openChronology(dynamic report) async {
-    try {
-      final data = await _api.get('/lost-items/${report['id']}/chronology');
-      if (!mounted) return;
-      await showModalBottomSheet<void>(
-        context: context,
-        builder: (ctx) => _ChronologySheet(data: data),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
-      );
-    }
-  }
+// ── Bottom sheet détail ───────────────────────────────────────
+class _DossierDetailSheet extends StatelessWidget {
+  const _DossierDetailSheet({required this.dossier});
+  final _UnifiedDossier dossier;
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_error != null) {
-      return Center(
+    final raw = dossier.raw;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(_error!, textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            FilledButton.tonal(onPressed: _load, child: const Text('Réessayer')),
-          ],
+        // Handle bar
+        Center(
+          child: Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
         ),
-      );
-    }
-    if (_reports.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        const SizedBox(height: 16),
+        Row(
           children: [
-            Icon(Icons.work_outline, size: 48, color: AppTheme.textGrey),
-            SizedBox(height: 12),
-            Text('Aucun objet perdu signalé'),
-          ],
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: _reports.length,
-        itemBuilder: (context, index) {
-          final report = _reports[index];
-          final (label, color) = _reportStatus(report['statut'] as String?);
-          final hasImage = report['image_url'] != null &&
-              (report['image_url'] as String).isNotEmpty;
-          return Card(
-            margin: const EdgeInsets.symmetric(vertical: 4),
-            child: ListTile(
-              leading: hasImage
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        '${ApiConfig.baseUrl.replaceAll('/api/v1', '')}/storage/${report['image_url']}',
-                        width: 44,
-                        height: 44,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            Icon(Icons.work_outline, color: color),
-                      ),
-                    )
-                  : Icon(Icons.work_outline, color: color),
-              title: Text(report['objet'] ?? 'Objet'),
-              subtitle: Text(
-                'Trajet #${report['trip_id']} · '
-                '${_dateOnly(report['created_at'] as String?)}${hasImage ? ' · image jointe' : ''}',
-              ),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
+            CircleAvatar(
+              backgroundColor: dossier.statusColor.withValues(alpha: 0.12),
+              child: Icon(dossier.icon, color: dossier.statusColor),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Chip(
-                    label: Text(label, style: const TextStyle(fontSize: 11)),
-                    backgroundColor: color.withValues(alpha: 0.15),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  const Text(
-                    'Chronologie',
-                    style: TextStyle(fontSize: 11, color: Colors.blue),
-                  ),
+                  Text(dossier.title,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 2),
+                  Text(dossier.subtitle,
+                      style: const TextStyle(
+                          fontSize: 12, color: AppTheme.textGrey)),
                 ],
               ),
-              onTap: () => _openChronology(report),
             ),
-          );
-        },
+            Chip(
+              label: Text(dossier.statusLabel,
+                  style: const TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.w600)),
+              backgroundColor:
+                  dossier.statusColor.withValues(alpha: 0.15),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        const Divider(),
+        const SizedBox(height: 8),
+        // Détails selon le type
+        if (dossier.type == _DossierType.dispute) ...[
+          _detailRow('Trajet', '#${raw['trip_id']}'),
+          if (raw['description'] != null &&
+              (raw['description'] as String).isNotEmpty)
+            _detailRow('Description', raw['description']),
+          _detailRow(
+              'Date', _dateStr(raw['created_at'] as String?)),
+        ] else if (dossier.type == _DossierType.lostItem) ...[
+          _detailRow('Trajet', '#${raw['trip_id']}'),
+          if (raw['description'] != null &&
+              (raw['description'] as String).isNotEmpty)
+            _detailRow('Description', raw['description']),
+          if (raw['image_url'] != null &&
+              (raw['image_url'] as String).isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  '${ApiConfig.baseUrl.replaceAll('/api/v1', '')}/storage/${raw['image_url']}',
+                  height: 150,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.broken_image, size: 48),
+                ),
+              ),
+            ),
+          _detailRow(
+              'Date', _dateStr(raw['created_at'] as String?)),
+        ] else if (dossier.type == _DossierType.sos) ...[
+          _detailRow('Trajet', '#${raw['trip_id']}'),
+          _detailRow('Déclenchement',
+              raw['declenchement'] ?? 'BOUTON'),
+          if (raw['latitude'] != null && raw['longitude'] != null)
+            _detailRow('Position',
+                '${raw['latitude']}, ${raw['longitude']}'),
+          _detailRow(
+              'Date', _dateStr(raw['created_at'] as String?)),
+        ],
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.tonal(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fermer'),
+          ),
+        ),
+      ],
+        ),
       ),
     );
   }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textGrey)),
+          ),
+          Expanded(
+            child: Text(value, style: const TextStyle(fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _dateStr(String? iso) {
+    if (iso == null || iso.isEmpty) return '—';
+    return iso.split('T').first;
+  }
 }
 
-// ── Tab 3 : Ouvrir (litige OU objet perdu) ───────────────────
+// ── Tab 2 : Ouvrir (litige OU objet perdu) ───────────────────
 class _CreateTab extends StatefulWidget {
   const _CreateTab();
 
@@ -334,7 +466,8 @@ class _CreateTabState extends State<_CreateTab> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    final picked = await _picker.pickImage(source: source, imageQuality: 70);
+    final picked =
+        await _picker.pickImage(source: source, imageQuality: 70);
     if (picked != null && mounted) setState(() => _image = picked);
   }
 
@@ -372,15 +505,17 @@ class _CreateTabState extends State<_CreateTab> {
         await _api.post('/lost-items', {
           'trip_id': _selectedTripId,
           'objet': _motif.text.trim(),
-          'description':
-              _description.text.trim().isEmpty ? null : _description.text.trim(),
+          'description': _description.text.trim().isEmpty
+              ? null
+              : _description.text.trim(),
         });
       } else {
         await _api.post('/disputes', {
           'trip_id': _selectedTripId,
           'motif': _motif.text.trim(),
-          'description':
-              _description.text.trim().isEmpty ? null : _description.text.trim(),
+          'description': _description.text.trim().isEmpty
+              ? null
+              : _description.text.trim(),
         });
       }
       if (!mounted) return;
@@ -426,9 +561,11 @@ class _CreateTabState extends State<_CreateTab> {
               children: [
                 Expanded(
                   child: GestureDetector(
-                    onTap: () => setState(() => _reportType = 0),
+                    onTap: () =>
+                        setState(() => _reportType = 0),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
                         color: _reportType == 0
                             ? Colors.white
@@ -437,7 +574,8 @@ class _CreateTabState extends State<_CreateTab> {
                         boxShadow: _reportType == 0
                             ? [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.06),
+                                  color: Colors.black
+                                      .withValues(alpha: 0.06),
                                   blurRadius: 4,
                                 ),
                               ]
@@ -468,9 +606,11 @@ class _CreateTabState extends State<_CreateTab> {
                 ),
                 Expanded(
                   child: GestureDetector(
-                    onTap: () => setState(() => _reportType = 1),
+                    onTap: () =>
+                        setState(() => _reportType = 1),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
                         color: _reportType == 1
                             ? Colors.white
@@ -479,7 +619,8 @@ class _CreateTabState extends State<_CreateTab> {
                         boxShadow: _reportType == 1
                             ? [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.06),
+                                  color: Colors.black
+                                      .withValues(alpha: 0.06),
                                   blurRadius: 4,
                                 ),
                               ]
@@ -537,14 +678,16 @@ class _CreateTabState extends State<_CreateTab> {
                         child: Text(_tripLabel(trip)),
                       ),
                   ],
-            onChanged: (v) => setState(() => _selectedTripId = v),
+            onChanged: (v) =>
+                setState(() => _selectedTripId = v),
           ),
           const SizedBox(height: 16),
           // Champ motif / objet
           TextField(
             controller: _motif,
             decoration: InputDecoration(
-              labelText: isLostItem ? 'Objet oublié' : 'Motif',
+              labelText:
+                  isLostItem ? 'Objet oublié' : 'Motif',
               border: const OutlineInputBorder(),
               hintText: isLostItem
                   ? 'Ex : Portefeuille noir, clés, téléphone…'
@@ -584,8 +727,10 @@ class _CreateTabState extends State<_CreateTab> {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => _pickImage(ImageSource.camera),
-                          icon: const Icon(Icons.camera_alt, size: 16),
+                          onPressed: () =>
+                              _pickImage(ImageSource.camera),
+                          icon: const Icon(Icons.camera_alt,
+                              size: 16),
                           label: const Text('Caméra',
                               style: TextStyle(fontSize: 12)),
                         ),
@@ -593,8 +738,11 @@ class _CreateTabState extends State<_CreateTab> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => _pickImage(ImageSource.gallery),
-                          icon: const Icon(Icons.photo_library, size: 16),
+                          onPressed: () =>
+                              _pickImage(ImageSource.gallery),
+                          icon: const Icon(
+                              Icons.photo_library,
+                              size: 16),
                           label: const Text('Galerie',
                               style: TextStyle(fontSize: 12)),
                         ),
@@ -612,9 +760,12 @@ class _CreateTabState extends State<_CreateTab> {
                     ),
                     const SizedBox(height: 6),
                     TextButton.icon(
-                      onPressed: () => setState(() => _image = null),
-                      icon: const Icon(Icons.delete_outline, size: 16),
-                      label: const Text('Retirer la photo'),
+                      onPressed: () =>
+                          setState(() => _image = null),
+                      icon: const Icon(Icons.delete_outline,
+                          size: 16),
+                      label:
+                          const Text('Retirer la photo'),
                     ),
                   ],
                 ],
@@ -624,74 +775,23 @@ class _CreateTabState extends State<_CreateTab> {
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: _submitting ? null : _submit,
-            icon: Icon(isLostItem ? Icons.report_problem : Icons.gavel),
-            label: Text(isLostItem ? 'Signaler l\'objet perdu' : 'Ouvrir le litige'),
+            icon:
+                Icon(isLostItem ? Icons.report_problem : Icons.gavel),
+            label: Text(isLostItem
+                ? 'Signaler l\'objet perdu'
+                : 'Ouvrir le litige'),
           ),
           const SizedBox(height: 12),
           Text(
             isLostItem
-                ? 'Le signalement est automatiquement associé au trajet, au transporteur et au véhicule. La chronologie identifie les passagers suivants.'
+                ? 'Le signalement est automatiquement associé au trajet, au transporteur et au véhicule.'
                 : 'Le litige sera examiné par un gestionnaire. Vous serez notifié de l\'avancement.',
             style: const TextStyle(
-                fontSize: 12, fontStyle: FontStyle.italic, color: AppTheme.textGrey),
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                color: AppTheme.textGrey),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Chronologie (bottom sheet) ────────────────────────────────
-class _ChronologySheet extends StatelessWidget {
-  const _ChronologySheet({required this.data});
-
-  final Map<String, dynamic> data;
-
-  @override
-  Widget build(BuildContext context) {
-    final related = data['related_trips'] as List<dynamic>? ?? [];
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Chronologie du véhicule #${data['vehicle_id'] ?? '—'}',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Passagers ayant utilisé ce véhicule entre la fin de votre '
-              'trajet et le signalement.',
-              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-            ),
-            const SizedBox(height: 12),
-            if (related.isEmpty)
-              const Text('Aucun autre passager détecté sur cette période.')
-            else
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    for (final t in related)
-                      ListTile(
-                        dense: true,
-                        leading: const Icon(Icons.person),
-                        title: Text(
-                          t['passager_nom'] ?? 'Passager #${t['passager_id']}',
-                        ),
-                        subtitle: Text(
-                          'Trajet #${t['trip_id']} · '
-                          '${_dateOnly(t['ended_at'] as String?)}',
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }
@@ -703,6 +803,11 @@ String _tripLabel(dynamic trip) {
   final ended = _dateOnly(trip['ended_at'] as String?);
   final label = dest ?? 'Trajet #${trip['id']}';
   return ended.isEmpty ? label : '$label — $ended';
+}
+
+DateTime? _parseDate(String? iso) {
+  if (iso == null || iso.isEmpty) return null;
+  return DateTime.tryParse(iso);
 }
 
 (String, Color) _disputeStatus(String? statut) {
@@ -732,6 +837,25 @@ String _tripLabel(dynamic trip) {
       return ('Non retrouvé', Colors.red);
     case 'CLOTURE':
       return ('Clôturé', Colors.grey);
+    default:
+      return (statut ?? '', Colors.grey);
+  }
+}
+
+(String, Color) _sosStatus(String? statut) {
+  switch (statut) {
+    case 'DECLENCHE':
+      return ('Déclenché', Colors.red);
+    case 'NOTIFIE':
+      return ('Notifié', Colors.orange);
+    case 'EN_COURS':
+      return ('En cours', Colors.blue);
+    case 'RESOLU':
+      return ('Résolu', Colors.green);
+    case 'FAUSSE_ALERTE':
+      return ('Fausse alerte', Colors.grey);
+    case 'VERIFICATION':
+      return ('Vérification', Colors.amber);
     default:
       return (statut ?? '', Colors.grey);
   }
