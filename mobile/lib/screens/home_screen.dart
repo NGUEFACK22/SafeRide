@@ -241,72 +241,27 @@ class _PassagerView extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Course Récente', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+              const Text('Dernier trajet', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
               TextButton(onPressed: () => Navigator.pushNamed(context, '/history'), child: const Text('VOIR L\'HISTORIQUE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primaryBlue))),
             ],
           ),
           const SizedBox(height: 8),
-          // Card course récente (mockup Paris map)
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: Container(
-                    height: 110,
-                    color: const Color(0xFFEAF0FF),
-                    child: Stack(
-                      children: [
-                        // Fausse carte (placeholder)
-                        Container(
-                          decoration: BoxDecoration(
-                            image: DecorationImage(
-                              image: NetworkImage('https://tile.openstreetmap.org/3/2/1.png'),
-                              fit: BoxFit.cover,
-                              onError: (_, _) {},
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(color: const Color(0xFFE6F4EA), borderRadius: BorderRadius.circular(8)),
-                            child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                              Icon(Icons.timelapse, size: 12, color: AppTheme.successText),
-                              SizedBox(width: 4),
-                              Text('TERMINÉ', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.successText)),
-                            ]),
-                          ),
-                        ),
-                        const Center(child: Text('Paris', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800))),
-                      ],
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Container(width: 44, height: 44, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.directions_car, color: AppTheme.primaryBlue)),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('Peugeot 508', style: TextStyle(fontWeight: FontWeight.w800)),
-                          Row(children: [Icon(Icons.person_outline, size: 14, color: AppTheme.textGrey), SizedBox(width: 4), Text('Marc D. • Plaque vérif...', style: TextStyle(fontSize: 11, color: AppTheme.textGrey))]),
-                        ]),
-                      ),
-                      const Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                        Text('14:30', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                        Text('4.2 km', style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
-                      ]),
-                    ],
-                  ),
-                ),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(width: 48, height: 48, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.directions_car, color: AppTheme.primaryBlue)),
+                  const SizedBox(width: 14),
+                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Aucun trajet récent', style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+                    SizedBox(height: 2),
+                    Text('Scannez un QR code pour démarrer', style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+                  ])),
+                  Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 12),
