@@ -53,7 +53,9 @@ class _IdentityScreenState extends State<IdentityScreen> {
       final photos = await Permission.photos.status;
       final storage = await Permission.storage.status;
       if (photos.isGranted || storage.isGranted) return true;
-      final req = await (await Permission.photos.request()).isGranted || (await Permission.storage.request()).isGranted;
+      final photosGranted = (await Permission.photos.request()).isGranted;
+      final storageGranted = (await Permission.storage.request()).isGranted;
+      final req = photosGranted || storageGranted;
       if (!req && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission galerie refusée — activez-la dans les paramètres')));
       return req;
     } else {
