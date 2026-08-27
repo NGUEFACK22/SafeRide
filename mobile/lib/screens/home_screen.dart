@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../models/user.dart';
 import '../services/api_service.dart';
-import '../services/auth_service.dart';
 import '../services/push_service.dart';
 import '../theme/app_theme.dart';
 import 'profile_screen.dart';
@@ -19,7 +18,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _auth = AuthService();
   final _api = ApiService();
   late User _user;
   int _unread = 0;
@@ -52,12 +50,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _openNotifications() async {
     await Navigator.pushNamed(context, '/notifications');
     _refreshUnread();
-  }
-
-  Future<void> _logout() async {
-    await _auth.logout();
-    if (!mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil('/login', (r) => false);
   }
 
   Widget _buildBody() {
@@ -163,40 +155,12 @@ class _HistoryPreview extends StatelessWidget {
   Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.history, size: 48, color: AppTheme.primaryBlue), const SizedBox(height: 12), const Text('Historique', style: TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 8), FilledButton(onPressed: () => Navigator.pushNamed(context, '/history'), child: const Text('Voir l\'historique complet'))])));
 }
 
-class _ScanPreview extends StatelessWidget {
-  const _ScanPreview();
-  @override
-  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.qr_code_scanner, size: 56, color: AppTheme.primaryBlue), const SizedBox(height: 12), const Text('Scanner', style: TextStyle(fontWeight: FontWeight.w700)), FilledButton(onPressed: () => Navigator.pushNamed(context, '/scan'), child: const Text('Ouvrir le scanner'))])));
-}
-
 class _AlertsPreview extends StatelessWidget {
   final int unread;
   final VoidCallback onOpen;
   const _AlertsPreview({required this.unread, required this.onOpen});
   @override
-  Widget build(BuildContext context) => Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.notifications_outlined, size: 48, color: AppTheme.primaryBlue), Text('$unread non lues'), FilledButton(onPressed: onOpen, child: const Text('Voir les alertes'))]));
-}
-
-class _ProfilePreview extends StatelessWidget {
-  final dynamic user;
-  final VoidCallback onLogout;
-  const _ProfilePreview({required this.user, required this.onLogout});
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Card(child: ListTile(leading: const Icon(Icons.person), title: Text(user.fullName), subtitle: Text(user.email))),
-            const SizedBox(height: 12),
-            FilledButton(onPressed: () => Navigator.pushNamed(context, '/profile', arguments: user), child: const Text('Voir le profil complet (maquette)')),
-            const SizedBox(height: 12),
-            ListTile(leading: const Icon(Icons.verified_user, color: AppTheme.primaryBlue), title: const Text('Vérification d\'identité'), onTap: () => Navigator.pushNamed(context, '/identity')),
-            ListTile(leading: const Icon(Icons.contact_emergency, color: AppTheme.sosRed), title: const Text('Contacts d\'urgence'), onTap: () => Navigator.pushNamed(context, '/emergency-contacts')),
-            ListTile(leading: const Icon(Icons.logout, color: AppTheme.sosRed), title: const Text('Déconnexion'), onTap: onLogout),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) => Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.notifications_outlined, size: 48, color: AppTheme.primaryBlue), const SizedBox(height: 8), Text('$unread non lues', style: const TextStyle(fontSize: 14)), FilledButton(onPressed: onOpen, child: const Text('Voir les alertes'))]));
 }
 
 class _PassagerView extends StatelessWidget {
@@ -311,7 +275,7 @@ class _PassagerView extends StatelessWidget {
                             image: DecorationImage(
                               image: NetworkImage('https://tile.openstreetmap.org/3/2/1.png'),
                               fit: BoxFit.cover,
-                              onError: (_, __) {},
+                              onError: (_, _) {},
                             ),
                           ),
                         ),
@@ -375,16 +339,6 @@ class _PassagerView extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _quickChip(IconData icon, String label, VoidCallback onTap) {
-    return ActionChip(
-      avatar: Icon(icon, size: 16, color: AppTheme.primaryBlue),
-      label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-      backgroundColor: Colors.white,
-      side: BorderSide(color: Colors.grey.shade200),
-      onPressed: onTap,
     );
   }
 
