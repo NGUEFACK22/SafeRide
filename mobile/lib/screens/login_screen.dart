@@ -103,7 +103,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Contactez le support pour réinitialiser votre mot de passe : support@saferide.app')),
+                        );
+                      },
                       child: const Text('Mot de passe oublié ?', style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w600, fontSize: 13)),
                     ),
                   ),
