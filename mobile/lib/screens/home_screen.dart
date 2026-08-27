@@ -204,38 +204,41 @@ class _PassagerView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/sos-button'),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                    decoration: BoxDecoration(color: AppTheme.sosRed, borderRadius: BorderRadius.circular(14)),
-                    child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(Icons.sos, color: Colors.white, size: 18),
-                      SizedBox(width: 8),
-                      Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
-                    ]),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pushNamed(context, '/sos-button'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                      decoration: BoxDecoration(color: AppTheme.sosRed, borderRadius: BorderRadius.circular(14)),
+                      child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Icon(Icons.sos, color: Colors.white, size: 16),
+                        SizedBox(width: 6),
+                        FittedBox(child: Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))),
+                      ]),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/ai'),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                    decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)),
-                    child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(Icons.support_agent, size: 20, color: AppTheme.textDark),
-                      SizedBox(width: 6),
-                      Text('SUPPORT', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13)),
-                    ]),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pushNamed(context, '/ai'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                      decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)),
+                      child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Icon(Icons.support_agent, size: 18, color: AppTheme.textDark),
+                        SizedBox(width: 6),
+                        FittedBox(child: Text('SUPPORT', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))),
+                      ]),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 18),
           Row(
@@ -274,7 +277,7 @@ class _PassagerView extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 10,
             crossAxisSpacing: 10,
-            childAspectRatio: 2.7,
+            childAspectRatio: 2.8,
             children: [
               _serviceCard(Icons.trip_origin, 'Trajet en cours', 'Suivi GPS', () => Navigator.pushNamed(context, '/trip-active')),
               _serviceCard(Icons.work_outline, 'Objet perdu', 'Signaler', () => Navigator.pushNamed(context, '/lost-item')),
