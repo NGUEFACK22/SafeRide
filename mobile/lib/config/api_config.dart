@@ -5,7 +5,7 @@ class ApiConfig {
   //   - Appareil physique / web : --dart-define=API_BASE_URL=http://<IP_LAN>:8000/api/v1
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000/api/v1',
+    defaultValue: 'https://saferide-api.onrender.com/api/v1',
   );
 
   // OAuth Google "Continuer avec Google" :
