@@ -130,7 +130,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _menuTile(Icons.person_outline, 'Informations personnelles', onTap: () => _showInfo(context)),
             _menuTile(Icons.settings_outlined, 'Paramètres', onTap: () => Navigator.pushNamed(context, '/profile-edit'), color: Colors.grey.shade100, iconColor: AppTheme.textDark),
             _menuTile(Icons.mic, 'Mot de sécurité', onTap: () => Navigator.pushNamed(context, '/profile-edit'), color: AppTheme.lightBlueBadge, iconColor: AppTheme.primaryBlue),
-            _menuTile(Icons.shield_outlined, 'Sécurité & SOS', onTap: () => Navigator.pushNamed(context, '/emergency-contacts'), color: const Color(0xFFFFE9E9), iconColor: AppTheme.sosRed),
+            _menuTile(Icons.shield_outlined, 'Gestion Contacts Urgence', onTap: () => Navigator.pushNamed(context, '/emergency-contacts'), color: const Color(0xFFFFE9E9), iconColor: AppTheme.sosRed),
             _menuTile(Icons.history, 'Historique des trajets', onTap: () => Navigator.pushNamed(context, '/history')),
             _menuTile(Icons.support_agent, 'Support • Assistant IA', onTap: () => Navigator.pushNamed(context, '/ai')),
             _menuTile(Icons.verified_user, 'Vérification d\'identité', onTap: () => Navigator.pushNamed(context, '/identity')),
