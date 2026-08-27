@@ -18,6 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController(text: 'passager@saferide.app');
   final _passwordController = TextEditingController(text: 'password');
   bool _loading = false;
+  bool _obscurePassword = true;
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -85,11 +86,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 14),
                   TextFormField(
                     controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
                       hintText: 'Mot de passe',
-                      prefixIcon: Icon(Icons.lock_outline),
-                      suffixIcon: Icon(Icons.visibility_off_outlined),
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      ),
                       filled: true,
                       fillColor: AppTheme.background,
                     ),
