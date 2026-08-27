@@ -51,10 +51,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      // 1. Profil (nom, prenom, email, telephone)
+      // 1. Profil (email, telephone) — nom/prenom non modifiables
       await _api.put('/auth/profile', {
-        'nom': _nom.text.trim(),
-        'prenom': _prenom.text.trim(),
         'email': _email.text.trim(),
         'telephone': _telephone.text.trim(),
       });
@@ -100,9 +98,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                   children: [
                     const Text('Informations personnelles', style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.textDark)),
                     const SizedBox(height: 10),
-                    TextFormField(controller: _nom, decoration: const InputDecoration(labelText: 'Nom', prefixIcon: Icon(Icons.person_outline), filled: true, fillColor: Colors.white), validator: (v) => v == null || v.isEmpty ? 'Requis' : null),
+                    TextFormField(controller: _nom, readOnly: true, decoration: InputDecoration(labelText: 'Nom', prefixIcon: const Icon(Icons.person_outline), filled: true, fillColor: Colors.grey.shade100, suffixIcon: const Icon(Icons.lock_outline, size: 18, color: AppTheme.textGrey))),
                     const SizedBox(height: 10),
-                    TextFormField(controller: _prenom, decoration: const InputDecoration(labelText: 'Prénom', prefixIcon: Icon(Icons.person_outline), filled: true, fillColor: Colors.white), validator: (v) => v == null || v.isEmpty ? 'Requis' : null),
+                    TextFormField(controller: _prenom, readOnly: true, decoration: InputDecoration(labelText: 'Prénom', prefixIcon: const Icon(Icons.person_outline), filled: true, fillColor: Colors.grey.shade100, suffixIcon: const Icon(Icons.lock_outline, size: 18, color: AppTheme.textGrey))),
                     const SizedBox(height: 10),
                     TextFormField(controller: _email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.mail_outline), filled: true, fillColor: Colors.white), validator: (v) => v != null && v.contains('@') ? null : 'Email invalide'),
                     const SizedBox(height: 10),
