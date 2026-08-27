@@ -40,11 +40,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadStats() async {
     try {
-      await ApiService().get('/ai/summary');
-      // Extraire les stats du contenu IA ou utiliser les données du rapport
+      // 1. Nombre de trajets
+      final historyData = await ApiService().get('/trips/history');
+      final tripsList = (historyData['trips'] as Map<String, dynamic>?)?['data'] as List<dynamic>? ?? [];
+      double totalKm = 0;
+      double totalRating = 0;
+      int ratingCount = 0;
+      for (final t in tripsList) {
+        totalKm += (t['distance_km'] as num?)?.toDouble() ?? 0;
+        if (t['ratings_avg'] != null && (t['ratings_avg'] as num) > 0) {
+          totalRating += (t['ratings_avg'] as num).toDouble();
+          ratingCount++;
+        }
+      }
       if (mounted) {
         setState(() {
-          // Parsing basique du contenu IA ou fallback sur 0
+          _tripsCount = tripsList.length;
+          _totalKm = totalKm;
+          _avgRating = ratingCount > 0 ? totalRating / ratingCount : 0;
           _statsLoading = false;
         });
       }
@@ -127,7 +140,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
             const SizedBox(height: 16),
-            _menuTile(Icons.person_outline, 'Informations personnelles', onTap: () => _showInfo(context)),
+            _menuTile(Icons.person_outline, 'Informations personnelles', onTap: () => Navigator.pushNamed(context, '/profile-edit')),
             _menuTile(Icons.settings_outlined, 'Paramètres', onTap: () => Navigator.pushNamed(context, '/profile-edit'), color: Colors.grey.shade100, iconColor: AppTheme.textDark),
             _menuTile(Icons.mic, 'Mot de sécurité', onTap: () => Navigator.pushNamed(context, '/profile-edit'), color: AppTheme.lightBlueBadge, iconColor: AppTheme.primaryBlue),
             _menuTile(Icons.shield_outlined, 'Gestion Contacts Urgence', onTap: () => Navigator.pushNamed(context, '/emergency-contacts'), color: const Color(0xFFFFE9E9), iconColor: AppTheme.sosRed),
@@ -138,17 +151,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             FilledButton.icon(onPressed: () async { await AuthService().logout(); if (context.mounted) Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false); }, style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppTheme.sosRed, side: BorderSide(color: Colors.grey.shade300)), icon: const Icon(Icons.logout), label: const Text('Déconnexion')),
           ],
         ),
-      ),
-    );
-  }
-
-  static void _showInfo(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Informations personnelles'),
-        content: const Text('Nom, email, téléphone et statut sont visibles dans votre profil.\n\nPour modifier, contactez le support.'),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer'))],
       ),
     );
   }
