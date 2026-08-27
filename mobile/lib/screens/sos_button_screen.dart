@@ -524,9 +524,11 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   }
 
   Widget _bigButton(IconData icon, String label) {
+    final size = MediaQuery.of(context).size.width * 0.42;
+    final clamped = size.clamp(120.0, 180.0);
     return Container(
-      width: 160,
-      height: 160,
+      width: clamped,
+      height: clamped,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: Colors.red,
@@ -544,9 +546,9 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon, size: 56, color: Colors.white),
+                  Icon(icon, size: clamped * 0.35, color: Colors.white),
                   const SizedBox(height: 8),
-                  Text(label, style: const TextStyle(color: Colors.white)),
+                  Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
