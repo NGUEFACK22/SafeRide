@@ -14,6 +14,7 @@ import '../services/permission_service.dart';
 import '../services/voiceprint_service.dart';
 import '../services/sos_service.dart';
 import '../services/whatsapp_service.dart';
+import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
 import 'rating_screen.dart';
 
@@ -50,6 +51,10 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   DateTime? _lastAutoSosAt;
   String _voiceStatus = '';
   bool _voiceConsentGiven = false;
+
+  // Météo pendant le trajet
+  WeatherData? _weather;
+  bool _weatherLoading = false;
 
   @override
   void initState() {
@@ -100,10 +105,30 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       // Foreground Service Android : suivi GPS en arrière-plan
       Geolocator.requestPermission().then((_) {}, onError: (_) {});
       BackgroundLocationService().startTripTracking(_trip!.id);
+      _loadWeather();
       _askVoiceConsent();
     } else {
       _tracker?.cancel();
       _stopVoiceMonitoring();
+    }
+  }
+
+  /// Charge la météo pour la position actuelle du trajet.
+  Future<void> _loadWeather() async {
+    if (_weatherLoading) return;
+    setState(() => _weatherLoading = true);
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.low,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+      final weather = await WeatherService.instance
+          .getCurrentWeather(position.latitude, position.longitude);
+      if (mounted) setState(() { _weather = weather; _weatherLoading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _weatherLoading = false);
     }
   }
 
@@ -704,6 +729,63 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
             subtitle: const Text('Surveillance GPS + vocale active', style: TextStyle(fontSize: 11)),
           ),
         ),
+        const SizedBox(height: 10),
+        // Météo en cours de trajet
+        if (_weatherLoading)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(width: 10),
+                  Text('Météo en cours…', style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+                ],
+              ),
+            ),
+          )
+        else if (_weather != null)
+          Card(
+            color: AppTheme.primaryBlue.withValues(alpha: 0.04),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(_weather!.icon, size: 28, color: AppTheme.primaryBlue),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_weather!.description, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_weather!.tempDisplay} · Vent ${_weather!.windDisplay} ${_weather!.windDirectionText}',
+                          style: const TextStyle(fontSize: 11, color: AppTheme.textGrey),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_weather!.precipitationProbability != null && _weather!.precipitationProbability! > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.water_drop, size: 12, color: Colors.blue),
+                          const SizedBox(width: 3),
+                          Text('${_weather!.precipitationProbability}%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue)),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
         const SizedBox(height: 10),
         if (trip.deviationKm != null && trip.deviationKm! > 0.5)
           Card(

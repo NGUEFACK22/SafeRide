@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/push_service.dart';
+import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
 import 'profile_screen.dart';
 
@@ -153,13 +155,55 @@ class _AlertsPreview extends StatelessWidget {
   Widget build(BuildContext context) => Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.notifications_outlined, size: 48, color: AppTheme.primaryBlue), const SizedBox(height: 8), Text('$unread non lues', style: const TextStyle(fontSize: 14)), FilledButton(onPressed: onOpen, child: const Text('Voir les alertes'))]));
 }
 
-class _PassagerView extends StatelessWidget {
+class _PassagerView extends StatefulWidget {
   final dynamic user;
   const _PassagerView({this.user});
 
   @override
+  State<_PassagerView> createState() => _PassagerViewState();
+}
+
+class _PassagerViewState extends State<_PassagerView> {
+  WeatherData? _weather;
+  bool _weatherLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWeather();
+  }
+
+  Future<void> _loadWeather() async {
+    try {
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        final req = await Geolocator.requestPermission();
+        if (req == LocationPermission.denied) {
+          if (mounted) setState(() => _weatherLoading = false);
+          return;
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) setState(() => _weatherLoading = false);
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.low,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+      final weather = await WeatherService.instance
+          .getCurrentWeather(position.latitude, position.longitude);
+      if (mounted) setState(() { _weather = weather; _weatherLoading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _weatherLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final name = (user?.prenom as String?) ?? 'Jean';
+    final name = (widget.user?.prenom as String?) ?? 'Jean';
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Column(
@@ -176,7 +220,84 @@ class _PassagerView extends StatelessWidget {
               Expanded(child: Text('VOTRE COMPTE EST VÉRIFIÉ ET SÉCURISÉ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primaryBlue))),
             ]),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
+          // Carte météo
+          if (_weatherLoading)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: const Row(
+                children: [
+                  SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(width: 10),
+                  Text('Chargement de la météo…', style: TextStyle(fontSize: 13, color: AppTheme.textGrey)),
+                ],
+              ),
+            )
+          else if (_weather != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppTheme.primaryBlue.withValues(alpha: 0.06),
+                    AppTheme.primaryBlue.withValues(alpha: 0.02),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppTheme.lightBlueBorder),
+              ),
+              child: Row(
+                children: [
+                  Icon(_weather!.icon, size: 32, color: AppTheme.primaryBlue),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(_weather!.tempDisplay, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+                            if (_weather!.feelsLike != null)
+                              Text(' (ressenti ${_weather!.feelsLike!.round()}°)', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+                          ],
+                        ),
+                        Text(_weather!.description, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (_weather!.precipitationProbability != null && _weather!.precipitationProbability! > 0)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.water_drop, size: 14, color: Colors.blue.shade400),
+                            const SizedBox(width: 3),
+                            Text('${_weather!.precipitationProbability}%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue.shade700)),
+                          ],
+                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.air, size: 14, color: AppTheme.textGrey),
+                          const SizedBox(width: 3),
+                          Text('${_weather!.windDisplay} ${_weather!.windDirectionText}', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 14),
           // Carte noire scanner (maquette)
           GestureDetector(
             onTap: () => Navigator.pushNamed(context, '/scan'),
