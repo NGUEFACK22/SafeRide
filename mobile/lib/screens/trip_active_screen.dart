@@ -252,7 +252,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       _voiceAvailable = await _voiceprint.ensureLoaded();
       final voskOk = await _voskMonitor.ensureLoaded(securityWord: _securityWord);
       if (!voskOk) {
-        if (mounted) setState(() => _voiceStatus = 'Vosk absent — écoute automatique désactivée');
+        if (mounted) setState(() => _voiceStatus = 'Écoute auto indisponible — utilisez le bouton SOS vocal depuis l\'écran SOS');
         return;
       }
       if (mounted) setState(() => _voiceStatus = 'Écoute automatique active…');

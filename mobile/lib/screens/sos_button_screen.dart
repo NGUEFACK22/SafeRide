@@ -7,6 +7,7 @@ import '../models/trip.dart';
 import '../services/whatsapp_service.dart';
 import '../services/sos_service.dart';
 import '../services/trip_service.dart';
+import '../services/permission_service.dart';
 import '../services/voiceprint_service.dart';
 import '../services/vosk_service.dart';
 
@@ -165,6 +166,16 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     if (word == null || word.isEmpty) {
       if (!mounted) return;
       setState(() => _status = 'Définissez d\'abord un mot de sécurité.');
+      return;
+    }
+
+    // Demander la permission microphone avant de commencer
+    if (!await PermissionService.microphone(context)) {
+      if (!mounted) return;
+      setState(() {
+        _listening = false;
+        _status = 'Permission microphone refusée. Activez-la dans les paramètres.';
+      });
       return;
     }
 
