@@ -7,7 +7,9 @@ import '../theme/app_theme.dart';
 
 class ProfileScreen extends StatefulWidget {
   final User? user;
-  const ProfileScreen({super.key, this.user});
+  /// Si true, le profil est affiché comme body du HomeScreen (pas de Scaffold).
+  final bool embedded;
+  const ProfileScreen({super.key, this.user, this.embedded = false});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -69,16 +71,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final displayName = widget.user != null ? '${widget.user!.prenom} ${widget.user!.nom}' : 'Alexandre Dubois';
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: AppTheme.textDark), onPressed: () => Navigator.pop(context)),
-        title: const Text('SafeRide AI', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800)),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
+    final content = SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
@@ -151,7 +144,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
             FilledButton.icon(onPressed: () async { await AuthService().logout(); if (context.mounted) Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false); }, style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppTheme.sosRed, side: BorderSide(color: Colors.grey.shade300)), icon: const Icon(Icons.logout), label: const Text('Déconnexion')),
           ],
         ),
+      );
+
+    if (widget.embedded) return content;
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: AppTheme.textDark), onPressed: () => Navigator.pop(context)),
+        title: const Text('SafeRide AI', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800)),
+        centerTitle: true,
       ),
+      body: content,
     );
   }
 
