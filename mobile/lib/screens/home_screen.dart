@@ -109,16 +109,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: _buildBody(),
-      floatingActionButton: _selectedIndex == 0
-          ? FloatingActionButton.extended(
-              backgroundColor: AppTheme.sosRed,
-              foregroundColor: Colors.white,
-              onPressed: () => Navigator.pushNamed(context, '/sos-button'),
-              icon: const Icon(Icons.sos),
-              label: const Text('SOS URGENCE', style: TextStyle(fontWeight: FontWeight.w800)),
-            )
-          : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (i) => setState(() => _selectedIndex = i),
