@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../models/user.dart';
 import '../services/api_service.dart';
@@ -56,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBody() {
     if (_selectedIndex == 1) return const _HistoryPreview();
-    if (_selectedIndex == 2) return _AlertsPreview(unread: _unread, onOpen: _openNotifications);
+    if (_selectedIndex == 2) return const _LocationPreview();
     if (_selectedIndex == 3) return ProfileScreen(user: _user, embedded: true);
 
     // Home (0) -> role view — Scan est dans le dashboard, plus en bas
@@ -121,18 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
         items: [
           const BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),
           const BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Trips'),
-          BottomNavigationBarItem(
-            icon: Stack(clipBehavior: Clip.none, children: [
-              const Icon(Icons.notifications_outlined),
-              if (_unread > 0)
-                Positioned(
-                  right: -4,
-                  top: -2,
-                  child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppTheme.sosRed, shape: BoxShape.circle)),
-                ),
-            ]),
-            label: 'Alerts',
-          ),
+          const BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map), label: 'Carte'),
           const BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
@@ -147,12 +138,96 @@ class _HistoryPreview extends StatelessWidget {
   Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.history, size: 48, color: AppTheme.primaryBlue), const SizedBox(height: 12), const Text('Historique', style: TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 8), FilledButton(onPressed: () => Navigator.pushNamed(context, '/history'), child: const Text('Voir l\'historique complet'))])));
 }
 
-class _AlertsPreview extends StatelessWidget {
-  final int unread;
-  final VoidCallback onOpen;
-  const _AlertsPreview({required this.unread, required this.onOpen});
+class _LocationPreview extends StatefulWidget {
+  const _LocationPreview();
   @override
-  Widget build(BuildContext context) => Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.notifications_outlined, size: 48, color: AppTheme.primaryBlue), const SizedBox(height: 8), Text('$unread non lues', style: const TextStyle(fontSize: 14)), FilledButton(onPressed: onOpen, child: const Text('Voir les alertes'))]));
+  State<_LocationPreview> createState() => _LocationPreviewState();
+}
+
+class _LocationPreviewState extends State<_LocationPreview> {
+  final _mapController = MapController();
+  LatLng? _userLocation;
+  bool _loading = true;
+  bool _locating = false;
+
+  static const LatLng _fallback = LatLng(3.8480, 11.5021); // Yaoundé
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLocation();
+  }
+
+  Future<void> _loadLocation() async {
+    try {
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        final req = await Geolocator.requestPermission();
+        if (req == LocationPermission.denied) {
+          if (mounted) setState(() => _loading = false);
+          return;
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 8)),
+        );
+        if (mounted) setState(() { _userLocation = LatLng(pos.latitude, pos.longitude); _loading = false; });
+      } catch (_) {
+        final last = await Geolocator.getLastKnownPosition();
+        if (mounted) setState(() {
+          _userLocation = last != null ? LatLng(last.latitude, last.longitude) : null;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _centerOnUser() async {
+    if (_locating) return;
+    setState(() => _locating = true);
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      final loc = LatLng(pos.latitude, pos.longitude);
+      if (!mounted) return;
+      setState(() => _userLocation = loc);
+      _mapController.move(loc, 15);
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Localisation indisponible')));
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(), SizedBox(height: 12), Text('Localisation en cours…')]));
+    }
+    return Stack(
+      children: [
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(initialCenter: _userLocation ?? _fallback, initialZoom: _userLocation != null ? 15 : 12),
+          children: [
+            TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.tech.saveride'),
+            if (_userLocation != null)
+              MarkerLayer(markers: [Marker(point: _userLocation!, width: 24, height: 24, alignment: Alignment.center, child: Container(decoration: BoxDecoration(color: AppTheme.primaryBlue, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3), boxShadow: [BoxShadow(blurRadius: 6, color: Colors.black38)])))]),
+          ],
+        ),
+        Positioned(bottom: 16, right: 16, child: FloatingActionButton.small(onPressed: _centerOnUser, tooltip: 'Ma position', child: _locating ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.my_location))),
+        Positioned(bottom: 4, left: 0, right: 0, child: Container(color: Colors.grey.shade200, padding: const EdgeInsets.all(4), child: const Text('Cartes © OpenStreetMap', textAlign: TextAlign.center, style: TextStyle(fontSize: 11))))
+      ],
+    );
+  }
 }
 
 class _PassagerView extends StatefulWidget {
@@ -449,12 +524,49 @@ class _PassagerViewState extends State<_PassagerView> {
   }
 }
 
-class _TransporteurView extends StatelessWidget {
+class _TransporteurView extends StatefulWidget {
   const _TransporteurView();
+  @override
+  State<_TransporteurView> createState() => _TransporteurViewState();
+}
+
+class _TransporteurViewState extends State<_TransporteurView> {
+  WeatherData? _weather;
+  bool _weatherLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWeather();
+  }
+
+  Future<void> _loadWeather() async {
+    try {
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        final req = await Geolocator.requestPermission();
+        if (req == LocationPermission.denied) {
+          if (mounted) setState(() => _weatherLoading = false);
+          return;
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) setState(() => _weatherLoading = false);
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.low, timeLimit: Duration(seconds: 8)),
+      );
+      final weather = await WeatherService.instance.getCurrentWeather(position.latitude, position.longitude);
+      if (mounted) setState(() { _weather = weather; _weatherLoading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _weatherLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -546,6 +658,30 @@ class _TransporteurView extends StatelessWidget {
               onTap: () => Navigator.pushNamed(context, '/vehicles'),
             ),
           ),
+          const SizedBox(height: 12),
+          // Météo transporteur
+          if (_weatherLoading)
+            const Card(child: Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(children: [SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 10), Text('Météo…', style: TextStyle(fontSize: 12, color: AppTheme.textGrey))])))
+          else if (_weather != null)
+            Card(
+              color: AppTheme.primaryBlue.withValues(alpha: 0.04),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(_weather!.icon, size: 28, color: AppTheme.primaryBlue),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(_weather!.description, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text('${_weather!.tempDisplay} · Vent ${_weather!.windDisplay} ${_weather!.windDirectionText}', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+                    ])),
+                    if (_weather!.precipitationProbability != null && _weather!.precipitationProbability! > 0)
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.water_drop, size: 12, color: Colors.blue), const SizedBox(width: 3), Text('${_weather!.precipitationProbability}%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue))])),
+                  ],
+                ),
+              ),
+            ),
           const SizedBox(height: 12),
           Card(
             child: ListTile(
