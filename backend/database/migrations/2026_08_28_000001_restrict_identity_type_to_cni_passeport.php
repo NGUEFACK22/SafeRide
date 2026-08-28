@@ -9,8 +9,16 @@ return new class extends Migration
     public function up(): void
     {
         // Nettoyer les anciennes valeurs non autorisées avant restriction
-        DB::table('identity_verifications')->whereNotIn('type', ['CNI', 'PASSEPORT'])->update(['type' => 'CNI']);
-        DB::table('identity_documents')->whereNotIn('type', ['CNI', 'PASSEPORT'])->update(['type' => 'CNI']);
+        // Pour pgsql enum, whereNotIn avec valeur invalide (RECIPISSE etc.) lève "invalid input value for enum"
+        // On cast en text pour éviter l'erreur
+        $driverTmp = DB::getDriverName();
+        if ($driverTmp === 'pgsql') {
+            DB::statement("UPDATE identity_verifications SET type = 'CNI' WHERE type::text NOT IN ('CNI', 'PASSEPORT')");
+            DB::statement("UPDATE identity_documents SET type = 'CNI' WHERE type::text NOT IN ('CNI', 'PASSEPORT')");
+        } else {
+            DB::table('identity_verifications')->whereNotIn('type', ['CNI', 'PASSEPORT'])->update(['type' => 'CNI']);
+            DB::table('identity_documents')->whereNotIn('type', ['CNI', 'PASSEPORT'])->update(['type' => 'CNI']);
+        }
 
         // Pour PostgreSQL et MySQL : modifier l'enum via raw SQL si possible, sinon laisser la validation applicative faire foi
         $driver = DB::getDriverName();
