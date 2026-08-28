@@ -473,17 +473,11 @@ class _PassagerViewState extends State<_PassagerView> {
             children: [
               Expanded(child: _serviceCard(Icons.trip_origin, 'Trajet', 'Suivi GPS', () => Navigator.pushNamed(context, '/trip-active'))),
               const SizedBox(width: 10),
-              Expanded(child: _serviceCard(Icons.work_outline, 'Objet perdu', 'Signaler', () => Navigator.pushNamed(context, '/lost-item'))),
+              Expanded(child: _serviceCard(Icons.gavel_outlined, 'Litige', 'Objets & SOS', () => Navigator.pushNamed(context, '/dispute'))),
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(child: _serviceCard(Icons.gavel_outlined, 'Litige', 'Signaler', () => Navigator.pushNamed(context, '/dispute'))),
-              const SizedBox(width: 10),
-              Expanded(child: _serviceCard(Icons.verified_user, 'Identité', 'Vérifier', () => Navigator.pushNamed(context, '/identity'), color: AppTheme.primaryBlue)),
-            ],
-          ),
+          _serviceCard(Icons.verified_user, 'Identité', 'Vérifier', () => Navigator.pushNamed(context, '/identity'), color: AppTheme.primaryBlue),
         ],
       ),
     );
@@ -875,9 +869,7 @@ class _GuestView extends StatelessWidget {
           const SizedBox(height: 10),
           _guestCard(Icons.trip_origin, 'Trajet', 'Suivi GPS + SOS', onAction),
           const SizedBox(height: 8),
-          _guestCard(Icons.work_outline, 'Objet perdu', 'Signaler avec photos', onAction),
-          const SizedBox(height: 8),
-          _guestCard(Icons.gavel_outlined, 'Litige', 'Ouvrir un dossier', onAction),
+          _guestCard(Icons.gavel_outlined, 'Litige', 'Objets perdus & SOS', onAction),
           const SizedBox(height: 8),
           _guestCard(Icons.verified_user, 'Identité', 'CNI / Passeport', onAction),
           const SizedBox(height: 8),

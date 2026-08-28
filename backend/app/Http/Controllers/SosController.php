@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Dispute;
 use App\Models\EmergencyContact;
 use App\Models\EmergencyService;
 use App\Models\ManagerAssignment;
@@ -70,6 +71,18 @@ class SosController extends Controller
 
         $alertsSent = $this->dispatchAlerts($sos);
         $this->assignManager($sos);
+
+        // — Stockage direct en litige : les 2 types de litige sont "objet perdu" et "alerte SOS"
+        // Chaque SOS devient un dossier LITIGE pour suivi unifié dans /disputes
+        $disputeSos = Dispute::create([
+            'trip_id' => $trip->id,
+            'passager_id' => $request->user()->id,
+            'transporteur_id' => $trip->transporteur_id,
+            'motif' => 'Alerte SOS — ' . $data['declenchement'] . ' #' . $sos->id,
+            'description' => 'SOS ' . $data['declenchement'] . ' du ' . $sos->heure_detection->toDateTimeString() . ' — position https://maps.google.com/?q=' . $sos->latitude . ',' . $sos->longitude . ' — statut SOS: ' . $sos->statut . ' — détails: ' . json_encode($verification['details']),
+            'statut' => 'OUVERT',
+        ]);
+        $this->assignDisputeManager($disputeSos, $trip);
 
         $transmission = $this->notifyAll($request, $sos, $trip);
 
@@ -359,6 +372,30 @@ class SosController extends Controller
                 } catch (\Throwable $e) {
                 }
             }
+        }
+    }
+
+    protected function assignDisputeManager(Dispute $dispute, Trip $trip): void
+    {
+        $manager = User::whereHas('roles', fn ($q) => $q->where('slug', 'gestionnaire'))
+            ->withCount(['managerAssignments as ouvertes' => fn ($q) => $q->where('statut', '!=', 'CLOTURE')])
+            ->orderBy('ouvertes')
+            ->first();
+
+        if ($manager) {
+            ManagerAssignment::create([
+                'manager_id' => $manager->id,
+                'dossier_type' => 'LITIGE',
+                'dossier_id' => $dispute->id,
+                'statut' => 'ATTRIBUE',
+            ]);
+
+            Notification::create([
+                'user_id' => $manager->id,
+                'type' => 'DOSSIER',
+                'titre' => 'Nouveau litige — SOS #' . $dispute->id,
+                'message' => 'Litige SOS créé depuis alerte #' . $dispute->id . ' — trajet #' . $trip->id,
+            ]);
         }
     }
 
