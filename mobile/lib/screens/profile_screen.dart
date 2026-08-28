@@ -146,16 +146,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
       setState(() => _voiceAvailable = true);
-      final avg = await _voiceprint.captureAverageEmbedding(
-        samples: 3,
-        perSample: const Duration(seconds: 3),
-        onProgress: (cur, total) { if (mounted) setState(() => _voiceProgress = 'Prise $cur/$total — parlez clairement…'); },
-      );
-      if (avg == null) throw Exception('Audio trop court ou modèle indisponible');
+      // Enregistrement 30 secondes — l'utilisateur prononce son mot de sécurité plusieurs fois
+      setState(() => _voiceProgress = 'Préparation micro — prononcez "$mot" dès que le compteur démarre…');
+      final okStart = await _voiceprint.startCapture();
+      if (!okStart) throw Exception('Micro indisponible — vérifiez la permission');
+      // Compte à rebours 30s avec guidage vocal à l'écran
+      for (int s = 30; s > 0; s--) {
+        if (!mounted || !_voiceEnrolling) break;
+        setState(() => _voiceProgress = 'Parlez : prononcez "$mot" — $s s restantes • répétez clairement, voix normale');
+        await Future.delayed(const Duration(seconds: 1));
+      }
+      if (!mounted || !_voiceEnrolling) {
+        setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
+        return;
+      }
+      final avg = await _voiceprint.stopAndEmbed();
+      if (avg == null) throw Exception('Audio trop court ou modèle indisponible — parlez plus fort/près du micro');
       await _api.post('/voice/enroll', {'empreinte': avg});
       if (!mounted) return;
       setState(() { _voiceEnrolled = true; _voiceActive = true; _voiceEnrolling = false; _voiceProgress = ''; });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Empreinte vocale enregistrée (3 prises) ✓'), backgroundColor: AppTheme.successText));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Empreinte vocale enregistrée (30s) ✓ — mot "$mot"'), backgroundColor: AppTheme.successText));
     } catch (e) {
       if (!mounted) return;
       setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
@@ -322,11 +332,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
 
-          // ── Empreinte vocale — 3 prises pour reconnaissance ──
+          // ── Empreinte vocale — 30s pour reconnaissance ──
           const SizedBox(height: 20),
           const Text('Reconnaissance vocale', style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 6),
-          const Text('Enregistrez votre voix (3 prises de 3s) pour que le SOS vocal ne se déclenche que sur votre voix.', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+          const Text('Enregistrez votre voix pendant 30 secondes : prononcez votre mot de sécurité plusieurs fois, clairement, pour que le SOS ne se déclenche que sur votre voix.', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
           const SizedBox(height: 10),
           Container(
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: _voiceEnrolled ? AppTheme.successBorder : Colors.grey.shade200), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8)]),
@@ -338,21 +348,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     Container(width: 42, height: 42, decoration: BoxDecoration(color: _voiceEnrolled ? AppTheme.successBg : AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10), border: Border.all(color: _voiceEnrolled ? AppTheme.successBorder : AppTheme.lightBlueBorder)), child: Icon(_voiceEnrolled ? Icons.hearing : Icons.mic_outlined, color: _voiceEnrolled ? AppTheme.successText : AppTheme.primaryBlue, size: 22)),
                     const SizedBox(width: 12),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_voiceEnrolled ? 'Voix enrôlée' : 'Voix non enrôlée', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: _voiceEnrolled ? AppTheme.successText : AppTheme.textDark)), const SizedBox(height: 2), Text(_voiceActive ? 'Active • 3 prises' : _voiceEnrolled ? 'Enrôlée' : '3 prises de 3 secondes', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_voiceEnrolled ? 'Voix enrôlée' : 'Voix non enrôlée', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: _voiceEnrolled ? AppTheme.successText : AppTheme.textDark)), const SizedBox(height: 2), Text(_voiceActive ? 'Active • 30s' : _voiceEnrolled ? 'Enrôlée' : '30 secondes d\'enregistrement', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: _voiceEnrolled ? AppTheme.successBg : Colors.orange.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: _voiceEnrolled ? AppTheme.successBorder : Colors.orange.shade200)), child: Text(_voiceEnrolled ? 'OK' : 'À FAIRE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _voiceEnrolled ? AppTheme.successText : Colors.orange.shade800))),
                   ],
                 ),
                 if (_voiceEnrolling) ...[
                   const SizedBox(height: 12),
-                  Row(children: [const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue)), const SizedBox(width: 10), Expanded(child: Text(_voiceProgress, style: const TextStyle(fontSize: 12, color: AppTheme.primaryBlue, fontWeight: FontWeight.w600)))]),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppTheme.lightBlueBorder)),
+                    child: Column(children: [
+                      Row(children: [const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue)), const SizedBox(width: 10), Expanded(child: Text(_voiceProgress, style: const TextStyle(fontSize: 12, color: AppTheme.primaryBlue, fontWeight: FontWeight.w700)))]),
+                      const SizedBox(height: 8),
+                      const LinearProgressIndicator(color: AppTheme.primaryBlue, backgroundColor: Colors.white),
+                      const SizedBox(height: 6),
+                      const Text('Restez à 15-20cm du micro • parlez à voix normale • répétez votre mot 5-6 fois pendant les 30s', style: TextStyle(fontSize: 10, color: AppTheme.textGrey)),
+                    ]),
+                  ),
                   const SizedBox(height: 8),
-                  const LinearProgressIndicator(color: AppTheme.primaryBlue, backgroundColor: AppTheme.lightBlueBadge),
+                  TextButton.icon(onPressed: () async { setState(() { _voiceEnrolling = false; _voiceProgress = ''; }); try { await _voiceprint.stopAndEmbed(); } catch (_) {} }, icon: const Icon(Icons.close, size: 16), label: const Text('Annuler l\'enregistrement')),
                 ],
                 const SizedBox(height: 12),
                 FilledButton.icon(
                   onPressed: _voiceEnrolling ? null : _enrollVoice,
                   icon: _voiceEnrolling ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Icon(_voiceEnrolled ? Icons.refresh : Icons.record_voice_over),
-                  label: Text(_voiceEnrolled ? 'Ré-enregistrer ma voix' : 'Enregistrer ma voix (3 prises)', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  label: Text(_voiceEnrolled ? 'Ré-enregistrer ma voix (30s)' : 'Enregistrer ma voix (30s)', style: const TextStyle(fontWeight: FontWeight.w700)),
                   style: FilledButton.styleFrom(backgroundColor: _voiceEnrolled ? AppTheme.textDark : AppTheme.primaryBlue, padding: const EdgeInsets.symmetric(vertical: 12)),
                 ),
                 const SizedBox(height: 6),
