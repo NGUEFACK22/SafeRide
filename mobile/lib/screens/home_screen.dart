@@ -14,9 +14,9 @@ import 'profile_screen.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
-  final User user;
+  final User? user;
 
-  const HomeScreen({super.key, required this.user});
+  const HomeScreen({super.key, this.user});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -24,18 +24,22 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _api = ApiService();
-  late User _user;
+  User? _user;
   int _unread = 0;
   Timer? _timer;
   int _selectedIndex = 0;
+
+  bool get _isGuest => _user == null;
 
   @override
   void initState() {
     super.initState();
     _user = widget.user;
-    _timer = Timer.periodic(const Duration(seconds: 15), (_) => _refreshUnread());
-    _refreshUnread();
-    PushService.instance.addRefreshListener(_refreshUnread);
+    if (!_isGuest) {
+      _timer = Timer.periodic(const Duration(seconds: 15), (_) => _refreshUnread());
+      _refreshUnread();
+      PushService.instance.addRefreshListener(_refreshUnread);
+    }
   }
 
   @override
@@ -57,15 +61,35 @@ class _HomeScreenState extends State<HomeScreen> {
     _refreshUnread();
   }
 
+  void _requireAuth() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(children: [Icon(Icons.lock, color: AppTheme.primaryBlue), SizedBox(width: 8), Text('Inscription requise')]),
+        content: const Text('Visiteur — vous pouvez consulter toutes les fonctionnalités, mais pour interagir avec le système (scanner, SOS, signaler, etc.), veuillez vous inscrire.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Rester en visite')),
+          FilledButton(onPressed: () { Navigator.pop(ctx); Navigator.pushNamed(context, '/register'); }, child: const Text('S\'inscrire')),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBody() {
+    if (_isGuest) {
+      if (_selectedIndex == 1) return _GuestBlockedCard(onUnlock: _requireAuth, label: 'Historique');
+      if (_selectedIndex == 2) return const _LocationPreview();
+      if (_selectedIndex == 3) return _GuestBlockedCard(onUnlock: _requireAuth, label: 'Profil');
+      return _GuestView(onAction: _requireAuth);
+    }
     if (_selectedIndex == 1) return const _HistoryPreview();
     if (_selectedIndex == 2) return const _LocationPreview();
     if (_selectedIndex == 3) return ProfileScreen(user: _user, embedded: true);
 
     // Home (0) -> role view — disposition similaire passager/transporteur
-    if (_user.hasRole('admin')) return const _AdminView();
-    if (_user.hasRole('transporteur')) return _TransporteurView(user: _user);
-    if (_user.hasRole('gestionnaire')) return const _GestionnaireView();
+    if (_user!.hasRole('admin')) return const _AdminView();
+    if (_user!.hasRole('transporteur')) return _TransporteurView(user: _user);
+    if (_user!.hasRole('gestionnaire')) return const _GestionnaireView();
     return _PassagerView(user: _user);
   }
 
@@ -83,34 +107,38 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('SafeRide AI', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 15)),
         centerTitle: true,
         actions: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined, color: AppTheme.textDark),
-                onPressed: _openNotifications,
-              ),
-              if (_unread > 0)
-                Positioned(
-                  right: 6,
-                  top: 6,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                    decoration: const BoxDecoration(color: AppTheme.sosRed, shape: BoxShape.circle),
-                    child: Text('$_unread', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 10)),
-                  ),
+          if (_isGuest)
+            Padding(padding: const EdgeInsets.only(right: 12), child: FilledButton(onPressed: () => Navigator.pushNamed(context, '/register'), style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)), child: const Text('S\'inscrire', style: TextStyle(fontSize: 12)))),
+          if (!_isGuest)
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_outlined, color: AppTheme.textDark),
+                  onPressed: _openNotifications,
                 ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: AppTheme.lightBlueBadge,
-              child: Text(_user.prenom.isNotEmpty ? _user.prenom[0].toUpperCase() : '?', style: const TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w700)),
+                if (_unread > 0)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      decoration: const BoxDecoration(color: AppTheme.sosRed, shape: BoxShape.circle),
+                      child: Text('$_unread', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 10)),
+                    ),
+                  ),
+              ],
             ),
-          ),
+          if (!_isGuest)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: CircleAvatar(
+                radius: 16,
+                backgroundColor: AppTheme.lightBlueBadge,
+                child: Text(_user!.prenom.isNotEmpty ? _user!.prenom[0].toUpperCase() : '?', style: const TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w700)),
+              ),
+            ),
         ],
       ),
       body: _buildBody(),
@@ -579,7 +607,7 @@ class _TransporteurViewState extends State<_TransporteurView> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [Text(_weather!.tempDisplay, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textDark)), if (_weather!.feelsLike != null) Text(' (ressenti \°)', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))]),
+                      Row(children: [Text(_weather!.tempDisplay, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textDark)), if (_weather!.feelsLike != null) Text(' (ressenti ${_weather!.feelsLike!.round()}°)', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))]),
                       Text(_weather!.description, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
                     ]),
                   ),
@@ -798,6 +826,96 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> {
             ]),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GuestView extends StatelessWidget {
+  final VoidCallback onAction;
+  const _GuestView({required this.onAction});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200)),
+            child: Row(children: [Icon(Icons.visibility, color: Colors.orange.shade700, size: 18), const SizedBox(width: 8), const Expanded(child: Text('Mode invité — explorez librement. Inscrivez-vous pour interagir.', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF9A3412)))), const SizedBox(width: 8), FilledButton(onPressed: () => Navigator.pushNamed(context, '/register'), style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)), child: const Text('S\'inscrire', style: TextStyle(fontSize: 11)))]),
+          ),
+          const SizedBox(height: 12),
+          const Text('Bienvenue sur SafeRide AI', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          const SizedBox(height: 6),
+          const Text('Consultez toutes les fonctionnalités. L\'interaction nécessite un compte.', style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+          const SizedBox(height: 14),
+          // Aperçu carte
+          Container(
+            height: 140,
+            decoration: BoxDecoration(color: const Color(0xFFEAF0FF), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.lightBlueBorder)),
+            child: Stack(children: [const Center(child: Icon(Icons.map, size: 48, color: AppTheme.primaryBlue)), Positioned(top: 8, right: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)), child: const Text('Yaoundé • Carte', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700))))]),
+          ),
+          const SizedBox(height: 14),
+          // Scanner verrouillé
+          GestureDetector(
+            onTap: onAction,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(color: AppTheme.cardBlack, borderRadius: BorderRadius.circular(20)),
+              child: Column(children: [Container(width: 64, height: 64, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.15))), child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 28)), const SizedBox(height: 12), const Text('Scanner un QR Code', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)), const SizedBox(height: 6), Text('Fonctionnalité verrouillée — inscrivez-vous', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)), const SizedBox(height: 8), Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.lock, size: 12, color: Colors.white), SizedBox(width: 4), Text('Invité', style: TextStyle(color: Colors.white, fontSize: 11))]))]),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(children: [Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(14)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: Colors.white)])))), const SizedBox(width: 10), Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade300)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 16, color: AppTheme.textGrey), SizedBox(width: 6), Text('SUPPORT', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: AppTheme.textGrey)]))))]),
+          const SizedBox(height: 18),
+          const Text('Aperçu des services', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          const SizedBox(height: 10),
+          _guestCard(Icons.trip_origin, 'Trajet', 'Suivi GPS + SOS', onAction),
+          const SizedBox(height: 8),
+          _guestCard(Icons.work_outline, 'Objet perdu', 'Signaler avec photos', onAction),
+          const SizedBox(height: 8),
+          _guestCard(Icons.gavel_outlined, 'Litige', 'Ouvrir un dossier', onAction),
+          const SizedBox(height: 8),
+          _guestCard(Icons.verified_user, 'Identité', 'CNI / Passeport', onAction),
+          const SizedBox(height: 8),
+          _guestCard(Icons.directions_car, 'Véhicules', 'QR transporteur', onAction),
+          const SizedBox(height: 8),
+          _guestCard(Icons.dashboard, 'Tableau de bord', 'Stats transporteur', onAction),
+          const SizedBox(height: 14),
+          FilledButton.icon(onPressed: () => Navigator.pushNamed(context, '/register'), icon: const Icon(Icons.person_add), label: const Text('Créer mon compte — interagir')),
+          const SizedBox(height: 6),
+          TextButton(onPressed: () => Navigator.pushNamed(context, '/login'), child: const Text('Déjà inscrit ? Se connecter')),
+        ],
+      ),
+    );
+  }
+
+  static Widget _guestCard(IconData icon, String title, String subtitle, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+        child: Row(children: [Container(width: 38, height: 38, decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)), child: Icon(icon, size: 20, color: Colors.grey)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)), const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.lock, size: 10, color: Colors.grey), SizedBox(width: 3), Text('Invité', style: TextStyle(fontSize: 10, color: Colors.grey))]))]), Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])), const Icon(Icons.chevron_right, size: 16, color: Colors.grey)]),
+      ),
+    );
+  }
+}
+
+class _GuestBlockedCard extends StatelessWidget {
+  final VoidCallback onUnlock;
+  final String label;
+  const _GuestBlockedCard({required this.onUnlock, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.lock, size: 48, color: Colors.grey.shade400), const SizedBox(height: 12), Text('$label — mode invité', style: const TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 6), const Text('Inscrivez-vous pour accéder à cette section', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.textGrey, fontSize: 12)), const SizedBox(height: 16), FilledButton.icon(onPressed: () => Navigator.pushNamed(context, '/register'), icon: const Icon(Icons.person_add), label: const Text('S\'inscrire')), TextButton(onPressed: () => Navigator.pushNamed(context, '/login'), child: const Text('Se connecter'))]),
       ),
     );
   }

@@ -54,7 +54,7 @@ class SafeRideApp extends StatelessWidget {
         '/login': (ctx) => const LoginScreen(),
         '/register': (ctx) => const RegisterScreen(),
         '/home': (ctx) {
-          final user = ModalRoute.of(ctx)?.settings.arguments as User;
+          final user = ModalRoute.of(ctx)?.settings.arguments as User?;
           return HomeScreen(user: user);
         },
         '/scan': (ctx) => const ScanScreen(),
