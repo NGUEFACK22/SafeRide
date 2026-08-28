@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 
-import 'package:permission_handler/permission_handler.dart';
-
 import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/permission_service.dart';
 import '../services/voiceprint_service.dart';
 import '../theme/app_theme.dart';
 
@@ -121,14 +120,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Définissez d\'abord un mot de sécurité (≥3 caractères) ci-dessus et enregistrez.')));
       return;
     }
-    final micStatus = await Permission.microphone.status;
-    if (!micStatus.isGranted) {
-      final req = await Permission.microphone.request();
-      if (!req.isGranted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission micro refusée — activez dans les paramètres')));
-        return;
-      }
-    }
+    if (!await PermissionService.microphone(context)) return;
     // S'assurer que le mot est enregistré côté backend
     try {
       await _api.post('/voice/security-word', {'mot_securite': mot});

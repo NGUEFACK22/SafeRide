@@ -43,10 +43,10 @@ class VoiceprintService {
   bool get isAvailable => _loaded;
 
   /// Démarre un enregistrement PCM 16 bits / 16 kHz / mono en streaming.
+  /// La permission doit déjà avoir été accordée via PermissionService.microphone().
   Future<bool> startCapture() async {
     _samples.clear();
     final recorder = AudioRecorder();
-    if (!await recorder.hasPermission()) return false;
 
     try {
       final stream = await recorder.startStream(const RecordConfig(
