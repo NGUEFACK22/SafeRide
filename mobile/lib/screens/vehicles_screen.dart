@@ -46,6 +46,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
   }
 
   Future<void> _addVehicle() async {
+    final hasExisting = _vehicles.isNotEmpty;
     final marque = TextEditingController();
     final modele = TextEditingController();
     final immatriculation = TextEditingController();
@@ -54,11 +55,18 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Ajouter un véhicule'),
+        title: Text(hasExisting ? 'Remplacer le véhicule' : 'Ajouter un véhicule'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (hasExisting)
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
+                  child: Row(children: [Icon(Icons.warning_amber, color: Colors.orange.shade700, size: 18), const SizedBox(width: 8), Expanded(child: Text('Un seul véhicule autorisé. L\'ancien sera remplacé.', style: TextStyle(fontSize: 12, color: Colors.orange.shade800)))]),
+                ),
               TextField(
                 controller: marque,
                 decoration: const InputDecoration(labelText: 'Marque'),
@@ -92,7 +100,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Ajouter'),
+            child: Text(hasExisting ? 'Remplacer' : 'Ajouter'),
           ),
         ],
       ),
@@ -101,7 +109,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     if (result != true) return;
 
     try {
-      await _api.post('/vehicles', {
+      final res = await _api.post('/vehicles', {
         'marque': marque.text.trim(),
         'modele': modele.text.trim(),
         'immatriculation': immatriculation.text.trim().toUpperCase(),
@@ -109,8 +117,8 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Véhicule ajouté avec son QR code associé')),
+        SnackBar(
+            content: Text(res['message'] as String? ?? 'Véhicule enregistré avec son QR code associé')),
       );
       _load();
     } catch (e) {
@@ -159,56 +167,91 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
 
   // _refreshQr supprimé — régénération auto côté backend à chaque scan (TripController.start)
 
+  Future<void> _deleteVehicle(int id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer le véhicule'),
+        content: const Text('Un transporteur doit conserver au moins un véhicule. Si vous avez un seul véhicule, la suppression sera refusée. Confirmer ?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Supprimer')),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      await _api.delete('/vehicles/$id');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Véhicule supprimé')));
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasVehicle = _vehicles.isNotEmpty;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mon véhicule'),
+        title: Text(hasVehicle ? 'Mon véhicule (unique)' : 'Mon véhicule'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'Nouveau véhicule (remplace l\'ancien)',
+            icon: Icon(hasVehicle ? Icons.swap_horiz : Icons.add),
+            tooltip: hasVehicle ? 'Remplacer le véhicule (un seul autorisé)' : 'Ajouter un véhicule',
             onPressed: _addVehicle,
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addVehicle,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: hasVehicle
+          ? null
+          : FloatingActionButton(
+              onPressed: _addVehicle,
+              child: const Icon(Icons.add),
+            ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(child: Text(_error!))
               : _vehicles.isEmpty
-                  ? const Center(child: Text('Aucun véhicule. Ajoutez-en un.'))
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          const Icon(Icons.directions_car, size: 48, color: Colors.grey),
+                          const SizedBox(height: 12),
+                          const Text('Aucun véhicule. Ajoutez votre véhicule unique.', textAlign: TextAlign.center),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(onPressed: _addVehicle, icon: const Icon(Icons.add), label: const Text('Ajouter mon véhicule')),
+                        ]),
+                      ),
+                    )
                   : RefreshIndicator(
                       onRefresh: _load,
-                      child: ListView.builder(
-                        itemCount: _vehicles.length,
-                        itemBuilder: (context, index) {
-                          final v = _vehicles[index];
-                          return Card(
-                            margin: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                child:
-                                    Icon(_typeIcon(v['type'] ?? 'VOITURE')),
-                              ),
-                              title: Text(
-                                  '${v['marque']} ${v['modele']} — ${v['immatriculation']}'),
-                              subtitle: Text(
-                                  '${v['type']}${v['couleur'] != null ? ' · ${v['couleur']}' : ''} · ${v['statut']}'),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.qr_code_2),
-                                tooltip: 'Afficher le QR',
-                                onPressed: () => _showQr(
-                                    v['id'], v['immatriculation']),
-                              ),
-                            ),
-                          );
-                        },
+                      child: ListView(
+                        padding: const EdgeInsets.all(12),
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
+                            child: Row(children: [Icon(Icons.info_outline, color: Colors.blue.shade700, size: 18), const SizedBox(width: 8), const Expanded(child: Text('Un seul véhicule autorisé par transporteur. Ajouter un nouveau véhicule remplacera l\'ancien.', style: TextStyle(fontSize: 12)))]),
+                          ),
+                          const SizedBox(height: 12),
+                          ..._vehicles.map((v) => Card(
+                                margin: const EdgeInsets.symmetric(vertical: 6),
+                                child: ListTile(
+                                  leading: CircleAvatar(child: Icon(_typeIcon(v['type'] ?? 'VOITURE'))),
+                                  title: Text('${v['marque']} ${v['modele']} — ${v['immatriculation']}'),
+                                  subtitle: Text('${v['type']}${v['couleur'] != null ? ' · ${v['couleur']}' : ''} · ${v['statut']}'),
+                                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                                    IconButton(icon: const Icon(Icons.qr_code_2), tooltip: 'Afficher le QR', onPressed: () => _showQr(v['id'], v['immatriculation'])),
+                                    IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), tooltip: 'Supprimer (bloqué si seul)', onPressed: () => _deleteVehicle(v['id'])),
+                                  ]),
+                                ),
+                              )),
+                        ],
                       ),
                     ),
     );

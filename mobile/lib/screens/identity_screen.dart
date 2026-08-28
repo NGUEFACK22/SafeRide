@@ -29,7 +29,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
   String? _resultStatut;
   bool _error = false;
 
-  static const _types = ['CNI', 'PASSEPORT', 'RECIPISSE', 'CARTE_SCOLAIRE', 'AUTRE'];
+  static const _types = ['CNI', 'PASSEPORT'];
 
   @override
   void initState() {
@@ -47,45 +47,83 @@ class _IdentityScreenState extends State<IdentityScreen> {
   }
 
   Future<bool> _ensurePermission(ImageSource source) async {
-    Permission perm = source == ImageSource.camera ? Permission.camera : Permission.photos;
-    // Android 13+ : photos, sinon storage
-    if (source == ImageSource.gallery) {
-      final photos = await Permission.photos.status;
-      final storage = await Permission.storage.status;
-      if (photos.isGranted || storage.isGranted) return true;
-      final photosGranted = (await Permission.photos.request()).isGranted;
-      final storageGranted = (await Permission.storage.request()).isGranted;
-      final req = photosGranted || storageGranted;
-      if (!req && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission galerie refusée — activez-la dans les paramètres')));
-      return req;
-    } else {
-      final status = await perm.status;
-      if (status.isGranted) return true;
-      final req = await perm.request();
-      if (!req.isGranted && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission caméra refusée')));
-      return req.isGranted;
+    try {
+      if (source == ImageSource.gallery) {
+        // Android 13+ : READ_MEDIA_IMAGES via photos, sinon storage
+        final photos = await Permission.photos.status;
+        final storage = await Permission.storage.status;
+        if (photos.isGranted || storage.isGranted) return true;
+        if (photos.isPermanentlyDenied || storage.isPermanentlyDenied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission galerie refusée définitivement — ouvrez les paramètres de l\'app')));
+            await openAppSettings();
+          }
+          return false;
+        }
+        final photosReq = await Permission.photos.request();
+        if (photosReq.isGranted) return true;
+        final storageReq = await Permission.storage.request();
+        final granted = storageReq.isGranted;
+        if (!granted && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission galerie refusée — activez-la dans les paramètres')));
+        return granted;
+      } else {
+        final status = await Permission.camera.status;
+        if (status.isGranted) return true;
+        if (status.isPermanentlyDenied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission caméra refusée définitivement — ouvrez les paramètres')));
+            await openAppSettings();
+          }
+          return false;
+        }
+        final req = await Permission.camera.request();
+        if (req.isGranted) return true;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(req.isPermanentlyDenied ? 'Caméra bloquée — activez dans Paramètres > Applications > SafeRide > Autorisations' : 'Permission caméra refusée'),
+              action: req.isPermanentlyDenied ? SnackBarAction(label: 'Ouvrir', onPressed: () => openAppSettings()) : null,
+            ),
+          );
+        }
+        return false;
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur permission: $e')));
+      return false;
     }
   }
 
   Future<void> _pickRecto(ImageSource source) async {
     if (!await _ensurePermission(source)) return;
-    final picked = await _picker.pickImage(source: source, imageQuality: 70);
-    if (picked != null && mounted) setState(() => _recto = picked);
+    try {
+      final picked = await _picker.pickImage(source: source, imageQuality: 70, maxWidth: 1920);
+      if (picked != null && mounted) setState(() => _recto = picked);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Caméra indisponible: $e'), backgroundColor: Colors.red, action: SnackBarAction(label: 'Galerie', onPressed: () => _pickRecto(ImageSource.gallery))));
+    }
   }
 
   Future<void> _pickVerso(ImageSource source) async {
     if (!await _ensurePermission(source)) return;
-    final picked = await _picker.pickImage(source: source, imageQuality: 70);
-    if (picked != null && mounted) setState(() => _verso = picked);
+    try {
+      final picked = await _picker.pickImage(source: source, imageQuality: 70, maxWidth: 1920);
+      if (picked != null && mounted) setState(() => _verso = picked);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Caméra indisponible: $e'), backgroundColor: Colors.red, action: SnackBarAction(label: 'Galerie', onPressed: () => _pickVerso(ImageSource.gallery))));
+    }
   }
 
   Future<void> _pickSelfie(ImageSource source) async {
     if (!await _ensurePermission(source)) return;
     try {
-      final picked = await _picker.pickImage(source: source, imageQuality: 60, preferredCameraDevice: CameraDevice.front);
+      final picked = await _picker.pickImage(source: source, imageQuality: 60, preferredCameraDevice: CameraDevice.front, maxWidth: 1280);
       if (picked != null && mounted) setState(() => _selfie = picked);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Caméra selfie indisponible: $e')));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Caméra selfie indisponible: $e — essayez la galerie ou redémarrez l\'app'), backgroundColor: Colors.red));
     }
   }
 
@@ -95,12 +133,8 @@ class _IdentityScreenState extends State<IdentityScreen> {
         return 'CNI';
       case 'PASSEPORT':
         return 'Passeport';
-      case 'RECIPISSE':
-        return 'Récépissé CNI';
-      case 'CARTE_SCOLAIRE':
-        return 'Carte scolaire';
       default:
-        return 'Autre';
+        return t;
     }
   }
 
@@ -162,44 +196,75 @@ class _IdentityScreenState extends State<IdentityScreen> {
   }
 
   Widget _pickCard({required String title, required String subtitle, required XFile? file, required VoidCallback onCamera, required VoidCallback onGallery, bool galleryAllowed = true}) {
+    final isDone = file != null;
     return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: file != null ? AppTheme.primaryBlue : Colors.grey.shade300, width: file != null ? 1.4 : 1)),
-      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: isDone ? AppTheme.primaryBlue : Colors.grey.shade200, width: isDone ? 1.4 : 1),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Container(width: 36, height: 36, decoration: BoxDecoration(color: file != null ? AppTheme.lightBlueBadge : Colors.grey.shade100, borderRadius: BorderRadius.circular(8)), child: Icon(file != null ? Icons.check_circle : Icons.image, color: file != null ? AppTheme.primaryBlue : Colors.grey, size: 20)),
-              const SizedBox(width: 10),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)), Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])),
-              if (file != null) const Icon(Icons.verified, size: 18, color: Colors.green),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: isDone ? AppTheme.lightBlueBadge : const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: isDone ? AppTheme.lightBlueBorder : Colors.grey.shade200),
+                ),
+                child: Icon(isDone ? Icons.check_circle : Icons.image_outlined, color: isDone ? AppTheme.primaryBlue : const Color(0xFF9CA3AF), size: 20),
+              ),
+              const SizedBox(width: 11),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textDark)), Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])),
+              if (isDone) Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: AppTheme.successBg, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppTheme.successBorder)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check, size: 12, color: AppTheme.successText), SizedBox(width: 3), Text('Prêt', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.successText))])),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: OutlinedButton.icon(onPressed: onCamera, icon: const Icon(Icons.camera_alt, size: 16), label: Text(galleryAllowed ? 'Caméra' : 'Caméra (direct)', style: const TextStyle(fontSize: 12)), style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)))),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: onCamera,
+                  icon: const Icon(Icons.photo_camera_outlined, size: 16),
+                  label: Text(galleryAllowed ? 'Caméra' : 'Caméra', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  style: FilledButton.styleFrom(backgroundColor: AppTheme.textDark, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                ),
+              ),
               if (galleryAllowed) ...[
                 const SizedBox(width: 8),
-                Expanded(child: OutlinedButton.icon(onPressed: onGallery, icon: const Icon(Icons.photo_library, size: 16), label: const Text('Galerie', style: TextStyle(fontSize: 12)), style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)))),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onGallery,
+                    icon: const Icon(Icons.photo_library_outlined, size: 16),
+                    label: const Text('Galerie', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    style: OutlinedButton.styleFrom(foregroundColor: AppTheme.textDark, side: BorderSide(color: Colors.grey.shade300), padding: const EdgeInsets.symmetric(vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), backgroundColor: Colors.white),
+                  ),
+                ),
               ],
             ],
           ),
           if (!galleryAllowed)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppTheme.lightBlueBorder)),
               child: Row(
                 children: const [
-                  Icon(Icons.warning, size: 12, color: Colors.orange),
-                  SizedBox(width: 4),
-                  Expanded(child: Text('Selfie en direct obligatoire — galerie désactivée pour sécurité', style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w600))),
+                  Icon(Icons.info_outline, size: 13, color: AppTheme.primaryBlue),
+                  SizedBox(width: 6),
+                  Expanded(child: Text('Selfie en direct uniquement — galerie désactivée pour sécurité', style: TextStyle(fontSize: 10, color: AppTheme.primaryBlue, fontWeight: FontWeight.w600))),
                 ],
               ),
             ),
-          if (file != null) ...[
-            const SizedBox(height: 8),
-            ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(File(file.path), height: 120, width: double.infinity, fit: BoxFit.cover)),
+          if (isDone) ...[
+            const SizedBox(height: 10),
+            ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.file(File(file.path), height: 130, width: double.infinity, fit: BoxFit.cover)),
           ],
         ],
       ),

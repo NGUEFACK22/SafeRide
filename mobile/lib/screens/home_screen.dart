@@ -11,6 +11,7 @@ import '../services/push_service.dart';
 import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
 import 'profile_screen.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
   final User user;
@@ -437,33 +438,6 @@ class _PassagerViewState extends State<_PassagerView> {
             ),
           ),
           const SizedBox(height: 18),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Dernier trajet', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
-              TextButton(onPressed: () => Navigator.pushNamed(context, '/history'), child: const Text('VOIR L\'HISTORIQUE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primaryBlue))),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(width: 48, height: 48, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.directions_car, color: AppTheme.primaryBlue)),
-                  const SizedBox(width: 14),
-                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Aucun trajet récent', style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textDark)),
-                    SizedBox(height: 2),
-                    Text('Scannez un QR code pour démarrer', style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
-                  ])),
-                  Icon(Icons.chevron_right, color: Colors.grey.shade400),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
           // Section ordonnée : Mes services en grille 2x2
           const Text('Mes services', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 10),
@@ -571,7 +545,10 @@ class _TransporteurViewState extends State<_TransporteurView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Carte comme passager — pour transporteur aussi
+          // QR Code à la place de l'espace scan (passager) — pour transporteur
+          const _TransporteurQrCard(),
+          const SizedBox(height: 12),
+          // Carte localisation véhicule
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
             child: Column(
@@ -615,16 +592,6 @@ class _TransporteurViewState extends State<_TransporteurView> {
                   ),
                 ),
               ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.mic, size: 28, color: AppTheme.sosRed),
-              title: const Text('Mot de sécurité', style: TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: const Text('Configurer votre mot vocal (3 prises)'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.pushNamed(context, '/profile-edit'),
             ),
           ),
           const SizedBox(height: 12),
@@ -682,14 +649,180 @@ class _TransporteurViewState extends State<_TransporteurView> {
                 ),
               ),
             ),
+
+        ],
+      ),
+    );
+  }
+}
+
+/// QR Code du transporteur affiché sur le Home à la place de l'espace SCAN passager
+/// Règle : un seul véhicule autorisé — affiche directement le QR du véhicule unique
+class _TransporteurQrCard extends StatefulWidget {
+  const _TransporteurQrCard();
+
+  @override
+  State<_TransporteurQrCard> createState() => _TransporteurQrCardState();
+}
+
+class _TransporteurQrCardState extends State<_TransporteurQrCard> {
+  final _api = ApiService();
+  String? _token;
+  String? _immat;
+  int? _vehicleId;
+  bool _loading = true;
+  String? _error;
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadQr();
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _checkRefresh());
+  }
+
+  Future<void> _checkRefresh() async {
+    if (_vehicleId == null || _token == null) return;
+    try {
+      final data = await _api.get('/vehicles/$_vehicleId/qr');
+      final qr = data['qr'] as Map<String, dynamic>?;
+      final newToken = qr?['token'] as String?;
+      if (newToken != null && newToken != _token && mounted) {
+        setState(() => _token = newToken);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('QR régénéré après scan !'), backgroundColor: Colors.green, duration: Duration(seconds: 2)),
+          );
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadQr() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await _api.get('/vehicles');
+      final vehicles = data['vehicles'] as List<dynamic>? ?? [];
+      if (vehicles.isEmpty) {
+        if (mounted) setState(() { _loading = false; _error = 'Aucun véhicule'; });
+        return;
+      }
+      // Un seul véhicule autorisé — prendre le premier
+      final v = vehicles.first as Map<String, dynamic>;
+      final immat = v['immatriculation'] as String? ?? '';
+      final vehicleId = v['id'] as int;
+      final qrData = await _api.get('/vehicles/$vehicleId/qr');
+      final qr = qrData['qr'] as Map<String, dynamic>?;
+      final token = qr?['token'] as String?;
+      if (!mounted) return;
+      if (token == null || token.isEmpty) {
+        setState(() { _loading = false; _error = 'QR indisponible'; _immat = immat; _vehicleId = vehicleId; });
+      } else {
+        setState(() { _token = token; _immat = immat; _vehicleId = vehicleId; _loading = false; });
+        _startPolling();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _loading = false; _error = e.toString(); });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Carte noire style passager "Scanner un QR Code" mais pour transporteur : affiche son QR
+    if (_loading) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: AppTheme.cardBlack, borderRadius: BorderRadius.circular(20)),
+        child: const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))),
+      );
+    }
+    if (_error != null && _token == null) {
+      return GestureDetector(
+        onTap: () => Navigator.pushNamed(context, '/vehicles'),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppTheme.cardBlack,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 6))],
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.15))),
+                child: const Icon(Icons.qr_code_2, color: Colors.white, size: 28),
+              ),
+              const SizedBox(height: 14),
+              Text(_error == 'Aucun véhicule' ? 'Aucun véhicule' : 'QR indisponible', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              Text(_error == 'Aucun véhicule' ? 'Ajoutez votre véhicule unique pour générer le QR' : 'Erreur: $_error', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
+              const SizedBox(height: 12),
+              FilledButton.icon(onPressed: () => Navigator.pushNamed(context, '/vehicles'), icon: const Icon(Icons.add), label: const Text('Ajouter mon véhicule')),
+            ],
+          ),
+        ),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBlack,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 6))],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Mon QR Code', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+                child: Text(_immat ?? '', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.history, size: 28),
-              title: const Text('Historique'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.pushNamed(context, '/history'),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+            child: QrImageView(
+              data: _token!,
+              version: QrVersions.auto,
+              size: 180,
+              backgroundColor: Colors.white,
+              eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Colors.black),
+              dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: Colors.black),
             ),
+          ),
+          const SizedBox(height: 10),
+          Text('Présentez ce QR au passager pour démarrer la course', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withValues(alpha: 0.15))),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle)),
+              const SizedBox(width: 6),
+              Text('QR actif • régénération auto après chaque scan', style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 11, fontWeight: FontWeight.w600)),
+            ]),
           ),
         ],
       ),

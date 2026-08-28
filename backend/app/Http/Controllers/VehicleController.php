@@ -30,6 +30,17 @@ class VehicleController extends Controller
             'couleur' => 'nullable|string|max:30',
         ]);
 
+        // Règle métier : un transporteur ne peut avoir qu'un seul véhicule
+        // Si déjà un véhicule existe, on le remplace (supprime l'ancien et ses QR)
+        $existingVehicles = Vehicle::where('transporteur_id', $request->user()->id)->get();
+        if ($existingVehicles->count() >= 1) {
+            // Supprimer les anciens QR puis les véhicules (nettoyage si doublons)
+            foreach ($existingVehicles as $old) {
+                $old->qrCodes()->delete();
+                $old->delete();
+            }
+        }
+
         $vehicle = Vehicle::create([
             'transporteur_id' => $request->user()->id,
             'marque' => $data['marque'],
@@ -46,7 +57,7 @@ class VehicleController extends Controller
         ]));
 
         return response()->json([
-            'message' => 'Véhicule ajouté avec son QR associé',
+            'message' => $existingVehicles->count() >= 1 ? 'Véhicule remplacé (un seul véhicule autorisé) avec son QR associé' : 'Véhicule ajouté avec son QR associé',
             'vehicle' => $vehicle->load('qrCodes'),
         ], 201);
     }
@@ -75,7 +86,26 @@ class VehicleController extends Controller
     public function destroy(Request $request, int $id): JsonResponse
     {
         $vehicle = Vehicle::where('id', $id)->where('transporteur_id', $request->user()->id)->firstOrFail();
+
+        // Empêcher la suppression du dernier véhicule si c'est le seul
+        $count = Vehicle::where('transporteur_id', $request->user()->id)->count();
+        if ($count <= 1) {
+            return response()->json([
+                'message' => 'Impossible de supprimer votre seul véhicule. Un transporteur doit conserver au moins un véhicule. Ajoutez d\'abord un nouveau véhicule (il remplacera l\'ancien).'
+            ], 422);
+        }
+
+        $vehicle->qrCodes()->delete();
         $vehicle->delete();
+
+        // Nettoyage : si doublons existent (plus d'1 véhicule), ne garder que le plus récent
+        $remaining = Vehicle::where('transporteur_id', $request->user()->id)->orderBy('created_at', 'desc')->get();
+        if ($remaining->count() > 1) {
+            foreach ($remaining->skip(1) as $extra) {
+                $extra->qrCodes()->delete();
+                $extra->delete();
+            }
+        }
 
         return response()->json(['message' => 'Véhicule supprimé']);
     }
@@ -161,9 +191,16 @@ class VehicleController extends Controller
 
     protected function generateSignedToken(Vehicle $vehicle): string
     {
+        // Charger le transporteur pour inclure son nom dans le QR (demandé)
+        $transporteur = $vehicle->relationLoaded('transporteur') ? $vehicle->transporteur : User::find($vehicle->transporteur_id);
+
         $payload = json_encode([
             'vid' => $vehicle->id,
             'immatriculation' => $vehicle->immatriculation,
+            'transporteur_id' => $vehicle->transporteur_id,
+            'transporteur_nom' => $transporteur?->nom ?? '',
+            'transporteur_prenom' => $transporteur?->prenom ?? '',
+            'transporteur_fullname' => trim(($transporteur?->prenom ?? '') . ' ' . ($transporteur?->nom ?? '')),
             'n' => Str::random(12),
             'exp' => now()->addMonths(3)->timestamp,
         ]);
@@ -185,6 +222,10 @@ class VehicleController extends Controller
         return [
             'vehicle_id' => $payload['vid'] ?? null,
             'immatriculation' => $payload['immatriculation'] ?? null,
+            'transporteur_id' => $payload['transporteur_id'] ?? null,
+            'transporteur_nom' => $payload['transporteur_nom'] ?? null,
+            'transporteur_prenom' => $payload['transporteur_prenom'] ?? null,
+            'transporteur_fullname' => $payload['transporteur_fullname'] ?? trim(($payload['transporteur_prenom'] ?? '') . ' ' . ($payload['transporteur_nom'] ?? '')),
             'expires_at' => isset($payload['exp']) ? date('c', $payload['exp']) : null,
         ];
     }

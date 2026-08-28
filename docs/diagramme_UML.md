@@ -49,14 +49,14 @@ classDiagram
   }
   class IdentityVerification {
     +int id
-    +enum type : CNI|PASSEPORT|AUTRE
+    +enum type : CNI|PASSEPORT
     +enum statut : EN_ATTENTE|VERIFIE|ECHOUE|A_EXAMINER
     +string provider_kyc
     +datetime verifie_le
   }
   class IdentityDocument {
     +int id
-    +enum type : CNI|PASSEPORT|AUTRE
+    +enum type : CNI|PASSEPORT
     +string numero
     +string fichier_url
     +json ocr_data

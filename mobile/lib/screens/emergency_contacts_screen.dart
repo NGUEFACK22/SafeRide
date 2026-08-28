@@ -224,7 +224,7 @@ class _ContactFormDialogState extends State<_ContactFormDialog> {
         'nom': _nom.text.trim(),
         'telephone': _telephone.text.trim(),
         'relation': _relation.text.trim().isEmpty ? null : _relation.text.trim(),
-        'email': _email.text.trim(),
+        'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
         'whatsapp_telephone': _whatsapp.text.trim().isEmpty ? null : _whatsapp.text.trim(),
       };
       final Map<String, dynamic> data = _isEdit
@@ -276,23 +276,22 @@ class _ContactFormDialogState extends State<_ContactFormDialog> {
               TextFormField(
                 controller: _email,
                 decoration: const InputDecoration(
-                    labelText: 'Email *',
-                    hintText: 'Obligatoire - notifié à chaque SOS'),
+                    labelText: 'Email (optionnel)',
+                    hintText: 'Pour notification SOS par email'),
                 keyboardType: TextInputType.emailAddress,
-                validator: (v) =>
-                    (v != null && v.contains('@') && v.contains('.'))
-                        ? null
-                        : 'Email invalide (obligatoire)',
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return null;
+                  return (v.contains('@') && v.contains('.')) ? null : 'Email invalide';
+                },
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _whatsapp,
                 decoration: const InputDecoration(
-                    labelText: 'Numéro WhatsApp *',
-                    hintText: 'Ex: 690000000 (numéro qui a WhatsApp)'),
+                    labelText: 'Numéro WhatsApp (optionnel)',
+                    hintText: 'Ex: 690000000 — alerte WhatsApp si renseigné'),
                 keyboardType: TextInputType.phone,
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Numéro WhatsApp requis' : null,
+                validator: (v) => null,
               ),
             ],
           ),

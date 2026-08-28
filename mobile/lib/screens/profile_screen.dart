@@ -186,18 +186,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
 
-          // ── Informations personnelles (nom/prénom non éditables) ──
+          // ── Informations personnelles (regroupe contact & sécurité — non divisé) ──
           const SizedBox(height: 20),
           const Text('Informations personnelles', style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.textDark)),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
+          const Text('Vos coordonnées et votre sécurité (numéro d\'urgence inclus) — tout est centralisé ici.', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+          const SizedBox(height: 12),
           _fieldRow(Icons.person_outline, 'Nom', widget.user?.nom ?? '—', editable: false),
           const SizedBox(height: 8),
           _fieldRow(Icons.person_outline, 'Prénom', widget.user?.prenom ?? '—', editable: false),
-
-          // ── Contact & sécurité (éditables) ──
-          const SizedBox(height: 20),
-          const Text('Contact & sécurité', style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.textDark)),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           if (_fieldsLoading)
             const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)))
           else ...[
@@ -205,14 +203,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 8),
             _editableField(Icons.phone_outlined, 'Téléphone', _telephoneController, keyboardType: TextInputType.phone),
             const SizedBox(height: 8),
-            _editableField(Icons.mic, 'Mot de sécurité', _motSecuriteController, hint: 'Ex: au secours'),
+            _editableField(Icons.mic, 'Mot de sécurité', _motSecuriteController, hint: 'Ex: au secours — déclenche SOS vocal'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppTheme.lightBlueBorder)),
+              child: Row(children: const [Icon(Icons.info_outline, size: 14, color: AppTheme.primaryBlue), SizedBox(width: 6), Expanded(child: Text('Le numéro d\'urgence à contacter est géré ci-dessous dans « Contacts d\'urgence ». Ajoutez au moins un contact (téléphone seul suffit).', style: TextStyle(fontSize: 11, color: AppTheme.primaryBlue)))]),
+            ),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: _saving ? null : _saveFields,
                 icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save),
-                label: const Text('Enregistrer', style: TextStyle(fontWeight: FontWeight.w700)),
+                label: const Text('Enregistrer les informations', style: TextStyle(fontWeight: FontWeight.w700)),
                 style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
               ),
             ),

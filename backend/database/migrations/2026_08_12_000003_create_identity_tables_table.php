@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('identity_verifications', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->enum('type', ['CNI', 'PASSEPORT', 'AUTRE'])->default('CNI');
+            $table->enum('type', ['CNI', 'PASSEPORT'])->default('CNI');
             $table->enum('statut', ['EN_ATTENTE', 'VERIFIE', 'ECHOUE', 'A_EXAMINER'])->default('EN_ATTENTE');
             $table->string('provider_kyc')->nullable();
             $table->timestamp('verifie_le')->nullable();
@@ -22,7 +22,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->foreignId('verification_id')->nullable()->constrained('identity_verifications')->nullOnDelete();
-            $table->enum('type', ['CNI', 'PASSEPORT', 'AUTRE'])->default('CNI');
+            $table->enum('type', ['CNI', 'PASSEPORT'])->default('CNI');
             $table->string('numero')->nullable();
             $table->string('fichier_url');
             $table->json('ocr_data')->nullable();
