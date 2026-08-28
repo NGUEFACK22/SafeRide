@@ -1,3 +1,7 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/user.dart';
@@ -162,6 +166,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
       setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur voix : $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _importVoice() async {
+    final mot = _motSecuriteController.text.trim();
+    if (mot.length < 3) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Définissez d\'abord un mot de sécurité (≥3 caractères)')));
+      return;
+    }
+    try {
+      await _api.post('/voice/security-word', {'mot_securite': mot});
+    } catch (_) {}
+    final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['wav']);
+    if (files.isEmpty) return;
+    final picked = files.first;
+    Uint8List bytes;
+    try {
+      // readAsBytes gère déjà path/web; fallback File si vide
+      final b = await picked.readAsBytes();
+      if (b.isNotEmpty) {
+        bytes = b;
+      } else if (picked.path != null) {
+        bytes = await File(picked.path!).readAsBytes();
+      } else {
+        throw Exception('bytes vides');
+      }
+    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fichier illisible'), backgroundColor: Colors.red));
+      return;
+    }
+    if (bytes.length < 32000) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fichier trop court (<2s) — enregistrez 30s WAV mono 16kHz'), backgroundColor: Colors.red));
+      return;
+    }
+    setState(() { _voiceEnrolling = true; _voiceProgress = 'Analyse du fichier…'; });
+    try {
+      final available = await _voiceprint.ensureLoaded();
+      if (!available) throw Exception('Modèle vocal absent (84 Mo) — réinstallez l\'APK');
+      final emb = await _voiceprint.embeddingFromWavBytes(bytes);
+      if (emb == null) throw Exception('Fichier WAV invalide — utilisez WAV 16-bit PCM mono 16kHz, ≥1s');
+      if (emb.length != 192) throw Exception('Embedding invalide: ${emb.length} au lieu de 192');
+      await _api.post('/voice/enroll', {'empreinte': emb});
+      if (!mounted) return;
+      setState(() { _voiceEnrolled = true; _voiceActive = true; _voiceEnrolling = false; _voiceProgress = ''; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Voix importée depuis ${picked.name} ✓'), backgroundColor: AppTheme.successText));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import échoué: $e'), backgroundColor: Colors.red));
     }
   }
 
@@ -367,6 +420,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   label: Text(_voiceEnrolled ? 'Ré-enregistrer ma voix (30s)' : 'Enregistrer ma voix (30s)', style: const TextStyle(fontWeight: FontWeight.w700)),
                   style: FilledButton.styleFrom(backgroundColor: _voiceEnrolled ? AppTheme.textDark : AppTheme.primaryBlue, padding: const EdgeInsets.symmetric(vertical: 12)),
                 ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: _voiceEnrolling ? null : _importVoice,
+                  icon: const Icon(Icons.upload_file, size: 18),
+                  label: const Text('Importer un fichier WAV (analyse)', style: TextStyle(fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12), side: BorderSide(color: AppTheme.primaryBlue.withValues(alpha: 0.4))),
+                ),
+                const SizedBox(height: 4),
+                const Text('WAV 16-bit PCM mono 16kHz, ≥1s — sinon enregistrez via micro', style: TextStyle(fontSize: 10, color: AppTheme.textGrey), textAlign: TextAlign.center),
                 const SizedBox(height: 6),
                 Text(_voiceAvailable ? 'Modèle ECAPA embarqué disponible' : 'Modèle vocal en chargement… (fallback léger possible)', style: const TextStyle(fontSize: 10, color: AppTheme.textGrey)),
               ],

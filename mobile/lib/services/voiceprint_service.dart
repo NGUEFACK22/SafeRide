@@ -29,11 +29,17 @@ class VoiceprintService {
 
     _loading = true;
     try {
+      // Requis par onnxruntime >=1.1 : init du OrtEnv sinon Session créer lève
+      try { ort.OrtEnv.instance.init(); } catch (_) {}
       final data = await rootBundle.load(modelAsset);
-      final options = ort.OrtSessionOptions()..setIntraOpNumThreads(2);
+      // 84 Mo : chargement visible dans logcat si échec
+      final options = ort.OrtSessionOptions()..setIntraOpNumThreads(1);
       _session = ort.OrtSession.fromBuffer(data.buffer.asUint8List(), options);
       _loaded = true;
-    } catch (_) {
+    } catch (e) {
+      // Garder l'erreur pour debug : flutter logs
+      // ignore: avoid_print
+      print('[Voiceprint] ensureLoaded échec: $e');
       _loaded = false;
     }
     _loading = false;
@@ -122,6 +128,80 @@ class VoiceprintService {
       }
     }
     return flat.isEmpty ? null : flat;
+  }
+
+  /// Import : calcule l'embedding depuis des bytes WAV (RIFF 16-bit PCM mono/stéréo). MP3/M4A non supportés.
+  Future<List<double>?> embeddingFromWavBytes(Uint8List bytes) async {
+    if (!await ensureLoaded()) return null;
+    final samples = _decodeWav16kMono(bytes);
+    if (samples.length < sampleRate) return null; // <1s
+    final input = Float32List(samples.length);
+    for (var i = 0; i < samples.length; i++) input[i] = samples[i] / 32768.0;
+    try {
+      final tensor = ort.OrtValueTensor.createTensorWithDataList([input], [1, input.length]);
+      final outputs = _session!.run(ort.OrtRunOptions(), {_session!.inputNames.first: tensor}, _session!.outputNames);
+      return _flattenEmbedding(outputs);
+    } catch (e) {
+      print('[Voiceprint] embeddingFromWavBytes échec: $e');
+      return null;
+    }
+  }
+
+  List<int> _decodeWav16kMono(Uint8List bytes) {
+    if (bytes.length < 44) return _bytesToInt16(bytes);
+    final riff = String.fromCharCodes(bytes.sublist(0, 4));
+    final wave = String.fromCharCodes(bytes.sublist(8, 12));
+    if (riff != 'RIFF' || wave != 'WAVE') return _bytesToInt16(bytes);
+    int offset = 12;
+    int fmtSampleRate = 16000;
+    int fmtChannels = 1;
+    int fmtBits = 16;
+    int dataStart = -1;
+    int dataLen = 0;
+    while (offset + 8 <= bytes.length) {
+      final id = String.fromCharCodes(bytes.sublist(offset, offset + 4));
+      final size = bytes[offset + 4] | (bytes[offset + 5] << 8) | (bytes[offset + 6] << 16) | (bytes[offset + 7] << 24);
+      if (id == 'fmt ') {
+        fmtChannels = bytes[offset + 10] | (bytes[offset + 11] << 8);
+        fmtSampleRate = bytes[offset + 12] | (bytes[offset + 13] << 8) | (bytes[offset + 14] << 16) | (bytes[offset + 15] << 24);
+        fmtBits = bytes[offset + 22] | (bytes[offset + 23] << 8);
+      } else if (id == 'data') {
+        dataStart = offset + 8;
+        dataLen = size;
+        break;
+      }
+      offset += 8 + size;
+    }
+    if (dataStart == -1 || fmtBits != 16) return [];
+    final raw = bytes.sublist(dataStart, (dataStart + dataLen).clamp(0, bytes.length));
+    final pcm = _bytesToInt16(raw, channels: fmtChannels);
+    if (fmtSampleRate == sampleRate) return pcm;
+    final ratio = fmtSampleRate / sampleRate;
+    final outLen = (pcm.length / ratio).floor();
+    final out = List<int>.filled(outLen, 0);
+    for (int i = 0; i < outLen; i++) {
+      final src = i * ratio;
+      final idx = src.floor();
+      final frac = src - idx;
+      final a = pcm[idx.clamp(0, pcm.length - 1)];
+      final b = pcm[(idx + 1).clamp(0, pcm.length - 1)];
+      out[i] = (a * (1 - frac) + b * frac).round();
+    }
+    return out;
+  }
+
+  List<int> _bytesToInt16(Uint8List bytes, {int channels = 1}) {
+    final out = <int>[];
+    for (int i = 0; i + 1 < bytes.length; i += 2 * channels) {
+      int sum = 0;
+      for (int c = 0; c < channels; c++) {
+        final off = i + c * 2;
+        if (off + 1 >= bytes.length) break;
+        sum += (bytes[off] | (bytes[off + 1] << 8)).toSigned(16);
+      }
+      out.add((sum / channels).round());
+    }
+    return out;
   }
 
   /// Enregistre pendant [duration] puis retourne l'embedding, ou null.
