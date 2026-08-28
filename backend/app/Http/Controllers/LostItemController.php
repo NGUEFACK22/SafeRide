@@ -29,6 +29,9 @@ class LostItemController extends Controller
             'objet' => 'required|string|max:150',
             'description' => 'nullable|string',
             'image' => 'nullable|file|image|mimes:jpeg,jpg,png|mimetypes:image/jpeg,image/png|max:10240',
+            'image2' => 'nullable|file|image|mimes:jpeg,jpg,png|mimetypes:image/jpeg,image/png|max:10240',
+            'images' => 'nullable|array|max:2',
+            'images.*' => 'file|image|mimes:jpeg,jpg,png|mimetypes:image/jpeg,image/png|max:10240',
         ]);
 
         $trip = Trip::where('id', $data['trip_id'])
@@ -36,8 +39,20 @@ class LostItemController extends Controller
             ->firstOrFail();
 
         $imageUrl = null;
+        $imageUrl2 = null;
         if ($request->hasFile('image')) {
             $imageUrl = $request->file('image')->store('lost-items', 'public');
+        }
+        if ($request->hasFile('image2')) {
+            $imageUrl2 = $request->file('image2')->store('lost-items', 'public');
+        } elseif ($request->hasFile('images')) {
+            $imgs = $request->file('images');
+            if (is_array($imgs) && count($imgs) > 0 && ! $imageUrl) {
+                $imageUrl = $imgs[0]->store('lost-items', 'public');
+            }
+            if (is_array($imgs) && count($imgs) > 1) {
+                $imageUrl2 = $imgs[1]->store('lost-items', 'public');
+            }
         }
 
         $report = LostItemReport::create([
@@ -46,6 +61,7 @@ class LostItemController extends Controller
             'objet' => $data['objet'],
             'description' => $data['description'] ?? null,
             'image_url' => $imageUrl,
+            'image_url2' => $imageUrl2,
             'statut' => 'SIGNALE',
         ]);
 

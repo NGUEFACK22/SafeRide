@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../config/api_config.dart';
 import '../services/api_service.dart';
@@ -221,8 +222,9 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
   List<dynamic> _trips = [];
   bool _loadingTrips = true;
   bool _submitting = false;
-  XFile? _image;
+  final List<XFile> _images = [];
   final _picker = ImagePicker();
+  static const int _maxImages = 2;
 
   @override
   void initState() {
@@ -251,9 +253,57 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
     }
   }
 
+  Future<bool> _ensurePermission(ImageSource source) async {
+    try {
+      if (source == ImageSource.camera) {
+        final status = await Permission.camera.status;
+        if (status.isGranted) return true;
+        if (status.isPermanentlyDenied) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Caméra bloquée — activez dans Paramètres > Applications > SafeRide > Autorisations')));
+          await openAppSettings();
+          return false;
+        }
+        final req = await Permission.camera.request();
+        if (!req.isGranted && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(req.isPermanentlyDenied ? 'Caméra refusée définitivement' : 'Permission caméra refusée'), action: req.isPermanentlyDenied ? SnackBarAction(label: 'Ouvrir', onPressed: () => openAppSettings()) : null));
+        }
+        return req.isGranted;
+      } else {
+        final photos = await Permission.photos.status;
+        final storage = await Permission.storage.status;
+        if (photos.isGranted || storage.isGranted) return true;
+        if (photos.isPermanentlyDenied || storage.isPermanentlyDenied) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Galerie bloquée — activez dans Paramètres')));
+          await openAppSettings();
+          return false;
+        }
+        final pReq = await Permission.photos.request();
+        if (pReq.isGranted) return true;
+        final sReq = await Permission.storage.request();
+        if (!sReq.isGranted && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission galerie refusée')));
+        return sReq.isGranted;
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur permission: $e')));
+      return false;
+    }
+  }
+
   Future<void> _pickImage(ImageSource source) async {
-    final picked = await _picker.pickImage(source: source, imageQuality: 70);
-    if (picked != null && mounted) setState(() => _image = picked);
+    if (_images.length >= _maxImages) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Maximum $_maxImages images autorisées'), backgroundColor: Colors.orange));
+      return;
+    }
+    if (!await _ensurePermission(source)) return;
+    try {
+      final picked = await _picker.pickImage(source: source, imageQuality: 70, maxWidth: 1920);
+      if (picked != null && mounted) {
+        setState(() => _images.add(picked));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Caméra/Galerie indisponible: $e'), backgroundColor: Colors.red, action: SnackBarAction(label: 'Réessayer', onPressed: () => _pickImage(source))));
+    }
   }
 
   Future<void> _submit() async {
@@ -272,7 +322,10 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
 
     setState(() => _submitting = true);
     try {
-      if (_image != null) {
+      if (_images.isNotEmpty) {
+        final files = <String, File>{};
+        files['image'] = File(_images[0].path);
+        if (_images.length > 1) files['image2'] = File(_images[1].path);
         await _api.postMultipart(
           '/lost-items',
           {
@@ -280,7 +333,7 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
             'objet': _objet.text.trim(),
             'description': _description.text.trim(),
           },
-          files: {'image': File(_image!.path)},
+          files: files,
         );
       } else {
         await _api.post('/lost-items', {
@@ -300,7 +353,7 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
       _description.clear();
       setState(() {
         _selectedTripId = null;
-        _image = null;
+        _images.clear();
       });
     } catch (e) {
       if (!mounted) return;
@@ -364,25 +417,45 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
             ),
           ),
           const SizedBox(height: 12),
-          const Text('Photo de l\'objet (facultatif)', style: TextStyle(fontWeight: FontWeight.w600)),
+          Row(
+            children: [
+              const Text('Photos de l\'objet (max 2)', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(width: 8),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: _images.isNotEmpty ? AppTheme.lightBlueBadge : Colors.grey.shade100, borderRadius: BorderRadius.circular(20), border: Border.all(color: _images.isNotEmpty ? AppTheme.lightBlueBorder : Colors.grey.shade300)), child: Text('${_images.length}/$_maxImages', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _images.isNotEmpty ? AppTheme.primaryBlue : Colors.grey))),
+            ],
+          ),
           const SizedBox(height: 6),
           Container(
-            decoration: BoxDecoration(border: Border.all(color: _image != null ? AppTheme.primaryBlue : Colors.grey.shade300, width: _image != null ? 1.4 : 1), borderRadius: BorderRadius.circular(12), color: Colors.white),
+            decoration: BoxDecoration(border: Border.all(color: _images.isNotEmpty ? AppTheme.primaryBlue : Colors.grey.shade300, width: _images.isNotEmpty ? 1.4 : 1), borderRadius: BorderRadius.circular(12), color: Colors.white),
             padding: const EdgeInsets.all(10),
             child: Column(
               children: [
                 Row(
                   children: [
-                    Expanded(child: OutlinedButton.icon(onPressed: () => _pickImage(ImageSource.camera), icon: const Icon(Icons.camera_alt, size: 16), label: const Text('Caméra', style: TextStyle(fontSize: 12)))),
+                    Expanded(child: OutlinedButton.icon(onPressed: _images.length >= _maxImages ? null : () => _pickImage(ImageSource.camera), icon: const Icon(Icons.camera_alt, size: 16), label: const Text('Caméra', style: TextStyle(fontSize: 12)))),
                     const SizedBox(width: 8),
-                    Expanded(child: OutlinedButton.icon(onPressed: () => _pickImage(ImageSource.gallery), icon: const Icon(Icons.photo_library, size: 16), label: const Text('Galerie', style: TextStyle(fontSize: 12)))),
+                    Expanded(child: OutlinedButton.icon(onPressed: _images.length >= _maxImages ? null : () => _pickImage(ImageSource.gallery), icon: const Icon(Icons.photo_library, size: 16), label: const Text('Galerie', style: TextStyle(fontSize: 12)))),
                   ],
                 ),
-                if (_image != null) ...[
-                  const SizedBox(height: 8),
-                  ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(File(_image!.path), height: 140, width: double.infinity, fit: BoxFit.cover)),
+                if (_images.isEmpty)
+                  Padding(padding: const EdgeInsets.only(top: 8), child: Text('Aucune photo — ajoutez jusqu\'à $_maxImages images (facultatif)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+                if (_images.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 8, mainAxisSpacing: 8, childAspectRatio: 1.1),
+                    itemCount: _images.length,
+                    itemBuilder: (ctx, i) => Stack(
+                      children: [
+                        ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(File(_images[i].path), height: 140, width: double.infinity, fit: BoxFit.cover)),
+                        Positioned(top: 4, right: 4, child: GestureDetector(onTap: () => setState(() => _images.removeAt(i)), child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle), child: const Icon(Icons.close, size: 14, color: Colors.white)))),
+                        Positioned(bottom: 4, left: 4, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(6)), child: Text('Photo ${i+1}', style: const TextStyle(color: Colors.white, fontSize: 10)))),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 6),
-                  TextButton.icon(onPressed: () => setState(() => _image = null), icon: const Icon(Icons.delete_outline, size: 16), label: const Text('Retirer la photo')),
+                  TextButton.icon(onPressed: () => setState(() => _images.clear()), icon: const Icon(Icons.delete_outline, size: 16), label: const Text('Retirer toutes les photos')),
                 ],
               ],
             ),

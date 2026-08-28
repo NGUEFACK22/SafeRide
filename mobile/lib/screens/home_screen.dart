@@ -62,9 +62,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_selectedIndex == 2) return const _LocationPreview();
     if (_selectedIndex == 3) return ProfileScreen(user: _user, embedded: true);
 
-    // Home (0) -> role view — Scan est dans le dashboard, plus en bas
+    // Home (0) -> role view — disposition similaire passager/transporteur
     if (_user.hasRole('admin')) return const _AdminView();
-    if (_user.hasRole('transporteur')) return const _TransporteurView();
+    if (_user.hasRole('transporteur')) return _TransporteurView(user: _user);
     if (_user.hasRole('gestionnaire')) return const _GestionnaireView();
     return _PassagerView(user: _user);
   }
@@ -499,7 +499,8 @@ class _PassagerViewState extends State<_PassagerView> {
 }
 
 class _TransporteurView extends StatefulWidget {
-  const _TransporteurView();
+  final dynamic user;
+  const _TransporteurView({this.user});
   @override
   State<_TransporteurView> createState() => _TransporteurViewState();
 }
@@ -540,117 +541,89 @@ class _TransporteurViewState extends State<_TransporteurView> {
 
   @override
   Widget build(BuildContext context) {
+    final name = (widget.user?.prenom as String?) ?? 'Transporteur';
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // QR Code à la place de l'espace scan (passager) — pour transporteur
-          const _TransporteurQrCard(),
-          const SizedBox(height: 12),
-          // Carte localisation véhicule
-          Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: Container(
-                    height: 110,
-                    color: const Color(0xFFEAF0FF),
-                    child: Stack(
-                      children: [
-                        Container(
-                          decoration: const BoxDecoration(
-                            image: DecorationImage(image: NetworkImage('https://tile.openstreetmap.org/3/2/1.png'), fit: BoxFit.cover),
-                          ),
-                        ),
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(color: AppTheme.primaryBlue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-                            child: const Text('EN SERVICE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.primaryBlue)),
-                          ),
-                        ),
-                        const Center(child: Text('Yaoundé', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.textDark))),
-                      ],
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Container(width: 44, height: 44, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.local_taxi, color: AppTheme.primaryBlue)),
-                      const SizedBox(width: 12),
-                      const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Véhicule en service', style: TextStyle(fontWeight: FontWeight.w800)), Text('Prêt à recevoir une course', style: TextStyle(fontSize: 11, color: AppTheme.textGrey))])),
-                      const Icon(Icons.my_location, color: AppTheme.primaryBlue, size: 20),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          Text('Bonjour, $name', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppTheme.lightBlueBorder)),
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.verified_user, size: 16, color: AppTheme.primaryBlue),
+              SizedBox(width: 6),
+              Expanded(child: Text('VOTRE COMPTE TRANSPORTEUR EST VÉRIFIÉ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primaryBlue))),
+            ]),
           ),
-          const SizedBox(height: 12),
-          Card(
-            color: AppTheme.primaryBlue.withValues(alpha: 0.08),
-            child: ListTile(
-              leading: const Icon(Icons.hearing, size: 28, color: AppTheme.primaryBlue),
-              title: const Text('Course en cours — écoute auto', style: TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: const Text('Protection vocale active pour vous et le passager'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.pushNamed(context, '/trip-active'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.dashboard, size: 32, color: Colors.green),
-              title: const Text('Tableau de bord'),
-              subtitle: const Text('Trajets, notes, distance, passagers'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.pushNamed(context, '/transporteur-dashboard'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.directions_car, size: 32),
-              title: const Text('Mes véhicules'),
-              subtitle: const Text('Gérer véhicules et QR codes'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.pushNamed(context, '/vehicles'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Météo transporteur
+          const SizedBox(height: 10),
           if (_weatherLoading)
-            const Card(child: Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12), child: Row(children: [SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 10), Text('Météo…', style: TextStyle(fontSize: 12, color: AppTheme.textGrey))])))
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade200)),
+              child: const Row(children: [SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 10), Text('Chargement de la météo…', style: TextStyle(fontSize: 13, color: AppTheme.textGrey))]),
+            )
           else if (_weather != null)
-            Card(
-              color: AppTheme.primaryBlue.withValues(alpha: 0.04),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    Icon(_weather!.icon, size: 28, color: AppTheme.primaryBlue),
-                    const SizedBox(width: 12),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(_weather!.description, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 2),
-                      Text('${_weather!.tempDisplay} · Vent ${_weather!.windDisplay} ${_weather!.windDirectionText}', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey)),
-                    ])),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [AppTheme.primaryBlue.withValues(alpha: 0.06), AppTheme.primaryBlue.withValues(alpha: 0.02)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppTheme.lightBlueBorder),
+              ),
+              child: Row(
+                children: [
+                  Icon(_weather!.icon, size: 32, color: AppTheme.primaryBlue),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [Text(_weather!.tempDisplay, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textDark)), if (_weather!.feelsLike != null) Text(' (ressenti \°)', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))]),
+                      Text(_weather!.description, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
+                    ]),
+                  ),
+                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                     if (_weather!.precipitationProbability != null && _weather!.precipitationProbability! > 0)
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.water_drop, size: 12, color: Colors.blue), const SizedBox(width: 3), Text('${_weather!.precipitationProbability}%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue))])),
-                  ],
-                ),
+                      Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.water_drop, size: 14, color: Colors.blue.shade400), const SizedBox(width: 3), Text('${_weather!.precipitationProbability}%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue.shade700))]),
+                    Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.air, size: 14, color: AppTheme.textGrey), const SizedBox(width: 3), Text('${_weather!.windDisplay} ${_weather!.windDirectionText}', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))]),
+                  ]),
+                ],
               ),
             ),
-
+          const SizedBox(height: 14),
+          const _TransporteurQrCard(),
+          const SizedBox(height: 14),
+          IntrinsicHeight(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/sos-button'), child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed, borderRadius: BorderRadius.circular(14)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), FittedBox(child: Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
+              const SizedBox(width: 12),
+              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/ai'), child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 18, color: AppTheme.textDark), SizedBox(width: 6), FittedBox(child: Text('SUPPORT', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
+            ]),
+          ),
+          const SizedBox(height: 18),
+          const Text('Mes services', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          const SizedBox(height: 10),
+          Row(children: [Expanded(child: _serviceCard(Icons.dashboard, 'Tableau de bord', 'Stats & notes', '/transporteur-dashboard')), const SizedBox(width: 10), Expanded(child: _serviceCard(Icons.directions_car, 'Véhicule', 'QR unique', '/vehicles'))]),
+          const SizedBox(height: 10),
+          Row(children: [Expanded(child: _serviceCard(Icons.hearing, 'Course', 'Écoute auto', '/trip-active')), const SizedBox(width: 10), Expanded(child: _serviceCard(Icons.verified_user, 'Identité', 'Vérifier', '/identity', color: AppTheme.primaryBlue))]),
         ],
+      ),
+    );
+  }
+
+  Widget _serviceCard(IconData icon, String title, String subtitle, String route, {Color? color}) {
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, route),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+        child: Row(children: [
+          Container(width: 38, height: 38, decoration: BoxDecoration(color: (color ?? AppTheme.primaryBlue).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)), child: Icon(icon, size: 20, color: color ?? AppTheme.primaryBlue)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)), Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])),
+          const Icon(Icons.chevron_right, size: 16, color: AppTheme.textGrey),
+        ]),
       ),
     );
   }

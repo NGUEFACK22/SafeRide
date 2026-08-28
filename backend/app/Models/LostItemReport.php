@@ -16,6 +16,7 @@ class LostItemReport extends Model
         'objet',
         'description',
         'image_url',
+        'image_url2',
         'statut',
     ];
 
