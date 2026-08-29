@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user.dart';
 import '../services/api_service.dart';
@@ -159,6 +161,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final avg = await _voiceprint.stopAndEmbed();
       if (avg == null) throw Exception('Audio trop court ou modèle indisponible — parlez plus fort/près du micro');
       await _api.post('/voice/enroll', {'empreinte': avg});
+      try { final p = await SharedPreferences.getInstance(); await p.setString('voice_last_embedding', avg.join(',')); } catch (_) {}
       if (!mounted) return;
       setState(() { _voiceEnrolled = true; _voiceActive = true; _voiceEnrolling = false; _voiceProgress = ''; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Empreinte vocale enregistrée (30s) ✓ — mot "$mot"'), backgroundColor: AppTheme.successText));
@@ -208,6 +211,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (emb == null) throw Exception('Fichier WAV invalide — utilisez WAV 16-bit PCM mono 16kHz, ≥1s');
       if (emb.length != 192) throw Exception('Embedding invalide: ${emb.length} au lieu de 192');
       await _api.post('/voice/enroll', {'empreinte': emb});
+      try { final p = await SharedPreferences.getInstance(); await p.setString('voice_last_embedding', emb.join(',')); } catch (_) {}
       if (!mounted) return;
       setState(() { _voiceEnrolled = true; _voiceActive = true; _voiceEnrolling = false; _voiceProgress = ''; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Voix importée depuis ${picked.name} ✓'), backgroundColor: AppTheme.successText));
@@ -215,6 +219,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
       setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import échoué: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _testVoice() async {
+    if (!_voiceEnrolled) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enrôlez d\'abord votre voix (30s)')));
+      return;
+    }
+    if (!await PermissionService.microphone(context)) return;
+    setState(() { _voiceEnrolling = true; _voiceProgress = 'Test 3s — prononcez votre mot…'; });
+    try {
+      final ok = await _voiceprint.startCapture();
+      if (!ok) throw Exception('Micro indisponible');
+      for (int s = 3; s > 0; s--) {
+        if (!mounted || !_voiceEnrolling) break;
+        setState(() => _voiceProgress = 'Test : prononcez mot — $s s');
+        await Future.delayed(const Duration(seconds: 1));
+      }
+      final emb = await _voiceprint.stopAndEmbed();
+      if (emb == null) throw Exception('Audio trop court');
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getString('voice_last_embedding');
+      if (stored == null) throw Exception('Aucune empreinte locale — ré-enrôlez');
+      final ref = stored.split(',').map((e) => double.tryParse(e) ?? 0).toList();
+      if (ref.length != emb.length) throw Exception('Taille empreinte mismatch');
+      double dot = 0, na = 0, nb = 0;
+      for (int i = 0; i < emb.length; i++) { dot += ref[i] * emb[i]; na += ref[i] * ref[i]; nb += emb[i] * emb[i]; }
+      final cos = dot / (math.sqrt(na) * math.sqrt(nb) + 1e-9);
+      final passed = cos >= 0.5;
+      if (!mounted) return;
+      setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(passed ? 'Voix reconnue ✓ cos=${cos.toStringAsFixed(3)} (seuil 0,5)' : 'Voix différente ✗ cos=${cos.toStringAsFixed(3)} — bruit ou autre locuteur'),
+        backgroundColor: passed ? AppTheme.successText : Colors.orange.shade700,
+        duration: const Duration(seconds: 4),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Test échoué: $e'), backgroundColor: Colors.red));
     }
   }
 
@@ -429,8 +473,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 4),
                 const Text('WAV 16-bit PCM mono 16kHz, ≥1s — sinon enregistrez via micro', style: TextStyle(fontSize: 10, color: AppTheme.textGrey), textAlign: TextAlign.center),
+                if (_voiceEnrolled) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: _voiceEnrolling ? null : _testVoice,
+                    icon: const Icon(Icons.verified, size: 18, color: AppTheme.successText),
+                    label: const Text('Tester ma voix (3s) — vérif locale', style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.successText)),
+                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12), side: const BorderSide(color: AppTheme.successBorder)),
+                  ),
+                ],
                 const SizedBox(height: 6),
-                Text(_voiceAvailable ? 'Modèle ECAPA embarqué disponible' : 'Modèle vocal en chargement… (fallback léger possible)', style: const TextStyle(fontSize: 10, color: AppTheme.textGrey)),
+                Text(_voiceAvailable ? 'ECAPA int8 21Mo + VAD 0,3Mo disponibles' : 'Modèle vocal en chargement… (fallback léger possible)', style: const TextStyle(fontSize: 10, color: AppTheme.textGrey)),
               ],
             ),
           ),

@@ -87,10 +87,11 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # Modèle ONNX ECAPA-TDNN pour la vérification vocale embarquée.
-  # Voir assets/models/README.md pour le télécharger.
+  # Modèles voix : int8 quantifié 21Mo + VAD 0,3Mo (original 84Mo gardé hors bundle)
   assets:
-    - assets/models/
+    - assets/models/ecapa_tdnn_int8.onnx
+    - assets/models/silero_vad.onnx
+    - assets/models/README.md
 
   # To add assets to your application, add an assets section, like this:
   # assets:
