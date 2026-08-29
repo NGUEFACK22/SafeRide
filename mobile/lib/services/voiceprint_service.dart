@@ -13,10 +13,17 @@ import 'package:record/record.dart';
 class VoiceprintService {
   static const int sampleRate = 16000;
   static const String modelAsset = 'assets/models/ecapa_tdnn.onnx';
+  static const String modelAssetInt8 = 'assets/models/ecapa_tdnn_int8.onnx';
 
   ort.OrtSession? _session;
   bool _loading = false;
   bool _loaded = false;
+
+  // Silero VAD (optionnel, 0,3 Mo) — filtrer bruit/silence avant ECAPA
+  ort.OrtSession? _vadSession;
+  bool _vadLoaded = false;
+  bool _vadLoading = false;
+  static const String vadAsset = 'assets/models/silero_vad.onnx';
 
   AudioRecorder? _recorder;
   final List<int> _samples = [];
@@ -29,16 +36,19 @@ class VoiceprintService {
 
     _loading = true;
     try {
-      // Requis par onnxruntime >=1.1 : init du OrtEnv sinon Session créer lève
       try { ort.OrtEnv.instance.init(); } catch (_) {}
-      final data = await rootBundle.load(modelAsset);
-      // 84 Mo : chargement visible dans logcat si échec
+      ByteData data;
+      try {
+        data = await rootBundle.load(modelAssetInt8);
+        print('[Voiceprint] chargement quantifié int8 (${data.lengthInBytes/1e6} MB)');
+      } catch (_) {
+        data = await rootBundle.load(modelAsset);
+        print('[Voiceprint] chargement FP32 (${data.lengthInBytes/1e6} MB)');
+      }
       final options = ort.OrtSessionOptions()..setIntraOpNumThreads(1);
       _session = ort.OrtSession.fromBuffer(data.buffer.asUint8List(), options);
       _loaded = true;
     } catch (e) {
-      // Garder l'erreur pour debug : flutter logs
-      // ignore: avoid_print
       print('[Voiceprint] ensureLoaded échec: $e');
       _loaded = false;
     }
@@ -47,6 +57,122 @@ class VoiceprintService {
   }
 
   bool get isAvailable => _loaded;
+
+  Future<bool> ensureVadLoaded() async {
+    if (_vadLoaded) return true;
+    if (_vadLoading) return false;
+    _vadLoading = true;
+    try {
+      try { ort.OrtEnv.instance.init(); } catch (_) {}
+      final data = await rootBundle.load(vadAsset);
+      final opts = ort.OrtSessionOptions()..setIntraOpNumThreads(1);
+      _vadSession = ort.OrtSession.fromBuffer(data.buffer.asUint8List(), opts);
+      _vadLoaded = true;
+      print('[VAD] silero_vad chargé: inputs=${_vadSession!.inputNames} outputs=${_vadSession!.outputNames}');
+    } catch (e) {
+      print('[VAD] échec chargement silero: $e');
+      _vadLoaded = false;
+    }
+    _vadLoading = false;
+    return _vadLoaded;
+  }
+
+  /// Filtrage VAD : découpe en fenêtres 512 @16k, garde uniquement fenêtres avec prob >0,5.
+  /// Si VAD indisponible ou tout filtré, retourne l'original (fallback).
+  Future<List<int>> _applyVad(List<int> pcm) async {
+    if (pcm.length < 512) return pcm;
+    // Essayer Silero, sinon fallback énergie
+    if (await ensureVadLoaded() && _vadSession != null) {
+      try {
+        return await _sileroFilter(pcm);
+      } catch (e) {
+        print('[VAD] sileroFilter échec fallback énergie: $e');
+      }
+    }
+    return _energyVadFilter(pcm);
+  }
+
+  Future<List<int>> _sileroFilter(List<int> pcm) async {
+    const win = 512;
+    const sr = 16000;
+    // États récurrents Silero [2,1,64] initialisés à 0
+    var h = Float32List(2 * 1 * 64);
+    var c = Float32List(2 * 1 * 64);
+    final kept = <int>[];
+    final inputNames = _vadSession!.inputNames;
+    final outputNames = _vadSession!.outputNames;
+    // Détection nommage : input / sr / h / c ou variantes
+    String findInput(List<String> names, List<String> candidates) {
+      for (final cand in candidates) {
+        for (final n in names) if (n.toLowerCase().contains(cand)) return n;
+      }
+      return names.first;
+    }
+    final inAudio = findInput(inputNames, ['input', 'audio', 'wave']);
+    final inSr = inputNames.firstWhere((n) => n.toLowerCase().contains('sr') || n.contains('sample'), orElse: () => inputNames.length > 1 ? inputNames[1] : '');
+    final inH = inputNames.firstWhere((n) => n.toLowerCase() == 'h' || n.contains('h0'), orElse: () => '');
+    final inC = inputNames.firstWhere((n) => n.toLowerCase() == 'c' || n.contains('c0'), orElse: () => '');
+
+    for (int off = 0; off + win <= pcm.length; off += win) {
+      final chunk = Float32List(win);
+      for (int i = 0; i < win; i++) chunk[i] = pcm[off + i] / 32768.0;
+      final inputs = <String, ort.OrtValue>{};
+      inputs[inAudio] = ort.OrtValueTensor.createTensorWithDataList([chunk], [1, win]);
+      if (inSr.isNotEmpty) inputs[inSr] = ort.OrtValueTensor.createTensorWithDataList([sr], [1]);
+      if (inH.isNotEmpty) inputs[inH] = ort.OrtValueTensor.createTensorWithDataList(h, [2, 1, 64]);
+      if (inC.isNotEmpty) inputs[inC] = ort.OrtValueTensor.createTensorWithDataList(c, [2, 1, 64]);
+      final outs = _vadSession!.run(ort.OrtRunOptions(), inputs, outputNames);
+      // Mise à jour états si modèle retourne h/c
+      if (outs.length >= 3) {
+        try {
+          final oh = outs[1]?.value;
+          final oc = outs[2]?.value;
+          if (oh is List) h = _flattenToFloat32(oh);
+          if (oc is List) c = _flattenToFloat32(oc);
+        } catch (_) {}
+      }
+      final prob = _extractProb(outs.first);
+      if (prob > 0.5) {
+        kept.addAll(pcm.sublist(off, off + win));
+      }
+    }
+    if (kept.length < sampleRate) return pcm; // trop agressif → garde original
+    return kept;
+  }
+
+  double _extractProb(ort.OrtValue? out) {
+    final v = out?.value;
+    if (v is List && v.isNotEmpty) {
+      final first = v[0];
+      if (first is List && first.isNotEmpty && first[0] is num) return (first[0] as num).toDouble();
+      if (first is num) return first.toDouble();
+    }
+    if (v is num) return v.toDouble();
+    return 0;
+  }
+
+  Float32List _flattenToFloat32(dynamic v) {
+    final flat = <double>[];
+    void rec(dynamic x) {
+      if (x is List) { for (final e in x) rec(e); } else if (x is num) flat.add(x.toDouble());
+    }
+    rec(v);
+    return Float32List.fromList(flat);
+  }
+
+  /// Fallback VAD énergie : garde fenêtres dont RMS > -40dB
+  List<int> _energyVadFilter(List<int> pcm) {
+    const win = 512;
+    final kept = <int>[];
+    for (int off = 0; off + win <= pcm.length; off += win) {
+      double sum = 0;
+      for (int i = 0; i < win; i++) { final s = pcm[off + i] / 32768.0; sum += s * s; }
+      final rms = math.sqrt(sum / win);
+      final db = 20 * (math.log(rms + 1e-9) / math.ln10);
+      if (db > -40) kept.addAll(pcm.sublist(off, off + win));
+    }
+    return kept.length >= sampleRate ? kept : pcm;
+  }
 
   /// Démarre un enregistrement PCM 16 bits / 16 kHz / mono en streaming.
   /// La permission doit déjà avoir été accordée via PermissionService.microphone().
@@ -92,9 +218,13 @@ class VoiceprintService {
       return null;
     }
 
-    final input = Float32List(_samples.length);
-    for (var i = 0; i < _samples.length; i++) {
-      input[i] = _samples[i] / 32768.0;
+    // VAD : filtrer silence/bruit avant ECAPA (30s → ~30s utiles)
+    final filtered = await _applyVad(List<int>.from(_samples));
+    final useSamples = filtered.length >= sampleRate ? filtered : _samples;
+
+    final input = Float32List(useSamples.length);
+    for (var i = 0; i < useSamples.length; i++) {
+      input[i] = useSamples[i] / 32768.0;
     }
 
     try {
@@ -107,8 +237,11 @@ class VoiceprintService {
         {_session!.inputNames.first: tensor},
         _session!.outputNames,
       );
-      return _flattenEmbedding(outputs);
-    } catch (_) {
+      final emb = _flattenEmbedding(outputs);
+      print('[Voiceprint] stopAndEmbed ${useSamples.length} samples (${_samples.length} bruts) → ${emb?.length} dim');
+      return emb;
+    } catch (e) {
+      print('[Voiceprint] stopAndEmbed échec: $e');
       return null;
     }
   }
@@ -135,12 +268,16 @@ class VoiceprintService {
     if (!await ensureLoaded()) return null;
     final samples = _decodeWav16kMono(bytes);
     if (samples.length < sampleRate) return null; // <1s
-    final input = Float32List(samples.length);
-    for (var i = 0; i < samples.length; i++) input[i] = samples[i] / 32768.0;
+    final filtered = await _applyVad(samples);
+    final useSamples = filtered.length >= sampleRate ? filtered : samples;
+    final input = Float32List(useSamples.length);
+    for (var i = 0; i < useSamples.length; i++) input[i] = useSamples[i] / 32768.0;
     try {
       final tensor = ort.OrtValueTensor.createTensorWithDataList([input], [1, input.length]);
       final outputs = _session!.run(ort.OrtRunOptions(), {_session!.inputNames.first: tensor}, _session!.outputNames);
-      return _flattenEmbedding(outputs);
+      final emb = _flattenEmbedding(outputs);
+      print('[Voiceprint] wav ${useSamples.length}/${samples.length} samples → ${emb?.length} dim');
+      return emb;
     } catch (e) {
       print('[Voiceprint] embeddingFromWavBytes échec: $e');
       return null;
