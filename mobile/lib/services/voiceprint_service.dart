@@ -348,6 +348,18 @@ class VoiceprintService {
     return stopAndEmbed();
   }
 
+  /// Capture brute PCM (pour diarization fenêtrée) — retourne les samples 16k mono
+  Future<List<int>?> capturePcm(Duration duration) async {
+    if (!await startCapture()) return null;
+    await Future<void>.delayed(duration);
+    await _streamSub?.cancel();
+    _streamSub = null;
+    try { await _recorder?.stop(); } catch (_) {}
+    _recorder = null;
+    if (_samples.length < sampleRate) return null;
+    return List<int>.from(_samples);
+  }
+
   /// Enrôlement robuste : capture [samples] embeddings et retourne leur moyenne
   /// (plus stable que 1 seule prise). L2-normalisée pour la comparaison cosinus.
   Future<List<double>?> captureAverageEmbedding({
@@ -389,5 +401,51 @@ class VoiceprintService {
       for (int i = 0; i < dim; i++) avg[i] /= norm;
     }
     return avg;
+  }
+
+  /// Diarization légère : découpe PCM en fenêtres 3s hop 1,5s, calcule embedding/window
+  /// et retourne le meilleur cosinus vs référence. Gère multi-locuteurs/bruit.
+  Future<double> bestWindowCosine(List<int> pcm, List<double> reference) async {
+    if (!await ensureLoaded()) return 0;
+    final filtered = await _applyVad(pcm);
+    final use = filtered.length >= sampleRate ? filtered : pcm;
+    const winLen = 48000; // 3s @16k
+    const hop = 24000; // 1,5s
+    if (use.length < winLen) {
+      final emb = await _embeddingForSamples(use);
+      if (emb == null) return 0;
+      return _cosine(emb, reference);
+    }
+    double best = 0;
+    for (int off = 0; off + winLen <= use.length; off += hop) {
+      final win = use.sublist(off, off + winLen);
+      final emb = await _embeddingForSamples(win);
+      if (emb == null) continue;
+      final cos = _cosine(emb, reference);
+      if (cos > best) best = cos;
+    }
+    return best;
+  }
+
+  Future<List<double>?> _embeddingForSamples(List<int> samples) async {
+    if (samples.length < sampleRate) return null;
+    final input = Float32List(samples.length);
+    for (int i = 0; i < samples.length; i++) input[i] = samples[i] / 32768.0;
+    try {
+      final tensor = ort.OrtValueTensor.createTensorWithDataList([input], [1, input.length]);
+      final outs = _session!.run(ort.OrtRunOptions(), {_session!.inputNames.first: tensor}, _session!.outputNames);
+      return _flattenEmbedding(outs);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<double>?> embeddingForWindow(List<int> pcm) => _embeddingForSamples(pcm);
+
+  double _cosine(List<double> a, List<double> b) {
+    if (a.length != b.length || a.isEmpty) return 0;
+    double dot = 0, na = 0, nb = 0;
+    for (int i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+    return dot / (math.sqrt(na) * math.sqrt(nb) + 1e-9);
   }
 }

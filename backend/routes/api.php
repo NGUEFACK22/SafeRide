@@ -76,6 +76,7 @@ Route::get('auth/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail
         Route::get('voice/profile', [VoiceSecurityProfileController::class, 'show']);
         Route::post('voice/security-word', [VoiceSecurityProfileController::class, 'setSecurityWord']);
         Route::post('voice/enroll', [VoiceSecurityProfileController::class, 'enroll']);
+        Route::post('voice/verify-cloud', [VoiceSecurityProfileController::class, 'verifyCloud']);
 
         // Assistant IA (résumés + stats par rôle)
         Route::get('ai/summary', [AiController::class, 'summary']);

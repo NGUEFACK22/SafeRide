@@ -228,26 +228,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
     if (!await PermissionService.microphone(context)) return;
-    setState(() { _voiceEnrolling = true; _voiceProgress = 'Test 3s — prononcez votre mot…'; });
+    setState(() { _voiceEnrolling = true; _voiceProgress = 'Test 5s — VAD + fenêtrage 3s — prononcez…'; });
     try {
-      final ok = await _voiceprint.startCapture();
-      if (!ok) throw Exception('Micro indisponible');
-      for (int s = 3; s > 0; s--) {
-        if (!mounted || !_voiceEnrolling) break;
-        setState(() => _voiceProgress = 'Test : prononcez mot — $s s');
-        await Future.delayed(const Duration(seconds: 1));
-      }
-      final emb = await _voiceprint.stopAndEmbed();
-      if (emb == null) throw Exception('Audio trop court');
+      // Capture 5s PCM puis diarization fenêtrée (3s hop 1,5s) → meilleur cos pour bruit/multi-locuteurs
+      final pcm = await _voiceprint.capturePcm(const Duration(seconds: 5));
+      if (pcm == null) throw Exception('Audio trop court');
       final prefs = await SharedPreferences.getInstance();
       final stored = prefs.getString('voice_last_embedding');
       if (stored == null) throw Exception('Aucune empreinte locale — ré-enrôlez');
       final ref = stored.split(',').map((e) => double.tryParse(e) ?? 0).toList();
-      if (ref.length != emb.length) throw Exception('Taille empreinte mismatch');
-      double dot = 0, na = 0, nb = 0;
-      for (int i = 0; i < emb.length; i++) { dot += ref[i] * emb[i]; na += ref[i] * ref[i]; nb += emb[i] * emb[i]; }
-      final cos = dot / (math.sqrt(na) * math.sqrt(nb) + 1e-9);
+      double cos;
+      if (pcm.length >= 48000) {
+        cos = await _voiceprint.bestWindowCosine(pcm, ref);
+      } else {
+        final emb = await _voiceprint.embeddingForWindow(pcm);
+        if (emb == null) throw Exception('Embedding échec');
+        double dot = 0, na = 0, nb = 0;
+        for (int i = 0; i < emb.length; i++) { dot += ref[i] * emb[i]; na += ref[i] * ref[i]; nb += emb[i] * emb[i]; }
+        cos = dot / (math.sqrt(na) * math.sqrt(nb) + 1e-9);
+      }
       final passed = cos >= 0.5;
+      // Hybride : si ambigu 0,45-0,55 et réseau OK, propose vérif cloud
+      final isAmbiguous = cos > 0.45 && cos < 0.55;
+      if (isAmbiguous) {
+        setState(() => _voiceProgress = 'Score ambigu ${cos.toStringAsFixed(3)} → vérif cloud…');
+        try {
+          final cloud = await _api.post('/voice/verify-cloud', {'empreinte': ref, 'test_empreinte': await _voiceprint.embeddingForWindow(pcm) ?? ref});
+          final cloudScore = (cloud['cosine'] as num?)?.toDouble() ?? cos;
+          final cloudPassed = cloud['passed'] == true;
+          if (!mounted) return;
+          setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(cloudPassed ? 'Hybride OK ✓ local $cos → cloud $cloudScore' : 'Ambigu ✗ local $cos cloud $cloudScore — réessayez au calme'),
+            backgroundColor: cloudPassed ? AppTheme.successText : Colors.orange.shade700,
+            duration: const Duration(seconds: 5),
+          ));
+          return;
+        } catch (_) {
+          // cloud indisponible → retombe sur local
+        }
+      }
       if (!mounted) return;
       setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(

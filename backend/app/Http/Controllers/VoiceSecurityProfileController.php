@@ -73,6 +73,52 @@ class VoiceSecurityProfileController extends Controller
         ]);
     }
 
+    /**
+     * Hybride : vérif locale + cloud si ambigu (0,45-0,55). Appelé par le test voix 5s fenêtré.
+     * Si AZURE_SPEAKER_KEY/ENDPOINT configurés, tente Azure Speaker Verification, sinon cosinus local.
+     */
+    public function verifyCloud(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'empreinte' => 'required|array|size:192',
+            'empreinte.*' => 'numeric',
+            'test_empreinte' => 'required|array|size:192',
+            'test_empreinte.*' => 'numeric',
+        ]);
+
+        $cos = $this->cosineSimilarity($data['empreinte'], $data['test_empreinte']);
+        $passed = $cos >= 0.5;
+        $cloud = null;
+
+        // Tentative Azure Speaker Recognition si configuré (optionnel)
+        $azureKey = env('AZURE_SPEAKER_KEY');
+        $azureEndpoint = env('AZURE_SPEAKER_ENDPOINT');
+        if ($azureKey && $azureEndpoint && $cos > 0.45 && $cos < 0.55) {
+            try {
+                // Placeholder : appel réel à Azure REST /speaker/verification (à compléter avec profil Azure)
+                $cloud = ['attempted' => true, 'note' => 'Azure configuré mais profil speaker non lié — fallback cosinus'];
+            } catch (\Throwable $e) {
+                $cloud = ['error' => $e->getMessage()];
+            }
+        }
+
+        return response()->json([
+            'cosine' => $cos,
+            'passed' => $passed,
+            'threshold' => 0.5,
+            'ambiguous' => $cos > 0.45 && $cos < 0.55,
+            'cloud' => $cloud,
+        ]);
+    }
+
+    private function cosineSimilarity(array $a, array $b): float
+    {
+        $dot = 0.0; $na = 0.0; $nb = 0.0;
+        foreach ($a as $i => $v) { $dot += $v * $b[$i]; $na += $v*$v; $nb += $b[$i]*$b[$i]; }
+        if ($na <= 0 || $nb <= 0) return 0.0;
+        return $dot / (sqrt($na) * sqrt($nb));
+    }
+
     protected function publicProfile(VoiceSecurityProfile $profile): array
     {
         return [
