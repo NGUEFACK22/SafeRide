@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:onnxruntime/onnxruntime.dart' as ort;
+import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 /// Biométrie vocale embarquée : exécute un modèle ONNX ECAPA-TDNN sur l'appareil
@@ -339,6 +341,48 @@ class VoiceprintService {
       out.add((sum / channels).round());
     }
     return out;
+  }
+
+  /// Sauve la dernière capture (30s) en WAV temporaire pour réécoute avant enrôlement.
+  Future<String?> saveLastCaptureAsWav() async {
+    if (_samples.isEmpty) return null;
+    try {
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/saferide_last_voice_${DateTime.now().millisecondsSinceEpoch}.wav');
+      final wav = _encodeWav(_samples);
+      await file.writeAsBytes(wav);
+      return file.path;
+    } catch (e) {
+      print('[Voiceprint] save wav échec: $e');
+      return null;
+    }
+  }
+
+  Uint8List _encodeWav(List<int> pcm) {
+    final dataLen = pcm.length * 2;
+    final totalLen = 44 + dataLen;
+    final bytes = Uint8List(totalLen);
+    final bd = ByteData.view(bytes.buffer);
+    // RIFF
+    bytes.setRange(0, 4, 'RIFF'.codeUnits);
+    bd.setUint32(4, totalLen - 8, Endian.little);
+    bytes.setRange(8, 12, 'WAVE'.codeUnits);
+    bytes.setRange(12, 16, 'fmt '.codeUnits);
+    bd.setUint32(16, 16, Endian.little);
+    bd.setUint16(20, 1, Endian.little); // PCM
+    bd.setUint16(22, 1, Endian.little); // mono
+    bd.setUint32(24, sampleRate, Endian.little);
+    bd.setUint32(28, sampleRate * 2, Endian.little); // byteRate
+    bd.setUint16(32, 2, Endian.little); // blockAlign
+    bd.setUint16(34, 16, Endian.little); // bits
+    bytes.setRange(36, 40, 'data'.codeUnits);
+    bd.setUint32(40, dataLen, Endian.little);
+    int off = 44;
+    for (final s in pcm) {
+      bd.setInt16(off, s.clamp(-32768, 32767), Endian.little);
+      off += 2;
+    }
+    return bytes;
   }
 
   /// Enregistre pendant [duration] puis retourne l'embedding, ou null.

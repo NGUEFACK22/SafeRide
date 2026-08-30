@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user.dart';
@@ -160,6 +161,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
       final avg = await _voiceprint.stopAndEmbed();
       if (avg == null) throw Exception('Audio trop court ou modèle indisponible — parlez plus fort/près du micro');
+      // Sauve WAV pour réécoute avant d'enrôler
+      final wavPath = await _voiceprint.saveLastCaptureAsWav();
+      if (!mounted) return;
+      setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
+      final confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => _VoicePreviewDialog(wavPath: wavPath, mot: mot),
+      );
+      if (confirmed != true) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enrôlement annulé — réécouté, recommencez si besoin')));
+        return;
+      }
+      setState(() { _voiceEnrolling = true; _voiceProgress = 'Enrôlement…'; });
       await _api.post('/voice/enroll', {'empreinte': avg});
       try { final p = await SharedPreferences.getInstance(); await p.setString('voice_last_embedding', avg.join(',')); } catch (_) {}
       if (!mounted) return;
@@ -603,6 +618,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
         trailing: const Icon(Icons.chevron_right, size: 18, color: AppTheme.textGrey),
         onTap: onTap,
       ),
+    );
+  }
+}
+
+class _VoicePreviewDialog extends StatefulWidget {
+  final String? wavPath;
+  final String mot;
+  const _VoicePreviewDialog({required this.wavPath, required this.mot});
+  @override
+  State<_VoicePreviewDialog> createState() => _VoicePreviewDialogState();
+}
+
+class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
+  late final AudioPlayer _player;
+  bool _playing = false;
+  @override
+  void initState() { super.initState(); _player = AudioPlayer(); }
+  @override
+  void dispose() { _player.dispose(); super.dispose(); }
+  Future<void> _toggle() async {
+    if (_playing) {
+      await _player.pause();
+      setState(() => _playing = false);
+    } else {
+      if (widget.wavPath == null) return;
+      try {
+        await _player.setFilePath(widget.wavPath!);
+        await _player.play();
+        setState(() => _playing = true);
+        _player.playerStateStream.listen((s) { if (s.processingState == ProcessingState.completed) setState(() => _playing = false); });
+      } catch (_) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lecture impossible')));
+      }
+    }
+  }
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Réécoutez votre voix', style: TextStyle(fontWeight: FontWeight.w800)),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text('Mot: "${widget.mot}" — 30s enregistrés. Cliquez Play pour écouter, puis Enregistrer si OK.', style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+        const SizedBox(height: 12),
+        FilledButton.icon(onPressed: _toggle, icon: Icon(_playing ? Icons.pause : Icons.play_arrow), label: Text(_playing ? 'Pause' : 'Play — écouter')),
+        if (widget.wavPath == null) const Text('Fichier audio non disponible', style: TextStyle(fontSize: 11, color: Colors.red)),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Recommencer')),
+        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Enregistrer empreinte')),
+      ],
     );
   }
 }
