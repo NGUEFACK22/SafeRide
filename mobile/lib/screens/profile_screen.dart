@@ -14,6 +14,7 @@ import '../services/auth_service.dart';
 import '../services/permission_service.dart';
 import '../services/voiceprint_service.dart';
 import '../theme/app_theme.dart';
+import '../services/language_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   final User? user;
@@ -125,7 +126,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _enrollVoice() async {
     final mot = _motSecuriteController.text.trim();
     if (mot.length < 3) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Définissez d\'abord un mot de sécurité (≥3 caractères) ci-dessus et enregistrez.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Définissez d\'abord un mot de sécurité (≥3 caractères) ci-dessus et enregistrez.')));
       return;
     }
     if (!await PermissionService.microphone(context)) return;
@@ -142,7 +143,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         await _api.post('/voice/enroll', {'empreinte': token.padLeft(64, '0').substring(0, 64)});
         if (!mounted) return;
         setState(() { _voiceEnrolled = true; _voiceActive = true; _voiceEnrolling = false; _voiceProgress = ''; });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Voix enregistrée (mode léger)'), backgroundColor: AppTheme.primaryBlue));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Voix enregistrée (mode léger)'), backgroundColor: AppTheme.primaryBlue));
         return;
       }
       setState(() => _voiceAvailable = true);
@@ -172,7 +173,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (ctx) => _VoicePreviewDialog(wavPath: wavPath, mot: mot),
       );
       if (confirmed != true) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enrôlement annulé — réécouté, recommencez si besoin')));
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Enrôlement annulé — réécouté, recommencez si besoin')));
         return;
       }
       setState(() { _voiceEnrolling = true; _voiceProgress = 'Enrôlement…'; });
@@ -191,7 +192,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _importVoice() async {
     final mot = _motSecuriteController.text.trim();
     if (mot.length < 3) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Définissez d\'abord un mot de sécurité (≥3 caractères)')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Définissez d\'abord un mot de sécurité (≥3 caractères)')));
       return;
     }
     try {
@@ -212,11 +213,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         throw Exception('bytes vides');
       }
     } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fichier illisible'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fichier illisible'), backgroundColor: Colors.red));
       return;
     }
     if (bytes.length < 32000) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fichier trop court (<2s) — enregistrez 30s WAV mono 16kHz'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fichier trop court (<2s) — enregistrez 30s WAV mono 16kHz'), backgroundColor: Colors.red));
       return;
     }
     setState(() { _voiceEnrolling = true; _voiceProgress = 'Analyse du fichier…'; });
@@ -240,7 +241,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _testVoice() async {
     if (!_voiceEnrolled) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enrôlez d\'abord votre voix (30s)')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Enrôlez d\'abord votre voix (30s)')));
       return;
     }
     if (!await PermissionService.microphone(context)) return;
@@ -311,7 +312,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Paramètres enregistrés'), backgroundColor: AppTheme.primaryBlue),
+        SnackBar(content: Text(LanguageService.instance.t('settings_saved')), backgroundColor: AppTheme.primaryBlue),
       );
     } catch (e) {
       if (!mounted) return;
@@ -423,7 +424,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // ── Informations personnelles (regroupe contact & sécurité — non divisé) ──
           const SizedBox(height: 20),
-          const Text('Informations personnelles', style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text(LanguageService.instance.t('personal_info'), style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 6),
           const Text('Vos coordonnées et votre sécurité (numéro d\'urgence inclus) — tout est centralisé ici.', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
           const SizedBox(height: 12),
@@ -451,7 +452,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: FilledButton.icon(
                 onPressed: _saving ? null : _saveFields,
                 icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save),
-                label: const Text('Enregistrer les informations', style: TextStyle(fontWeight: FontWeight.w700)),
+                label: Text(LanguageService.instance.t('save_info'), style: TextStyle(fontWeight: FontWeight.w700)),
                 style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12)),
               ),
             ),
@@ -459,7 +460,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // ── Empreinte vocale — 30s pour reconnaissance ──
           const SizedBox(height: 20),
-          const Text('Reconnaissance vocale', style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text(LanguageService.instance.t('voice_recognition'), style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 6),
           const Text('Enregistrez votre voix pendant 30 secondes : prononcez votre mot de sécurité plusieurs fois, clairement, pour que le SOS ne se déclenche que sur votre voix.', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
           const SizedBox(height: 10),
@@ -526,16 +527,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // ── Menu actions ──
           const SizedBox(height: 20),
-          _menuTile(Icons.shield_outlined, 'Gestion Contacts Urgence', onTap: () => Navigator.pushNamed(context, '/emergency-contacts'), color: const Color(0xFFFFE9E9), iconColor: AppTheme.sosRed),
-          _menuTile(Icons.history, 'Historique des trajets', onTap: () => Navigator.pushNamed(context, '/history')),
-          _menuTile(Icons.support_agent, 'Support • Assistant IA', onTap: () => Navigator.pushNamed(context, '/ai')),
-          _menuTile(Icons.verified_user, 'Vérification d\'identité', onTap: () => Navigator.pushNamed(context, '/identity')),
+          _menuTile(Icons.shield_outlined, LanguageService.instance.t('emergency_contacts'), onTap: () => Navigator.pushNamed(context, '/emergency-contacts'), color: Color(0xFFFFE9E9), iconColor: AppTheme.sosRed),
+          _menuTile(Icons.history, LanguageService.instance.t('history_trips_menu'), onTap: () => Navigator.pushNamed(context, '/history')),
+          _menuTile(Icons.support_agent, LanguageService.instance.t('support_ai'), onTap: () => Navigator.pushNamed(context, '/ai')),
+          _menuTile(Icons.verified_user, LanguageService.instance.t('verify_identity'), onTap: () => Navigator.pushNamed(context, '/identity')),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: () async { await AuthService().logout(); if (context.mounted) Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false); },
             style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppTheme.sosRed, side: BorderSide(color: Colors.grey.shade300)),
             icon: const Icon(Icons.logout),
-            label: const Text('Déconnexion'),
+            label: Text(LanguageService.instance.t('logout')),
           ),
         ],
       ),
@@ -549,7 +550,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(icon: const Icon(Icons.arrow_back, color: AppTheme.textDark), onPressed: () => Navigator.pop(context)),
-        title: const Text('SafeRide AI', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800)),
+        title: Text('SafeRide AI', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800)),
         centerTitle: true,
       ),
       body: content,
@@ -650,7 +651,7 @@ class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
         setState(() => _playing = true);
         _player.playerStateStream.listen((s) { if (s.processingState == ProcessingState.completed) setState(() => _playing = false); });
       } catch (_) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lecture impossible')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lecture impossible')));
       }
     }
   }

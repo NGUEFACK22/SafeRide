@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import '../services/language_service.dart';
 import '../utils/error_helper.dart';
 import '../widgets/google_sign_in_button.dart';
 
@@ -29,7 +30,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (!_acceptTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez accepter les Conditions d\'utilisation et la Politique de confidentialité')),
+        SnackBar(content: Text(LanguageService.instance.t('accept_terms_required'))),
       );
       return;
     }
@@ -63,7 +64,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text('Créer un compte', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800)),
+        title: Text(LanguageService.instance.t('create_account'), style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800)),
         centerTitle: false,
       ),
       body: SafeArea(
@@ -81,104 +82,104 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   minHeight: 4,
                   borderRadius: BorderRadius.circular(99),
                 ),
-                Align(alignment: Alignment.centerRight, child: const Text('Étape 1/3', style: TextStyle(fontSize: 11, color: AppTheme.textGrey))),
+                Align(alignment: Alignment.centerRight, child: Text(LanguageService.instance.t('step_1_of_3'), style: TextStyle(fontSize: 11, color: AppTheme.textGrey))),
                 const SizedBox(height: 16),
-                const Text('Créer un compte', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
-                const Text('Rejoignez SafeRide AI pour des trajets sécurisés.', style: TextStyle(color: AppTheme.textGrey, fontSize: 13)),
+                Text(LanguageService.instance.t('create_account'), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+                Text(LanguageService.instance.t('welcome_sub'), style: TextStyle(color: AppTheme.textGrey, fontSize: 13)),
                 const SizedBox(height: 18),
                 TextFormField(
                   controller: _nomController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nom complet',
+                  decoration: InputDecoration(
+                    labelText: LanguageService.instance.t('name'),
                     hintText: 'Jean Dupont',
                     prefixIcon: Icon(Icons.person_outline),
                     filled: true,
                     fillColor: Colors.white,
                   ),
-                  validator: (v) => (v == null || v.isEmpty) ? 'Nom requis' : null,
+                  validator: (v) => (v == null || v.isEmpty) ? LanguageService.instance.t('name_required') : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _prenomController,
-                  decoration: const InputDecoration(
-                    labelText: 'Prénom',
+                  decoration: InputDecoration(
+                    labelText: LanguageService.instance.t('first_name'),
                     hintText: 'Jean',
                     prefixIcon: Icon(Icons.person_outline),
                     filled: true,
                     fillColor: Colors.white,
                   ),
-                  validator: (v) => (v == null || v.isEmpty) ? 'Prénom requis' : null,
+                  validator: (v) => (v == null || v.isEmpty) ? LanguageService.instance.t('first_name_required') : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Adresse e-mail',
-                    hintText: 'jean.dupont@exemple.com',
+                  decoration: InputDecoration(
+                    labelText: LanguageService.instance.t('email'),
+                    hintText: LanguageService.instance.t('email_hint'),
                     prefixIcon: Icon(Icons.mail_outline),
                     filled: true,
                     fillColor: Colors.white,
                   ),
-                  validator: (v) => (v == null || v.isEmpty) ? 'Email requis' : null,
+                  validator: (v) => (v == null || v.isEmpty) ? LanguageService.instance.t('email_required') : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _telephoneController,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'Téléphone',
+                  decoration: InputDecoration(
+                    labelText: LanguageService.instance.t('phone'),
                     hintText: '690000000',
                     prefixIcon: Icon(Icons.phone_outlined),
                     filled: true,
                     fillColor: Colors.white,
                   ),
-                  validator: (v) => (v == null || v.isEmpty) ? 'Téléphone requis' : null,
+                  validator: (v) => (v == null || v.isEmpty) ? LanguageService.instance.t('phone_required') : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Mot de passe',
+                  decoration: InputDecoration(
+                    labelText: LanguageService.instance.t('password'),
                     hintText: '••••••••',
                     prefixIcon: Icon(Icons.lock_outline),
                     suffixIcon: Icon(Icons.visibility_off_outlined),
                     filled: true,
                     fillColor: Colors.white,
                   ),
-                  validator: (v) => (v == null || v.length < 8) ? 'Minimum 8 caractères' : null,
+                  validator: (v) => (v == null || v.length < 8) ? LanguageService.instance.t('min_8_chars') : null,
                 ),
                 const SizedBox(height: 16),
                 // Sélecteur de rôle — design maquette compact (corrigé overflow)
-                const Text('Vous êtes :', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
+                Text(LanguageService.instance.t('you_are'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Expanded(child: _roleCard('passager', Icons.person, 'Passager', 'Je cherche')),
+                    Expanded(child: _roleCard('passager', Icons.person, LanguageService.instance.t('passenger'), LanguageService.instance.t('searching'))),
                     const SizedBox(width: 10),
-                    Expanded(child: _roleCard('transporteur', Icons.local_taxi, 'Transporteur', 'Je propose')),
+                    Expanded(child: _roleCard('transporteur', Icons.local_taxi, LanguageService.instance.t('driver'), LanguageService.instance.t('offering'))),
                   ],
                 ),
                 // Indicateur force très léger maquette
-                Align(alignment: Alignment.centerRight, child: const Text('Force : Faible', style: TextStyle(fontSize: 11, color: AppTheme.textGrey))),
+                Align(alignment: Alignment.centerRight, child: Text(LanguageService.instance.t('strength_weak'), style: TextStyle(fontSize: 11, color: AppTheme.textGrey))),
                 const SizedBox(height: 8),
                 Row(children: [Expanded(child: Container(height: 3, color: AppTheme.lightBlueBadge)), const SizedBox(width: 4), Expanded(child: Container(height: 3, color: AppTheme.lightBlueBadge)), const SizedBox(width: 4), Expanded(child: Container(height: 3, color: AppTheme.lightBlueBadge))]),
                 const SizedBox(height: 12),
-                Row(children: [Checkbox(value: _acceptTerms, onChanged: (v) => setState(() => _acceptTerms = v ?? false), activeColor: AppTheme.primaryBlue), const Expanded(child: Text.rich(TextSpan(text: "J'accepte les ", style: TextStyle(fontSize: 12), children: [TextSpan(text: "Conditions d'utilisation", style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w600)), TextSpan(text: " et la "), TextSpan(text: "Politique de confidentialité.", style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w600))])))]),
+                Row(children: [Checkbox(value: _acceptTerms, onChanged: (v) => setState(() => _acceptTerms = v ?? false), activeColor: AppTheme.primaryBlue), Expanded(child: Text(LanguageService.instance.t('accept_terms'), style: TextStyle(fontSize: 12)))]),
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: _loading ? null : _submit,
                   style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue),
                   child: _loading
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text("Créer mon compte", style: TextStyle(fontWeight: FontWeight.w700)), SizedBox(width: 6), Icon(Icons.arrow_forward, size: 18)]),
+                      : Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(LanguageService.instance.t('create_account_btn'), style: TextStyle(fontWeight: FontWeight.w700)), SizedBox(width: 6), Icon(Icons.arrow_forward, size: 18)]),
                 ),
                 const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(child: Divider(color: Colors.grey.shade300)),
-                    const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('OU S\'INSCRIRE AVEC', style: TextStyle(fontSize: 11, color: AppTheme.textGrey, fontWeight: FontWeight.w600))),
+                    Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text(LanguageService.instance.t('or_register_with'), style: TextStyle(fontSize: 11, color: AppTheme.textGrey, fontWeight: FontWeight.w600))),
                     Expanded(child: Divider(color: Colors.grey.shade300)),
                   ],
                 ),

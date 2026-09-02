@@ -17,6 +17,7 @@ import '../services/sos_service.dart';
 import '../services/whatsapp_service.dart';
 import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
+import '../services/language_service.dart';
 import 'rating_screen.dart';
 
 class TripActiveScreen extends StatefulWidget {
@@ -196,7 +197,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
         _busy = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Embarquement confirmé. Définissez la destination.')),
+        SnackBar(content: Text('Embarquement confirmé. Définissez la destination.')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -216,7 +217,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
         if (!mounted) return;
         setState(() => _busy = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Adresse introuvable, veuillez reformuler la destination.'),
           ),
         );
@@ -258,7 +259,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
         _busy = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Destination confirmée. Trajet en cours.')),
+        SnackBar(content: Text('Destination confirmée. Trajet en cours.')),
       );
       _enterState();
     } catch (e) {
@@ -484,7 +485,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Trajet terminé'),
+        title: Text(LanguageService.instance.t('trip_finished')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -509,7 +510,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
               Navigator.pop(ctx);
               Navigator.of(context).pushReplacementNamed('/home');
             },
-            child: const Text('Fermer'),
+            child: Text(LanguageService.instance.t('close')),
           ),
           FilledButton.icon(
             onPressed: () {
@@ -526,7 +527,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
               });
             },
             icon: const Icon(Icons.star_rate),
-            label: const Text('Noter le trajet'),
+            label: Text('Noter le trajet'),
           ),
         ],
       ),
@@ -541,8 +542,8 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
 
     if (_trip == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Trajet')),
-        body: const Center(child: Text('Aucun trajet en cours')),
+        appBar: AppBar(title: Text(LanguageService.instance.t('trip_title'))),
+        body: Center(child: Text(LanguageService.instance.t('no_trip'))),
       );
     }
 
@@ -550,12 +551,12 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Trajet'),
+        title: Text(LanguageService.instance.t('trip_title')),
         actions: [
           if (trip.statut == 'EN_COURS')
             IconButton(
               icon: const Icon(Icons.location_on),
-              tooltip: 'Envoyer la position',
+              tooltip: LanguageService.instance.t('send_location'),
               onPressed: _sendLocation,
             ),
         ],
@@ -606,7 +607,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       case 'EN_COURS':
         return _enCoursStep(trip);
       default:
-        return const Center(child: Text('Trajet cloturé.'));
+        return Center(child: Text('Trajet cloturé.'));
     }
   }
 
@@ -618,19 +619,19 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
           child: ListTile(
             leading: const Icon(Icons.directions_car),
             title: Text('Véhicule de ${trip.transporteurFullName}'),
-            subtitle: const Text('QR scanné — embarquement en attente'),
+            subtitle: Text(LanguageService.instance.t('boarding_pending')),
           ),
         ),
         const SizedBox(height: 16),
-        const Text(
-          'Confirmez votre embarquement dans ce véhicule :',
+        Text(
+          LanguageService.instance.t('confirm_your_boarding'),
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         FilledButton.icon(
           onPressed: _busy ? null : _confirmEmbarquement,
           icon: const Icon(Icons.check_circle),
-          label: const Text('Confirmer l\'embarquement'),
+          label: Text(LanguageService.instance.t('confirm_boarding')),
         ),
       ],
     );
@@ -648,8 +649,8 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        const Text(
-          'Saisissez votre destination :',
+        Text(
+          LanguageService.instance.t('enter_destination'),
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
@@ -666,7 +667,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
         FilledButton.icon(
           onPressed: _busy ? null : _confirmDestination,
           icon: const Icon(Icons.check),
-          label: const Text('Proposer la destination'),
+          label: Text(LanguageService.instance.t('propose_destination')),
         ),
       ],
     );
@@ -680,12 +681,12 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
           child: ListTile(
             leading: const Icon(Icons.flag),
             title: Text(trip.destinationAddress ?? ''),
-            subtitle: const Text('Destination proposée'),
+            subtitle: Text(LanguageService.instance.t('destination_proposed')),
           ),
         ),
         const SizedBox(height: 16),
-        const Text(
-          'Votre destination est-elle correcte ?',
+        Text(
+          LanguageService.instance.t('is_destination_correct'),
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           textAlign: TextAlign.center,
         ),
@@ -694,13 +695,13 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
           onPressed: _busy ? null : () => _validateDestination(true),
           icon: const Icon(Icons.check_circle),
           style: FilledButton.styleFrom(backgroundColor: Colors.green),
-          label: const Text('Oui, confirmer'),
+          label: Text(LanguageService.instance.t('yes_confirm')),
         ),
         const SizedBox(height: 12),
         OutlinedButton.icon(
           onPressed: _busy ? null : () => _validateDestination(false),
           icon: const Icon(Icons.edit),
-          label: const Text('Non, la modifier'),
+          label: Text(LanguageService.instance.t('no_edit')),
         ),
       ],
     );
@@ -831,7 +832,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           icon: _busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.stop_circle_outlined),
-          label: Text(_busy ? 'Traitement...' : 'Fin de trajet', style: const TextStyle(fontWeight: FontWeight.w700)),
+          label: Text(_busy ? LanguageService.instance.t('processing') : LanguageService.instance.t('end_trip'), style: TextStyle(fontWeight: FontWeight.w700)),
         ),
         const SizedBox(height: 6),
         const Text(
@@ -852,7 +853,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             icon: _autoSosSending ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.sos),
-            label: Text(_autoSosSending ? 'Envoi SOS...' : 'SOS URGENCE', style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+            label: Text(_autoSosSending ? LanguageService.instance.t('processing') : LanguageService.instance.t('sos'), style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.5)),
           ),
         ),
       ],

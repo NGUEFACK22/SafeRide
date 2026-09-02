@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../config/api_config.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../services/language_service.dart';
 
 /// Type de dossier dans l'onglet unifié.
 enum _DossierType { dispute, lostItem, sos }
@@ -49,15 +50,15 @@ class _DisputeScreenState extends State<DisputeScreen> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Litiges'),
-          bottom: const TabBar(
+          title: Text(LanguageService.instance.t('disputes')),
+          bottom: TabBar(
             tabs: [
-              Tab(text: 'Mes litiges'),
-              Tab(text: 'Ouvrir'),
+              Tab(text: LanguageService.instance.t('my_disputes')),
+              Tab(text: LanguageService.instance.t('open')),
             ],
           ),
         ),
-        body: const TabBarView(
+        body: TabBarView(
           children: [
             _UnifiedLitigesTab(),
             _CreateTab(),
@@ -190,7 +191,7 @@ class _UnifiedLitigesTabState extends State<_UnifiedLitigesTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
       return Center(
@@ -204,14 +205,14 @@ class _UnifiedLitigesTabState extends State<_UnifiedLitigesTab> {
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 16),
               FilledButton.tonal(
-                  onPressed: _load, child: const Text('Réessayer')),
+                  onPressed: _load, child: Text(LanguageService.instance.t('retry'))),
             ],
           ),
         ),
       );
     }
     if (_dossiers.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -380,7 +381,7 @@ class _DossierDetailSheet extends StatelessWidget {
           width: double.infinity,
           child: FilledButton.tonal(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer'),
+            child: Text(LanguageService.instance.t('close')),
           ),
         ),
       ],
@@ -475,7 +476,7 @@ class _CreateTabState extends State<_CreateTab> {
   Future<void> _submit() async {
     if (_selectedTripId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Choisissez un trajet')),
+        SnackBar(content: Text('Choisissez un trajet')),
       );
       return;
     }
@@ -657,21 +658,21 @@ class _CreateTabState extends State<_CreateTab> {
           // Champ trajet
           DropdownButtonFormField<int?>(
             initialValue: _selectedTripId,
-            decoration: const InputDecoration(
-              labelText: 'Trajet concerné',
+            decoration: InputDecoration(
+              labelText: LanguageService.instance.t('concerned_trip'),
               border: OutlineInputBorder(),
             ),
             items: _loadingTrips
                 ? [
-                    const DropdownMenuItem<int?>(
+                    DropdownMenuItem<int?>(
                       value: null,
-                      child: Text('Chargement…'),
+                      child: Text(LanguageService.instance.t('loading')),
                     ),
                   ]
                 : [
-                    const DropdownMenuItem<int?>(
+                    DropdownMenuItem<int?>(
                       value: null,
-                      child: Text('Choisir un trajet terminé'),
+                      child: Text(LanguageService.instance.t('choose_finished_trip')),
                     ),
                     for (final trip in _trips)
                       DropdownMenuItem<int?>(
@@ -688,7 +689,7 @@ class _CreateTabState extends State<_CreateTab> {
             controller: _motif,
             decoration: InputDecoration(
               labelText:
-                  isLostItem ? 'Objet oublié' : 'Motif',
+                  isLostItem ? LanguageService.instance.t('forgotten_item') : LanguageService.instance.t('motive'),
               border: const OutlineInputBorder(),
               hintText: isLostItem
                   ? 'Ex : Portefeuille noir, clés, téléphone…'
@@ -699,8 +700,8 @@ class _CreateTabState extends State<_CreateTab> {
           TextField(
             controller: _description,
             maxLines: 4,
-            decoration: const InputDecoration(
-              labelText: 'Description (facultatif)',
+            decoration: InputDecoration(
+              labelText: LanguageService.instance.t('description_optional'),
               border: OutlineInputBorder(),
             ),
           ),
@@ -779,8 +780,8 @@ class _CreateTabState extends State<_CreateTab> {
             icon:
                 Icon(isLostItem ? Icons.report_problem : Icons.gavel),
             label: Text(isLostItem
-                ? 'Signaler l\'objet perdu'
-                : 'Ouvrir le litige'),
+                ? LanguageService.instance.t('report_lost_item')
+                : LanguageService.instance.t('open_dispute')),
           ),
           const SizedBox(height: 12),
           Text(

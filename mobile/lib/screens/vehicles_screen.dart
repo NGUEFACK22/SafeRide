@@ -5,6 +5,7 @@ import '../utils/error_helper.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../services/api_service.dart';
+import '../services/language_service.dart';
 
 class VehiclesScreen extends StatefulWidget {
   const VehiclesScreen({super.key});
@@ -56,7 +57,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(hasExisting ? 'Remplacer le véhicule' : 'Ajouter un véhicule'),
+        title: Text(hasExisting ? LanguageService.instance.t('replace_vehicle') : LanguageService.instance.t('add_vehicle_title')),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -66,30 +67,30 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                   padding: const EdgeInsets.all(10),
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
-                  child: Row(children: [Icon(Icons.warning_amber, color: Colors.orange.shade700, size: 18), const SizedBox(width: 8), Expanded(child: Text('Un seul véhicule autorisé. L\'ancien sera remplacé.', style: TextStyle(fontSize: 12, color: Colors.orange.shade800)))]),
+                  child: Row(children: [Icon(Icons.warning_amber, color: Colors.orange.shade700, size: 18), SizedBox(width: 8), Expanded(child: Text(LanguageService.instance.t('single_vehicle_warning'), style: TextStyle(fontSize: 12, color: Colors.orange.shade800)))]),
                 ),
               TextField(
                 controller: marque,
-                decoration: const InputDecoration(labelText: 'Marque'),
+                decoration: InputDecoration(labelText: LanguageService.instance.t('brand')),
               ),
               TextField(
                 controller: modele,
-                decoration: const InputDecoration(labelText: 'Modèle'),
+                decoration: InputDecoration(labelText: LanguageService.instance.t('model')),
               ),
               TextField(
                 controller: immatriculation,
-                decoration: const InputDecoration(labelText: 'Immatriculation'),
+                decoration: InputDecoration(labelText: LanguageService.instance.t('registration')),
               ),
               DropdownButtonFormField<String>(
                 initialValue: type,
-                items: const [
-                  DropdownMenuItem(value: 'MOTO', child: Text('Moto')),
-                  DropdownMenuItem(value: 'VOITURE', child: Text('Voiture')),
-                  DropdownMenuItem(value: 'MINIBUS', child: Text('Minibus')),
-                  DropdownMenuItem(value: 'BUS', child: Text('Bus')),
+                items: [
+                  DropdownMenuItem(value: 'MOTO', child: Text(LanguageService.instance.t('moto'))),
+                  DropdownMenuItem(value: 'VOITURE', child: Text(LanguageService.instance.t('car'))),
+                  DropdownMenuItem(value: 'MINIBUS', child: Text(LanguageService.instance.t('minibus'))),
+                  DropdownMenuItem(value: 'BUS', child: Text(LanguageService.instance.t('bus'))),
                 ],
                 onChanged: (v) => type = v ?? 'VOITURE',
-                decoration: const InputDecoration(labelText: 'Type'),
+                decoration: InputDecoration(labelText: LanguageService.instance.t('type')),
               ),
             ],
           ),
@@ -97,11 +98,11 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler'),
+            child: Text(LanguageService.instance.t('cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(hasExisting ? 'Remplacer' : 'Ajouter'),
+            child: Text(hasExisting ? LanguageService.instance.t('replace') : LanguageService.instance.t('add')),
           ),
         ],
       ),
@@ -148,7 +149,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     if (qrData == null || qrData['contenu'] == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aucun QR actif pour ce véhicule')),
+        SnackBar(content: Text(LanguageService.instance.t('no_active_qr'))),
       );
       return;
     }
@@ -172,11 +173,11 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Supprimer le véhicule'),
-        content: const Text('Un transporteur doit conserver au moins un véhicule. Si vous avez un seul véhicule, la suppression sera refusée. Confirmer ?'),
+        title: Text(LanguageService.instance.t('delete_vehicle_confirm')),
+        content: Text(LanguageService.instance.t('delete_vehicle_msg')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Supprimer')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(LanguageService.instance.t('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(LanguageService.instance.t('delete'))),
         ],
       ),
     );
@@ -184,7 +185,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     try {
       await _api.delete('/vehicles/$id');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Véhicule supprimé')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LanguageService.instance.t('vehicle_deleted'))));
       _load();
     } catch (e) {
       if (!mounted) return;
@@ -197,11 +198,11 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     final hasVehicle = _vehicles.isNotEmpty;
     return Scaffold(
       appBar: AppBar(
-        title: Text(hasVehicle ? 'Mon véhicule (unique)' : 'Mon véhicule'),
+        title: Text(hasVehicle ? LanguageService.instance.t('my_unique_vehicle') : LanguageService.instance.t('my_vehicle')),
         actions: [
           IconButton(
             icon: Icon(hasVehicle ? Icons.swap_horiz : Icons.add),
-            tooltip: hasVehicle ? 'Remplacer le véhicule (un seul autorisé)' : 'Ajouter un véhicule',
+            tooltip: hasVehicle ? LanguageService.instance.t('replace_vehicle') : LanguageService.instance.t('add_vehicle_title'),
             onPressed: _addVehicle,
           ),
         ],
@@ -213,7 +214,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
               child: const Icon(Icons.add),
             ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(child: Text(_error!))
               : _vehicles.isEmpty
@@ -223,9 +224,9 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                           const Icon(Icons.directions_car, size: 48, color: Colors.grey),
                           const SizedBox(height: 12),
-                          const Text('Aucun véhicule. Ajoutez votre véhicule unique.', textAlign: TextAlign.center),
+                          Text(LanguageService.instance.t('no_vehicle_add_unique'), textAlign: TextAlign.center),
                           const SizedBox(height: 16),
-                          FilledButton.icon(onPressed: _addVehicle, icon: const Icon(Icons.add), label: const Text('Ajouter mon véhicule')),
+                          FilledButton.icon(onPressed: _addVehicle, icon: Icon(Icons.add), label: Text(LanguageService.instance.t('add_vehicle'))),
                         ]),
                       ),
                     )
@@ -247,7 +248,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                                   title: Text('${v['marque']} ${v['modele']} — ${v['immatriculation']}'),
                                   subtitle: Text('${v['type']}${v['couleur'] != null ? ' · ${v['couleur']}' : ''} · ${v['statut']}'),
                                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                                    IconButton(icon: const Icon(Icons.qr_code_2), tooltip: 'Afficher le QR', onPressed: () => _showQr(v['id'], v['immatriculation'])),
+                                    IconButton(icon: Icon(Icons.qr_code_2), tooltip: LanguageService.instance.t('show_qr'), onPressed: () => _showQr(v['id'], v['immatriculation'])),
                                     IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), tooltip: 'Supprimer (bloqué si seul)', onPressed: () => _deleteVehicle(v['id'])),
                                   ]),
                                 ),
@@ -315,7 +316,7 @@ class _QrDialogState extends State<_QrDialog> {
         setState(() => _token = qr['token']);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(                  content: Text('QR régénéré après scan !'),
+            SnackBar(                  content: Text('QR régénéré après scan !'),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
@@ -333,8 +334,8 @@ class _QrDialogState extends State<_QrDialog> {
       if (qr != null && mounted) {
         setState(() => _token = qr['token']);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('QR régénéré !'),
+          SnackBar(
+            content: Text(LanguageService.instance.t('qr_regenerated_simple')),
             backgroundColor: Colors.blue,
           ),
         );
@@ -389,7 +390,7 @@ class _QrDialogState extends State<_QrDialog> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Ce QR se régénère automatiquement après chaque scan.',
+                    LanguageService.instance.t('qr_auto_regen'),
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.orange.shade800,
@@ -406,14 +407,14 @@ class _QrDialogState extends State<_QrDialog> {
         IconButton(
           onPressed: _manualRefresh,
           icon: const Icon(Icons.refresh),
-          tooltip: 'Régénérer le QR',
+          tooltip: LanguageService.instance.t('regenerate_qr'),
           style: IconButton.styleFrom(
             backgroundColor: Colors.blue.shade50,
           ),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Fermer'),
+          child: Text(LanguageService.instance.t('close')),
         ),
       ],
     );

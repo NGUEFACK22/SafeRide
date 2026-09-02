@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../config/api_config.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../services/language_service.dart';
 
 class LostItemScreen extends StatefulWidget {
   const LostItemScreen({super.key});
@@ -23,15 +24,15 @@ class _LostItemScreenState extends State<LostItemScreen> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Objet perdu'),
-          bottom: const TabBar(
+          title: Text(LanguageService.instance.t('lost_item')),
+          bottom: TabBar(
             tabs: [
-              Tab(text: 'Mes signalements'),
-              Tab(text: 'Signaler'),
+              Tab(text: LanguageService.instance.t('my_reports')),
+              Tab(text: LanguageService.instance.t('report')),
             ],
           ),
         ),
-        body: const TabBarView(
+        body: TabBarView(
           children: [
             _LostReportsTab(),
             _LostItemFormTab(),
@@ -100,13 +101,13 @@ class _LostReportsTabState extends State<_LostReportsTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
       return Center(child: Text(_error!));
     }
     if (_reports.isEmpty) {
-      return const Center(child: Text('Aucun signalement pour le moment'));
+      return Center(child: Text(LanguageService.instance.t('no_report_yet')));
     }
 
     return RefreshIndicator(
@@ -260,7 +261,7 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
         final status = await Permission.camera.status;
         if (status.isGranted) return true;
         if (status.isPermanentlyDenied) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Caméra bloquée — activez dans Paramètres > Applications > SafeRide > Autorisations')));
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Caméra bloquée — activez dans Paramètres > Applications > SafeRide > Autorisations')));
           await openAppSettings();
           return false;
         }
@@ -274,14 +275,14 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
         final storage = await Permission.storage.status;
         if (photos.isGranted || storage.isGranted) return true;
         if (photos.isPermanentlyDenied || storage.isPermanentlyDenied) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Galerie bloquée — activez dans Paramètres')));
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Galerie bloquée — activez dans Paramètres')));
           await openAppSettings();
           return false;
         }
         final pReq = await Permission.photos.request();
         if (pReq.isGranted) return true;
         final sReq = await Permission.storage.request();
-        if (!sReq.isGranted && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission galerie refusée')));
+        if (!sReq.isGranted && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Permission galerie refusée')));
         return sReq.isGranted;
       }
     } catch (e) {
@@ -310,13 +311,13 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
   Future<void> _submit() async {
     if (_selectedTripId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Choisissez un trajet')),
+        SnackBar(content: Text('Choisissez un trajet')),
       );
       return;
     }
     if (_objet.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Décrivez l\'objet oublié')),
+        SnackBar(content: Text('Décrivez l\'objet oublié')),
       );
       return;
     }
@@ -345,7 +346,7 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
               'Objet perdu signalé. Un gestionnaire en est informé.'),
         ),
@@ -375,21 +376,21 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
         children: [
           DropdownButtonFormField<int?>(
             initialValue: _selectedTripId,
-            decoration: const InputDecoration(
-              labelText: 'Trajet concerné',
+            decoration: InputDecoration(
+              labelText: LanguageService.instance.t('concerned_trip'),
               border: OutlineInputBorder(),
             ),
             items: _loadingTrips
                 ? [
-                    const DropdownMenuItem<int?>(
+                    DropdownMenuItem<int?>(
                       value: null,
-                      child: Text('Chargement…'),
+                      child: Text(LanguageService.instance.t('loading')),
                     ),
                   ]
                 : [
-                    const DropdownMenuItem<int?>(
+                    DropdownMenuItem<int?>(
                       value: null,
-                      child: Text('Choisir un trajet terminé'),
+                      child: Text(LanguageService.instance.t('choose_finished_trip')),
                     ),
                     for (final trip in _trips)
                       DropdownMenuItem<int?>(
@@ -402,8 +403,8 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
           const SizedBox(height: 16),
           TextField(
             controller: _objet,
-            decoration: const InputDecoration(
-              labelText: 'Objet oublié',
+            decoration: InputDecoration(
+              labelText: LanguageService.instance.t('forgotten_item'),
               border: OutlineInputBorder(),
               hintText: 'Ex : Portefeuille noir',
             ),
@@ -412,8 +413,8 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
           TextField(
             controller: _description,
             maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Description (facultatif)',
+            decoration: InputDecoration(
+              labelText: LanguageService.instance.t('description_optional'),
               border: OutlineInputBorder(),
             ),
           ),
@@ -465,7 +466,7 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
           FilledButton.icon(
             onPressed: _submitting ? null : _submit,
             icon: const Icon(Icons.report_problem),
-            label: const Text('Signaler l\'objet perdu'),
+            label: Text(LanguageService.instance.t('report_lost_item')),
           ),
           const SizedBox(height: 12),
           const Text(

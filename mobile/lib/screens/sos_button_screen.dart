@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/language_service.dart';
 import '../utils/error_helper.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -98,16 +99,16 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   Future<void> _enroll() async {
     final word = (_wordController.text.trim().isNotEmpty ? _wordController.text.trim() : _securityWord?.trim());
     if (word == null || word.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Veuillez saisir un mot de sécurité (3-40 caractères)')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Veuillez saisir un mot de sécurité (3-40 caractères)')));
       return;
     }
     if (word.length < 3) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mot trop court (min 3 caractères)')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Mot trop court (min 3 caractères)')));
       return;
     }
     // Demander la permission microphone avant l'enrôlement
     if (!await PermissionService.microphone(context)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission microphone requise pour l\'enrôlement vocal')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Permission microphone requise pour l\'enrôlement vocal')));
       return;
     }
     _securityWord = word;
@@ -324,7 +325,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Alerte SOS (bouton) déclenchée et transmise : '
               'SMS, contacts, gestionnaire et services d\'urgence notifiés.'),
         ),
@@ -359,7 +360,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SOS'),
+        title: Text(LanguageService.instance.t('sos')),
         backgroundColor: Colors.red.shade700,
         foregroundColor: Colors.white,
         actions: [
@@ -367,7 +368,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
             TextButton(
               onPressed: () => setState(() => _vocalMode = !_vocalMode),
               child: Text(
-                _vocalMode ? 'Mode bouton' : 'Mode vocal',
+                _vocalMode ? LanguageService.instance.t('sos') : LanguageService.instance.t('voice_trigger_title'),
                 style: const TextStyle(color: Colors.white),
               ),
             ),
@@ -393,19 +394,17 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
           children: [
             const Icon(Icons.info_outline, size: 48, color: Colors.grey),
             const SizedBox(height: 16),
-            const Text('Aucun trajet actif', style: TextStyle(fontSize: 20)),
+            Text(LanguageService.instance.t('no_trip_body'), style: TextStyle(fontSize: 20)),
             const SizedBox(height: 8),
-            const Text(
-              'Le SOS est lié à un trajet en cours : scannez le QR du '
-              'transporteur pour démarrer un trajet avant de déclencher '
-              'une alerte.',
+            Text(
+              LanguageService.instance.t('no_trip_sos_msg'),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: () => Navigator.pushNamed(context, '/trip-active'),
               icon: const Icon(Icons.trip_origin),
-              label: const Text('Voir mon trajet en cours'),
+              label: Text(LanguageService.instance.t('see_current_trip')),
             ),
           ],
         ),
@@ -416,7 +415,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   void _noTripMessage() {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Text('Aucun trajet actif : scannez le QR du transporteur '
             'pour démarrer un trajet.'),
       ),
@@ -427,11 +426,10 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text('Vous êtes en danger ?', style: TextStyle(fontSize: 20)),
+        Text(LanguageService.instance.t('in_danger'), style: TextStyle(fontSize: 20)),
         const SizedBox(height: 12),
-        const Text(
-          'Maintenez le bouton pour déclencher une alerte SOS transmise à vos '
-          'contacts d\'urgence, au gestionnaire et aux services d\'urgence.',
+        Text(
+          LanguageService.instance.t('hold_to_trigger_sos'),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 30),
@@ -442,7 +440,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
         const SizedBox(height: 16),
         TextButton(
           onPressed: () => setState(() => _vocalMode = true),
-          child: const Text('Utiliser le déclenchement vocal'),
+          child: Text(LanguageService.instance.t('use_voice_trigger')),
         ),
       ],
     );
@@ -453,7 +451,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('Configurer le SOS vocal', style: TextStyle(fontSize: 20)),
+          Text(LanguageService.instance.t('configure_voice_sos'), style: TextStyle(fontSize: 20)),
           const SizedBox(height: 12),
           const Text(
             'Définissez un mot de sécurité puis enrôlez votre voix en 3 prises. '
@@ -499,7 +497,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
           FilledButton.icon(
             onPressed: _loading ? null : _enroll,
             icon: const Icon(Icons.save),
-            label: const Text('Enrôler mon profil vocal'),
+            label: Text(LanguageService.instance.t('enroll_voice_profile')),
           ),
         ],
       );
@@ -508,7 +506,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text('Déclenchement vocal', style: TextStyle(fontSize: 20)),
+        Text(LanguageService.instance.t('voice_trigger_title'), style: TextStyle(fontSize: 20)),
         const SizedBox(height: 8),
         Text(
           'Dites votre mot de sécurité (« $_securityWord ») pour alerter.',
@@ -533,7 +531,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
         OutlinedButton.icon(
           onPressed: _listening ? null : _fallbackButton,
           icon: const Icon(Icons.sos),
-          label: const Text('Fallback : bouton SOS'),
+          label: Text(LanguageService.instance.t('fallback_sos_button')),
           style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
         ),
       ],
@@ -558,7 +556,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
         ],
       ),
       child: _loading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          ? Center(child: CircularProgressIndicator(color: Colors.white))
           : Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,

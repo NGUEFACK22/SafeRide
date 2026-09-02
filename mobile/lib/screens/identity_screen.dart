@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../services/language_service.dart';
 
 class IdentityScreen extends StatefulWidget {
   const IdentityScreen({super.key});
@@ -56,7 +57,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
         if (photos.isGranted || storage.isGranted) return true;
         if (photos.isPermanentlyDenied || storage.isPermanentlyDenied) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission galerie refusée définitivement — ouvrez les paramètres de l\'app')));
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Permission galerie refusée définitivement — ouvrez les paramètres de l\'app')));
             await openAppSettings();
           }
           return false;
@@ -65,14 +66,14 @@ class _IdentityScreenState extends State<IdentityScreen> {
         if (photosReq.isGranted) return true;
         final storageReq = await Permission.storage.request();
         final granted = storageReq.isGranted;
-        if (!granted && mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission galerie refusée — activez-la dans les paramètres')));
+        if (!granted && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Permission galerie refusée — activez-la dans les paramètres')));
         return granted;
       } else {
         final status = await Permission.camera.status;
         if (status.isGranted) return true;
         if (status.isPermanentlyDenied) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permission caméra refusée définitivement — ouvrez les paramètres')));
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Permission caméra refusée définitivement — ouvrez les paramètres')));
             await openAppSettings();
           }
           return false;
@@ -154,7 +155,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
     if (_recto == null || _verso == null || _selfie == null) {
       setState(() {
         _error = true;
-        _message = 'Veuillez fournir les 3 photos : recto, verso et selfie avec pièce en main (obligatoires).';
+        _message = LanguageService.instance.t('provide_3_photos');
       });
       return;
     }
@@ -223,7 +224,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
               ),
               const SizedBox(width: 11),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textDark)), Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])),
-              if (isDone) Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: AppTheme.successBg, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppTheme.successBorder)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check, size: 12, color: AppTheme.successText), SizedBox(width: 3), Text('Prêt', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.successText))])),
+              if (isDone) Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: AppTheme.successBg, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppTheme.successBorder)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check, size: 12, color: AppTheme.successText), SizedBox(width: 3), Text('Prêt', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.successText))])),
             ],
           ),
           const SizedBox(height: 12),
@@ -233,7 +234,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
                 child: FilledButton.icon(
                   onPressed: onCamera,
                   icon: const Icon(Icons.photo_camera_outlined, size: 16),
-                  label: Text(galleryAllowed ? 'Caméra' : 'Caméra', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  label: Text(LanguageService.instance.t('camera'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   style: FilledButton.styleFrom(backgroundColor: AppTheme.textDark, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                 ),
               ),
@@ -243,7 +244,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
                   child: OutlinedButton.icon(
                     onPressed: onGallery,
                     icon: const Icon(Icons.photo_library_outlined, size: 16),
-                    label: const Text('Galerie', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    label: Text(LanguageService.instance.t('gallery'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                     style: OutlinedButton.styleFrom(foregroundColor: AppTheme.textDark, side: BorderSide(color: Colors.grey.shade300), padding: const EdgeInsets.symmetric(vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), backgroundColor: Colors.white),
                   ),
                 ),
@@ -278,7 +279,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: AppBar(backgroundColor: Colors.white, title: const Text('Vérification d\'identité', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800)), centerTitle: true),
+      appBar: AppBar(backgroundColor: Colors.white, title: Text(LanguageService.instance.t('identity_verification'), style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800)), centerTitle: true),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -290,41 +291,41 @@ class _IdentityScreenState extends State<IdentityScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: _statusColor(currentStatut).withValues(alpha: 0.2))),
                 child: ListTile(
                   leading: Icon(Icons.verified_user, color: _statusColor(currentStatut)),
-                  title: const Text('Statut actuel', style: TextStyle(fontWeight: FontWeight.w700)),
+                  title: Text(LanguageService.instance.t('current_status'), style: TextStyle(fontWeight: FontWeight.w700)),
                   subtitle: Text(currentStatut ?? '—'),
                 ),
               ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _type,
-              decoration: const InputDecoration(labelText: 'Type de document', border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
+              decoration: InputDecoration(labelText: LanguageService.instance.t('document_type'), border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
               items: _types.map((t) => DropdownMenuItem(value: t, child: Text(_labelForType(t)))).toList(),
               onChanged: (v) => setState(() => _type = v!),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _numeroController,
-              decoration: const InputDecoration(labelText: 'Numéro du document (optionnel)', border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
+              decoration: InputDecoration(labelText: LanguageService.instance.t('document_number_optional'), border: OutlineInputBorder(), filled: true, fillColor: Colors.white),
             ),
             const SizedBox(height: 16),
-            const Text('1. Recto de la carte (obligatoire)', style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+            Text('1. ' + LanguageService.instance.t('recto_required'), style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textDark)),
             const SizedBox(height: 6),
             _pickCard(title: 'Recto', subtitle: 'Face avant claire', file: _recto, onCamera: () => _pickRecto(ImageSource.camera), onGallery: () => _pickRecto(ImageSource.gallery)),
             const SizedBox(height: 12),
-            const Text('2. Verso de la carte (obligatoire)', style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+            Text('2. ' + LanguageService.instance.t('verso_required'), style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textDark)),
             const SizedBox(height: 6),
             _pickCard(title: 'Verso', subtitle: 'Face arrière claire', file: _verso, onCamera: () => _pickVerso(ImageSource.camera), onGallery: () => _pickVerso(ImageSource.gallery)),
             const SizedBox(height: 12),
-            const Text('3. Selfie avec pièce en main (obligatoire)', style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+            Text('3. ' + LanguageService.instance.t('selfie_required'), style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textDark)),
             const SizedBox(height: 4),
-            const Text('Tenez votre CNI / passeport à côté de votre visage, bien visible.', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+            Text(LanguageService.instance.t('selfie_hint'), style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
             const SizedBox(height: 6),
             _pickCard(title: 'Selfie + pièce', subtitle: 'Visage + document (direct)', file: _selfie, onCamera: () => _pickSelfie(ImageSource.camera), onGallery: () {}, galleryAllowed: false),
             const SizedBox(height: 18),
             FilledButton(
               onPressed: _loading ? null : _submit,
               style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue, padding: const EdgeInsets.symmetric(vertical: 16)),
-              child: _loading ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Soumettre la vérification (3 photos)', style: TextStyle(fontWeight: FontWeight.w700)),
+              child: _loading ? SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text(LanguageService.instance.t('submit_verification'), style: TextStyle(fontWeight: FontWeight.w700)),
             ),
             const SizedBox(height: 12),
             if (_message != null)

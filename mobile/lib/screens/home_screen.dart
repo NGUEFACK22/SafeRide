@@ -70,11 +70,11 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Row(children: [Icon(Icons.lock, color: AppTheme.primaryBlue), SizedBox(width: 8), Text('Inscription requise')]),
-        content: const Text('Visiteur — vous pouvez consulter toutes les fonctionnalités, mais pour interagir avec le système (scanner, SOS, signaler, etc.), veuillez vous inscrire.'),
+        title: Row(children: [Icon(Icons.lock, color: AppTheme.primaryBlue), SizedBox(width: 8), Text(LanguageService.instance.t('signup_required'))]),
+        content: Text(LanguageService.instance.t('visitor_restricted_msg')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Rester en visite')),
-          FilledButton(onPressed: () { Navigator.pop(ctx); Navigator.pushNamed(context, '/register'); }, child: const Text('S\'inscrire')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(LanguageService.instance.t('stay_as_guest'))),
+          FilledButton(onPressed: () { Navigator.pop(ctx); Navigator.pushNamed(context, '/register'); }, child: Text(LanguageService.instance.t('register'))),
         ],
       ),
     );
@@ -85,9 +85,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Row(children: [Icon(Icons.warning, color: AppTheme.sosRed), SizedBox(width: 8), Text('SOS URGENCE')]),
-        content: const Text('Déclencher une alerte SOS manuelle ?\nVos contacts d\'urgence, le gestionnaire et les services seront notifiés avec votre position.'),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')), FilledButton(style: FilledButton.styleFrom(backgroundColor: AppTheme.sosRed), onPressed: () => Navigator.pop(ctx, true), child: const Text('Déclencher SOS'))],
+        title: Row(children: [Icon(Icons.warning, color: AppTheme.sosRed), SizedBox(width: 8), Text(LanguageService.instance.t('sos'))]),
+        content: Text(LanguageService.instance.t('sos_confirm_msg')),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(LanguageService.instance.t('cancel'))), FilledButton(style: FilledButton.styleFrom(backgroundColor: AppTheme.sosRed), onPressed: () => Navigator.pop(ctx, true), child: Text(LanguageService.instance.t('trigger_sos')))],
       ),
     );
     if (confirm != true) return;
@@ -95,13 +95,13 @@ class _HomeScreenState extends State<HomeScreen> {
       final trip = await TripService().currentTrip();
       if (trip == null) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucun trajet actif — scannez le QR pour démarrer un trajet'), backgroundColor: Colors.orange));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LanguageService.instance.t('no_active_trip_scan')), backgroundColor: Colors.orange));
         Navigator.pushNamed(context, '/trip-active');
         return;
       }
       var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
-      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) throw Exception('Permission localisation refusée');
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) throw Exception(LanguageService.instance.t('location_permission_denied'));
       final pos = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
       final data = await SosService().triggerButton(trip.id, pos.latitude, pos.longitude);
       final sms = data['sms_message'] as String?;
@@ -109,7 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final phones = contacts.map((c) => ((c['whatsapp_telephone'] as String?)?.trim().isNotEmpty == true ? c['whatsapp_telephone'] : c['telephone']) as String?).where((p) => p != null && p!.isNotEmpty).cast<String>().toList();
       if (phones.isNotEmpty && sms != null) await WhatsAppService.instance.sendBulk(phones, sms);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('SOS manuel déclenché ✓ — contacts notifiés'), backgroundColor: AppTheme.sosRed, duration: Duration(seconds: 4)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LanguageService.instance.t('sos_triggered')), backgroundColor: AppTheme.sosRed, duration: Duration(seconds: 4)));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
@@ -145,13 +145,13 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: EdgeInsets.only(left: 12),
           child: Icon(Icons.shield, color: AppTheme.textDark, size: 22),
         ),
-        title: const Text('SafeRide AI', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 15)),
+        title: Text('SafeRide AI', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 15)),
         centerTitle: true,
         actions: [
           if (_isGuest)
             Row(mainAxisSize: MainAxisSize.min, children: [
               IconButton(icon: Icon(Icons.translate, color: LanguageService.instance.isFr ? AppTheme.primaryBlue : Colors.orange), tooltip: LanguageService.instance.t('translate_tooltip'), onPressed: () async { await LanguageService.instance.toggle(); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Langue : ${LanguageService.instance.t('language')}'))); }),
-              Padding(padding: const EdgeInsets.only(right: 12), child: FilledButton(onPressed: () => Navigator.pushNamed(context, '/register'), style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)), child: Text(LanguageService.instance.isFr ? 'S\'inscrire' : 'Sign up', style: const TextStyle(fontSize: 12)))),
+              Padding(padding: EdgeInsets.only(right: 12), child: FilledButton(onPressed: () => Navigator.pushNamed(context, '/register'), style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue, padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6)), child: Text(LanguageService.instance.isFr ? 'S\'inscrire' : 'Sign up', style: TextStyle(fontSize: 12)))),
             ]),
           if (!_isGuest)
             Row(mainAxisSize: MainAxisSize.min, children: [
@@ -193,8 +193,8 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: AppTheme.sosRed,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.sos),
-        label: const Text('SOS', style: TextStyle(fontWeight: FontWeight.w800)),
-        tooltip: 'SOS manuel — appui pour déclencher',
+        label: Text(LanguageService.instance.t('sos').split(' ').first, style: TextStyle(fontWeight: FontWeight.w800)),
+        tooltip: LanguageService.instance.t('sos_manual_tooltip'),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       body: _buildBody(),
@@ -206,10 +206,10 @@ class _HomeScreenState extends State<HomeScreen> {
         unselectedItemColor: const Color(0xFF9AA0AE),
         type: BottomNavigationBarType.fixed,
         items: [
-          BottomNavigationBarItem(icon: const Icon(Icons.home_outlined), activeIcon: const Icon(Icons.home), label: LanguageService.instance.t('home')),
-          BottomNavigationBarItem(icon: const Icon(Icons.history), label: LanguageService.instance.t('trips')),
-          BottomNavigationBarItem(icon: const Icon(Icons.map_outlined), activeIcon: const Icon(Icons.map), label: LanguageService.instance.t('map')),
-          BottomNavigationBarItem(icon: const Icon(Icons.person_outline), activeIcon: const Icon(Icons.person), label: LanguageService.instance.t('profile')),
+          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: LanguageService.instance.t('home')),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: LanguageService.instance.t('trips')),
+          BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map), label: LanguageService.instance.t('map')),
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: LanguageService.instance.t('profile')),
         ],
       ),
     );
@@ -220,7 +220,7 @@ class _HomeScreenState extends State<HomeScreen> {
 class _HistoryPreview extends StatelessWidget {
   const _HistoryPreview();
   @override
-  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(Icons.history, size: 48, color: AppTheme.primaryBlue), const SizedBox(height: 12), const Text('Historique', style: TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 8), FilledButton(onPressed: () => Navigator.pushNamed(context, '/history'), child: const Text('Voir l\'historique complet'))])));
+  Widget build(BuildContext context) => Center(child: Padding(padding: EdgeInsets.all(24), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.history, size: 48, color: AppTheme.primaryBlue), SizedBox(height: 12), Text(LanguageService.instance.t('history'), style: TextStyle(fontWeight: FontWeight.w700)), SizedBox(height: 8), FilledButton(onPressed: () => Navigator.pushNamed(context, '/history'), child: Text(LanguageService.instance.t('history_full')))])));
 }
 
 class _LocationPreview extends StatefulWidget {
@@ -286,7 +286,7 @@ class _LocationPreviewState extends State<_LocationPreview> {
       setState(() => _userLocation = loc);
       _mapController.move(loc, 15);
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Localisation indisponible')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LanguageService.instance.t('location_unavailable'))));
     } finally {
       if (mounted) setState(() => _locating = false);
     }
@@ -295,7 +295,7 @@ class _LocationPreviewState extends State<_LocationPreview> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(), SizedBox(height: 12), Text('Localisation en cours…')]));
+      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(), SizedBox(height: 12), Text(LanguageService.instance.t('locating'))]));
     }
     return Stack(
       children: [
@@ -308,8 +308,8 @@ class _LocationPreviewState extends State<_LocationPreview> {
               MarkerLayer(markers: [Marker(point: _userLocation!, width: 24, height: 24, alignment: Alignment.center, child: Container(decoration: BoxDecoration(color: AppTheme.primaryBlue, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3), boxShadow: [BoxShadow(blurRadius: 6, color: Colors.black38)])))]),
           ],
         ),
-        Positioned(bottom: 16, right: 16, child: FloatingActionButton.small(onPressed: _centerOnUser, tooltip: 'Ma position', child: _locating ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.my_location))),
-        Positioned(bottom: 4, left: 0, right: 0, child: Container(color: Colors.grey.shade200, padding: const EdgeInsets.all(4), child: const Text('Cartes © OpenStreetMap', textAlign: TextAlign.center, style: TextStyle(fontSize: 11))))
+        Positioned(bottom: 16, right: 16, child: FloatingActionButton.small(onPressed: _centerOnUser, tooltip: LanguageService.instance.t('my_location'), child: _locating ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(Icons.my_location))),
+        Positioned(bottom: 4, left: 0, right: 0, child: Container(color: Colors.grey.shade200, padding: EdgeInsets.all(4), child: Text(LanguageService.instance.t('map_credits'), textAlign: TextAlign.center, style: TextStyle(fontSize: 11))))
       ],
     );
   }
@@ -369,15 +369,15 @@ class _PassagerViewState extends State<_PassagerView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Bonjour, $name', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text('${LanguageService.instance.t('hello')}, $name', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppTheme.lightBlueBorder)),
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(Icons.verified_user, size: 16, color: AppTheme.primaryBlue),
               SizedBox(width: 6),
-              Expanded(child: Text('VOTRE COMPTE EST VÉRIFIÉ ET SÉCURISÉ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primaryBlue))),
+              Expanded(child: Text(LanguageService.instance.t('verified_secure'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primaryBlue))),
             ]),
           ),
           const SizedBox(height: 10),
@@ -390,7 +390,7 @@ class _PassagerViewState extends State<_PassagerView> {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.grey.shade200),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                   SizedBox(width: 10),
@@ -477,9 +477,9 @@ class _PassagerViewState extends State<_PassagerView> {
                     child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
                   ),
                   const SizedBox(height: 14),
-                  const Text('Scanner un QR Code', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text(LanguageService.instance.t('scan_qr'), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
-                  Text('Appuyez ici pour démarrer ou vérifier une course sécurisée.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
+                  Text(LanguageService.instance.t('scan_qr_desc'), textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
                 ],
               ),
             ),
@@ -498,7 +498,7 @@ class _PassagerViewState extends State<_PassagerView> {
                       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Icon(Icons.sos, color: Colors.white, size: 16),
                         SizedBox(width: 6),
-                        FittedBox(child: Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))),
+                        FittedBox(child: Text(LanguageService.instance.t('sos'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))),
                       ]),
                     ),
                   ),
@@ -523,17 +523,17 @@ class _PassagerViewState extends State<_PassagerView> {
           ),
           const SizedBox(height: 18),
           // Section ordonnée : Mes services en grille 2x2
-          const Text('Mes services', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text(LanguageService.instance.t('services'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: _serviceCard(Icons.trip_origin, 'Trajet', 'Suivi GPS', () => Navigator.pushNamed(context, '/trip-active'))),
+              Expanded(child: _serviceCard(Icons.trip_origin, LanguageService.instance.t('trip'), LanguageService.instance.t('trip_tracking'), () => Navigator.pushNamed(context, '/trip-active'))),
               const SizedBox(width: 10),
-              Expanded(child: _serviceCard(Icons.gavel_outlined, 'Litige', 'Objets & SOS', () => Navigator.pushNamed(context, '/dispute'))),
+              Expanded(child: _serviceCard(Icons.gavel_outlined, LanguageService.instance.t('dispute'), LanguageService.instance.t('dispute_sub'), () => Navigator.pushNamed(context, '/dispute'))),
             ],
           ),
           const SizedBox(height: 10),
-          _serviceCard(Icons.verified_user, 'Identité', 'Vérifier', () => Navigator.pushNamed(context, '/identity'), color: AppTheme.primaryBlue),
+          _serviceCard(Icons.verified_user, LanguageService.instance.t('identity'), LanguageService.instance.t('identity_sub'), () => Navigator.pushNamed(context, '/identity'), color: AppTheme.primaryBlue),
         ],
       ),
     );
@@ -625,15 +625,15 @@ class _TransporteurViewState extends State<_TransporteurView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Bonjour, $name', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text('${LanguageService.instance.t('hello')}, $name', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppTheme.lightBlueBorder)),
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(Icons.verified_user, size: 16, color: AppTheme.primaryBlue),
               SizedBox(width: 6),
-              Expanded(child: Text('VOTRE COMPTE TRANSPORTEUR EST VÉRIFIÉ', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primaryBlue))),
+              Expanded(child: Text(LanguageService.instance.t('verified_carrier'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primaryBlue))),
             ]),
           ),
           const SizedBox(height: 10),
@@ -641,7 +641,7 @@ class _TransporteurViewState extends State<_TransporteurView> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade200)),
-              child: const Row(children: [SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 10), Text('Chargement de la météo…', style: TextStyle(fontSize: 13, color: AppTheme.textGrey))]),
+              child: Row(children: [SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 10), Text('Chargement de la météo…', style: TextStyle(fontSize: 13, color: AppTheme.textGrey))]),
             )
           else if (_weather != null)
             Container(
@@ -674,17 +674,17 @@ class _TransporteurViewState extends State<_TransporteurView> {
           const SizedBox(height: 14),
           IntrinsicHeight(
             child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/sos-button'), child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed, borderRadius: BorderRadius.circular(14)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), FittedBox(child: Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
+              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/sos-button'), child: Container(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed, borderRadius: BorderRadius.circular(14)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), FittedBox(child: Text(LanguageService.instance.t('sos'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
               const SizedBox(width: 12),
-              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/ai'), child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 18, color: AppTheme.textDark), SizedBox(width: 6), FittedBox(child: Text(LanguageService.instance.t('assistance'), style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
+              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/ai'), child: Container(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 18, color: AppTheme.textDark), SizedBox(width: 6), FittedBox(child: Text(LanguageService.instance.t('assistance'), style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
             ]),
           ),
           const SizedBox(height: 18),
-          const Text('Mes services', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text(LanguageService.instance.t('services'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 10),
-          Row(children: [Expanded(child: _serviceCard(Icons.dashboard, 'Tableau de bord', 'Stats & notes', '/transporteur-dashboard')), const SizedBox(width: 10), Expanded(child: _serviceCard(Icons.directions_car, 'Véhicule', 'QR unique', '/vehicles'))]),
+          Row(children: [Expanded(child: _serviceCard(Icons.dashboard, LanguageService.instance.t('dashboard'), LanguageService.instance.t('stats_notes'), '/transporteur-dashboard')), SizedBox(width: 10), Expanded(child: _serviceCard(Icons.directions_car, LanguageService.instance.t('vehicle'), LanguageService.instance.t('vehicle_qr'), '/vehicles'))]),
           const SizedBox(height: 10),
-          Row(children: [Expanded(child: _serviceCard(Icons.hearing, 'Course', 'Écoute auto', '/trip-active')), const SizedBox(width: 10), Expanded(child: _serviceCard(Icons.verified_user, 'Identité', 'Vérifier', '/identity', color: AppTheme.primaryBlue))]),
+          Row(children: [Expanded(child: _serviceCard(Icons.hearing, LanguageService.instance.t('hearing_course'), LanguageService.instance.t('auto_listening'), '/trip-active')), SizedBox(width: 10), Expanded(child: _serviceCard(Icons.verified_user, LanguageService.instance.t('identity'), LanguageService.instance.t('identity_sub'), '/identity', color: AppTheme.primaryBlue))]),
         ],
       ),
     );
@@ -752,7 +752,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> {
         setState(() => _token = newToken);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('QR régénéré après scan !'), backgroundColor: Colors.green, duration: Duration(seconds: 2)),
+            SnackBar(content: Text(LanguageService.instance.t('qr_regenerated')), backgroundColor: Colors.green, duration: Duration(seconds: 2)),
           );
         }
       }
@@ -798,7 +798,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> {
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(color: AppTheme.cardBlack, borderRadius: BorderRadius.circular(20)),
-        child: const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))),
+        child: Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))),
       );
     }
     if (_error != null && _token == null) {
@@ -820,11 +820,11 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> {
                 child: const Icon(Icons.qr_code_2, color: Colors.white, size: 28),
               ),
               const SizedBox(height: 14),
-              Text(_error == 'Aucun véhicule' ? 'Aucun véhicule' : 'QR indisponible', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              Text(_error == 'Aucun véhicule' ? LanguageService.instance.t('no_vehicle') : LanguageService.instance.t('qr_unavailable'), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
               const SizedBox(height: 6),
-              Text(_error == 'Aucun véhicule' ? 'Ajoutez votre véhicule unique pour générer le QR' : 'Erreur: $_error', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
+              Text(_error == 'Aucun véhicule' ? LanguageService.instance.t('add_vehicle_hint') : 'Erreur: $_error', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
               const SizedBox(height: 12),
-              FilledButton.icon(onPressed: () => Navigator.pushNamed(context, '/vehicles'), icon: const Icon(Icons.add), label: const Text('Ajouter mon véhicule')),
+              FilledButton.icon(onPressed: () => Navigator.pushNamed(context, '/vehicles'), icon: Icon(Icons.add), label: Text(LanguageService.instance.t('add_vehicle'))),
             ],
           ),
         ),
@@ -842,7 +842,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Mon QR Code', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              Text(LanguageService.instance.t('my_qr'), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
@@ -864,7 +864,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> {
             ),
           ),
           const SizedBox(height: 10),
-          Text('Présentez ce QR au passager pour démarrer la course', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
+          Text(LanguageService.instance.t('present_qr'), textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -872,7 +872,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> {
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle)),
               const SizedBox(width: 6),
-              Text('QR actif • régénération auto après chaque scan', style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 11, fontWeight: FontWeight.w600)),
+              Text(LanguageService.instance.t('qr_active'), style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 11, fontWeight: FontWeight.w600)),
             ]),
           ),
         ],
@@ -895,18 +895,18 @@ class _GuestView extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200)),
-            child: Row(children: [Icon(Icons.visibility, color: Colors.orange.shade700, size: 18), const SizedBox(width: 8), const Expanded(child: Text('Mode invité — explorez librement. Inscrivez-vous pour interagir.', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF9A3412)))), const SizedBox(width: 8), FilledButton(onPressed: () => Navigator.pushNamed(context, '/register'), style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)), child: const Text('S\'inscrire', style: TextStyle(fontSize: 11)))]),
+            child: Row(children: [Icon(Icons.visibility, color: Colors.orange.shade700, size: 18), SizedBox(width: 8), Expanded(child: Text(LanguageService.instance.t('guest_mode'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF9A3412)))), SizedBox(width: 8), FilledButton(onPressed: () => Navigator.pushNamed(context, '/register'), style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue, padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)), child: Text(LanguageService.instance.t('register'), style: TextStyle(fontSize: 11)))]),
           ),
           const SizedBox(height: 12),
-          const Text('Bienvenue sur SafeRide AI', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text(LanguageService.instance.t('welcome'), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 6),
-          const Text('Consultez toutes les fonctionnalités. L\'interaction nécessite un compte.', style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+          Text(LanguageService.instance.t('guest_consult_text'), style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
           const SizedBox(height: 14),
           // Aperçu carte
           Container(
             height: 140,
             decoration: BoxDecoration(color: const Color(0xFFEAF0FF), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.lightBlueBorder)),
-            child: Stack(children: [const Center(child: Icon(Icons.map, size: 48, color: AppTheme.primaryBlue)), Positioned(top: 8, right: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)), child: const Text('Yaoundé • Carte', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700))))]),
+            child: Stack(children: [Center(child: Icon(Icons.map, size: 48, color: AppTheme.primaryBlue)), Positioned(top: 8, right: 8, child: Container(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)), child: Text(LanguageService.instance.t('yaounde_map'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700))))]),
           ),
           const SizedBox(height: 14),
           // Scanner verrouillé
@@ -915,27 +915,27 @@ class _GuestView extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(color: AppTheme.cardBlack, borderRadius: BorderRadius.circular(20)),
-              child: Column(children: [Container(width: 64, height: 64, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.15))), child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 28)), const SizedBox(height: 12), const Text('Scanner un QR Code', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)), const SizedBox(height: 6), Text('Fonctionnalité verrouillée — inscrivez-vous', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)), const SizedBox(height: 8), Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.lock, size: 12, color: Colors.white), SizedBox(width: 4), Text('Invité', style: TextStyle(color: Colors.white, fontSize: 11))]))]),
+              child: Column(children: [Container(width: 64, height: 64, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.15))), child: Icon(Icons.qr_code_scanner, color: Colors.white, size: 28)), SizedBox(height: 12), Text(LanguageService.instance.t('scan_qr'), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)), SizedBox(height: 6), Text(LanguageService.instance.t('guest_locked'), textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)), SizedBox(height: 8), Container(padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.lock, size: 12, color: Colors.white), SizedBox(width: 4), Text('Invité', style: TextStyle(color: Colors.white, fontSize: 11))]))]),
             ),
           ),
           const SizedBox(height: 14),
-          Row(children: [Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(14)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: Colors.white)])))), const SizedBox(width: 10), Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade300)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 16, color: AppTheme.textGrey), SizedBox(width: 6), Text(LanguageService.instance.t('assistance'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: AppTheme.textGrey)]))))]),
+          Row(children: [Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(14)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: Colors.white)])))), SizedBox(width: 10), Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade300)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 16, color: AppTheme.textGrey), SizedBox(width: 6), Text(LanguageService.instance.t('assistance'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: AppTheme.textGrey)]))))]),
           const SizedBox(height: 18),
-          const Text('Aperçu des services', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text(LanguageService.instance.t('services_preview'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 10),
-          _guestCard(Icons.trip_origin, 'Trajet', 'Suivi GPS + SOS', onAction),
+          _guestCard(Icons.trip_origin, LanguageService.instance.t('trip'), LanguageService.instance.t('trip_tracking') + ' + SOS', onAction),
           const SizedBox(height: 8),
-          _guestCard(Icons.gavel_outlined, 'Litige', 'Objets perdus & SOS', onAction),
+          _guestCard(Icons.gavel_outlined, LanguageService.instance.t('dispute'), LanguageService.instance.t('lost_and_sos'), onAction),
           const SizedBox(height: 8),
-          _guestCard(Icons.verified_user, 'Identité', 'CNI / Passeport', onAction),
+          _guestCard(Icons.verified_user, LanguageService.instance.t('identity'), LanguageService.instance.t('cni_passport'), onAction),
           const SizedBox(height: 8),
-          _guestCard(Icons.directions_car, 'Véhicules', 'QR transporteur', onAction),
+          _guestCard(Icons.directions_car, LanguageService.instance.t('vehicles'), LanguageService.instance.t('vehicle_qr_label'), onAction),
           const SizedBox(height: 8),
-          _guestCard(Icons.dashboard, 'Tableau de bord', 'Stats transporteur', onAction),
+          _guestCard(Icons.dashboard, LanguageService.instance.t('dashboard'), LanguageService.instance.t('stats_carrier'), onAction),
           const SizedBox(height: 14),
-          FilledButton.icon(onPressed: () => Navigator.pushNamed(context, '/register'), icon: const Icon(Icons.person_add), label: const Text('Créer mon compte — interagir')),
+          FilledButton.icon(onPressed: () => Navigator.pushNamed(context, '/register'), icon: Icon(Icons.person_add), label: Text(LanguageService.instance.t('create_account_interact'))),
           const SizedBox(height: 6),
-          TextButton(onPressed: () => Navigator.pushNamed(context, '/login'), child: const Text('Déjà inscrit ? Se connecter')),
+          TextButton(onPressed: () => Navigator.pushNamed(context, '/login'), child: Text(LanguageService.instance.t('has_account'))),
         ],
       ),
     );
@@ -947,7 +947,7 @@ class _GuestView extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
-        child: Row(children: [Container(width: 38, height: 38, decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)), child: Icon(icon, size: 20, color: Colors.grey)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)), const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.lock, size: 10, color: Colors.grey), SizedBox(width: 3), Text('Invité', style: TextStyle(fontSize: 10, color: Colors.grey))]))]), Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])), const Icon(Icons.chevron_right, size: 16, color: Colors.grey)]),
+        child: Row(children: [Container(width: 38, height: 38, decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)), child: Icon(icon, size: 20, color: Colors.grey)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)), const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.lock, size: 10, color: Colors.grey), SizedBox(width: 3), Text('Invité', style: TextStyle(fontSize: 10, color: Colors.grey))]))]), Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])), const Icon(Icons.chevron_right, size: 16, color: Colors.grey)]),
       ),
     );
   }

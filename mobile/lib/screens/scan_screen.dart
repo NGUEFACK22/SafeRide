@@ -6,6 +6,7 @@ import '../models/trip.dart';
 import '../services/api_service.dart';
 import '../services/permission_service.dart';
 import '../theme/app_theme.dart';
+import '../services/language_service.dart';
 import '../utils/error_helper.dart';
 import 'course_confirm_screen.dart';
 
@@ -60,7 +61,7 @@ class _ScanScreenState extends State<ScanScreen> {
     await _scanner.stop();
     try {
       if (!await PermissionService.location(context)) {
-        throw Exception('Permission localisation refusée');
+        throw Exception(LanguageService.instance.t('location_permission_denied'));
       }
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
@@ -97,15 +98,15 @@ class _ScanScreenState extends State<ScanScreen> {
     if (!_permissionChecked) {
       return Scaffold(
         backgroundColor: const Color(0xFF0B1220),
-        appBar: AppBar(backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0, leading: IconButton(icon: const Icon(Icons.shield, color: Colors.white), onPressed: () => Navigator.pop(context)), title: const Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)), centerTitle: true),
-        body: const Center(child: CircularProgressIndicator(color: Colors.white)),
+        appBar: AppBar(backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0, leading: IconButton(icon: const Icon(Icons.shield, color: Colors.white), onPressed: () => Navigator.pop(context)), title: Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)), centerTitle: true),
+        body: Center(child: CircularProgressIndicator(color: Colors.white)),
       );
     }
     if (!_hasPermission) {
       return Scaffold(
         backgroundColor: const Color(0xFF0B1220),
-        appBar: AppBar(backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0, leading: IconButton(icon: const Icon(Icons.shield, color: Colors.white), onPressed: () => Navigator.pop(context)), title: const Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)), centerTitle: true),
-        body: Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.videocam_off, size: 56, color: Colors.white70), SizedBox(height: 16), Text('Permission caméra refusée', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)), SizedBox(height: 8), Text('Activez la caméra dans Paramètres pour scanner le QR', textAlign: TextAlign.center, style: TextStyle(color: Colors.white70)), SizedBox(height: 16), FilledButton.icon(onPressed: _checkPermission, icon: Icon(Icons.refresh), label: Text('Réessayer'))]))),
+        appBar: AppBar(backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0, leading: IconButton(icon: const Icon(Icons.shield, color: Colors.white), onPressed: () => Navigator.pop(context)), title: Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)), centerTitle: true),
+        body: Center(child: Padding(padding: EdgeInsets.all(24), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.videocam_off, size: 56, color: Colors.white70), SizedBox(height: 16), Text(LanguageService.instance.t('permission_camera_denied'), style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)), SizedBox(height: 8), Text(LanguageService.instance.t('enable_camera_settings'), textAlign: TextAlign.center, style: TextStyle(color: Colors.white70)), SizedBox(height: 16), FilledButton.icon(onPressed: _checkPermission, icon: Icon(Icons.refresh), label: Text(LanguageService.instance.t('retry')))]))),
       );
     }
     return Scaffold(
@@ -115,10 +116,10 @@ class _ScanScreenState extends State<ScanScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(icon: const Icon(Icons.shield, color: Colors.white), onPressed: () => Navigator.pop(context)),
-        title: const Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+        title: Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
         centerTitle: true,
         actions: [
-          IconButton(icon: const Icon(Icons.flash_on, color: Colors.white), tooltip: 'Torche', onPressed: () => _scanner.toggleTorch()),
+          IconButton(icon: Icon(Icons.flash_on, color: Colors.white), tooltip: LanguageService.instance.t('torch'), onPressed: () => _scanner.toggleTorch()),
           const Padding(padding: EdgeInsets.only(right: 12), child: CircleAvatar(radius: 14, backgroundColor: Color(0xFF1E3A5F), child: Icon(Icons.person, size: 16, color: Colors.white))),
         ],
       ),
@@ -133,7 +134,7 @@ class _ScanScreenState extends State<ScanScreen> {
             right: 16,
             child: Column(
               children: [
-                const Text('Scannez le QR Code du\ntransporteur pour démarrer\nvotre trajet', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                Text(LanguageService.instance.t('scan_instruction'), textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 18),
                 Container(
                   height: 260,
@@ -143,7 +144,7 @@ class _ScanScreenState extends State<ScanScreen> {
               ],
             ),
           ),
-          if (_loading) Container(color: Colors.black54, child: const Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue))),
+          if (_loading) Container(color: Colors.black54, child: Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue))),
           Positioned(
             bottom: 0,
             left: 0,
@@ -152,7 +153,7 @@ class _ScanScreenState extends State<ScanScreen> {
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-              child: Row(children: [Container(width: 44, height: 44, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.qr_code_scanner, color: AppTheme.primaryBlue)), const SizedBox(width: 12), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Mode scan actif', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)), Text('Alignez le QR code du transporteur', style: TextStyle(fontSize: 12, color: AppTheme.textGrey))]))]),
+              child: Row(children: [Container(width: 44, height: 44, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)), child: Icon(Icons.qr_code_scanner, color: AppTheme.primaryBlue)), SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(LanguageService.instance.t('mode_scan_active'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)), Text(LanguageService.instance.t('align_qr'), style: TextStyle(fontSize: 12, color: AppTheme.textGrey))]))]),
             ),
           ),
         ],
