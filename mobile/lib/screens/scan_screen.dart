@@ -17,13 +17,29 @@ class ScanScreen extends StatefulWidget {
 
 class _ScanScreenState extends State<ScanScreen> {
   final _api = ApiService();
-  final MobileScannerController _scanner = MobileScannerController();
+  late final MobileScannerController _scanner;
   bool _loading = false;
+  bool _hasPermission = false;
+  bool _permissionChecked = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => PermissionService.camera(context));
+    _scanner = MobileScannerController(
+      facing: CameraFacing.back,
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      torchEnabled: false,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkPermission());
+  }
+
+  Future<void> _checkPermission() async {
+    final ok = await PermissionService.camera(context);
+    if (!mounted) return;
+    setState(() { _hasPermission = ok; _permissionChecked = true; });
+    if (ok) {
+      try { await _scanner.start(); } catch (_) {}
+    }
   }
 
   @override
@@ -77,6 +93,20 @@ class _ScanScreenState extends State<ScanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_permissionChecked) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0B1220),
+        appBar: AppBar(backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0, leading: IconButton(icon: const Icon(Icons.shield, color: Colors.white), onPressed: () => Navigator.pop(context)), title: const Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)), centerTitle: true),
+        body: const Center(child: CircularProgressIndicator(color: Colors.white)),
+      );
+    }
+    if (!_hasPermission) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0B1220),
+        appBar: AppBar(backgroundColor: Colors.transparent, foregroundColor: Colors.white, elevation: 0, leading: IconButton(icon: const Icon(Icons.shield, color: Colors.white), onPressed: () => Navigator.pop(context)), title: const Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)), centerTitle: true),
+        body: Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.videocam_off, size: 56, color: Colors.white70), SizedBox(height: 16), Text('Permission caméra refusée', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)), SizedBox(height: 8), Text('Activez la caméra dans Paramètres pour scanner le QR', textAlign: TextAlign.center, style: TextStyle(color: Colors.white70)), SizedBox(height: 16), FilledButton.icon(onPressed: _checkPermission, icon: Icon(Icons.refresh), label: Text('Réessayer'))]))),
+      );
+    }
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
       appBar: AppBar(
@@ -86,12 +116,16 @@ class _ScanScreenState extends State<ScanScreen> {
         leading: IconButton(icon: const Icon(Icons.shield, color: Colors.white), onPressed: () => Navigator.pop(context)),
         title: const Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
         centerTitle: true,
-        actions: const [Padding(padding: EdgeInsets.only(right: 12), child: CircleAvatar(radius: 14, backgroundColor: Color(0xFF1E3A5F), child: Icon(Icons.person, size: 16, color: Colors.white)))],
+        actions: [
+          IconButton(icon: const Icon(Icons.flash_on, color: Colors.white), tooltip: 'Torche', onPressed: () => _scanner.toggleTorch()),
+          const Padding(padding: EdgeInsets.only(right: 12), child: CircleAvatar(radius: 14, backgroundColor: Color(0xFF1E3A5F), child: Icon(Icons.person, size: 16, color: Colors.white))),
+        ],
       ),
       body: Stack(
         children: [
-          // Overlay sombre + consigne
-          Container(color: Colors.black.withValues(alpha: 0.35)),
+          // Caméra plein écran avec overlay
+          MobileScanner(controller: _scanner, onDetect: _onDetect),
+          Container(color: Colors.black.withValues(alpha: 0.2)),
           Positioned(
             top: 24,
             left: 16,
@@ -101,19 +135,14 @@ class _ScanScreenState extends State<ScanScreen> {
                 const Text('Scannez le QR Code du\ntransporteur pour démarrer\nvotre trajet', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 18),
                 Container(
-                  height: 220,
+                  height: 260,
                   decoration: BoxDecoration(border: Border.all(color: AppTheme.primaryBlue, width: 2), borderRadius: BorderRadius.circular(20)),
-                  child: Stack(children: [
-                    ClipRRect(borderRadius: BorderRadius.circular(18), child: MobileScanner(controller: _scanner, onDetect: _onDetect)),
-                    Positioned.fill(child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white.withValues(alpha: 0.15))))),
-                  ]),
+                  child: ClipRRect(borderRadius: BorderRadius.circular(18), child: Container(color: Colors.transparent)),
                 ),
               ],
             ),
           ),
-          if (_loading)
-            Container(color: Colors.black54, child: const Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue))),
-          // Bottom sheet maquette "Mode scan"
+          if (_loading) Container(color: Colors.black54, child: const Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue))),
           Positioned(
             bottom: 0,
             left: 0,
@@ -122,18 +151,7 @@ class _ScanScreenState extends State<ScanScreen> {
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-              child: Row(
-                children: [
-                  Container(width: 44, height: 44, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.qr_code_scanner, color: AppTheme.primaryBlue)),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Mode scan actif', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-                      Text('Alignez le QR code du transporteur', style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
-                    ]),
-                  ),
-                ],
-              ),
+              child: Row(children: [Container(width: 44, height: 44, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.qr_code_scanner, color: AppTheme.primaryBlue)), const SizedBox(width: 12), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Mode scan actif', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)), Text('Alignez le QR code du transporteur', style: TextStyle(fontSize: 12, color: AppTheme.textGrey))]))]),
             ),
           ),
         ],
