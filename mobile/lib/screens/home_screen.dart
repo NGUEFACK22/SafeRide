@@ -335,26 +335,31 @@ class _PassagerViewState extends State<_PassagerView> {
 
   Future<void> _loadWeather() async {
     try {
-      final permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        final req = await Geolocator.requestPermission();
-        if (req == LocationPermission.denied) {
+      double lat = 3.8480, lng = 11.5021;
+      try {
+        final permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          final req = await Geolocator.requestPermission();
+          if (req == LocationPermission.denied || req == LocationPermission.deniedForever) {
+            if (mounted) setState(() => _weatherLoading = false);
+            return;
+          }
+        } else if (permission == LocationPermission.deniedForever) {
           if (mounted) setState(() => _weatherLoading = false);
           return;
         }
-      }
-      if (permission == LocationPermission.deniedForever) {
-        if (mounted) setState(() => _weatherLoading = false);
-        return;
-      }
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.low,
-          timeLimit: Duration(seconds: 8),
-        ),
-      );
-      final weather = await WeatherService.instance
-          .getCurrentWeather(position.latitude, position.longitude);
+        try {
+          final position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.low, timeLimit: Duration(seconds: 8)),
+          );
+          lat = position.latitude;
+          lng = position.longitude;
+        } catch (_) {
+          final last = await Geolocator.getLastKnownPosition();
+          if (last != null) { lat = last.latitude; lng = last.longitude; }
+        }
+      } catch (_) {}
+      final weather = await WeatherService.instance.getCurrentWeather(lat, lng);
       if (mounted) setState(() { _weather = weather; _weatherLoading = false; });
     } catch (_) {
       if (mounted) setState(() => _weatherLoading = false);
@@ -595,22 +600,31 @@ class _TransporteurViewState extends State<_TransporteurView> {
 
   Future<void> _loadWeather() async {
     try {
-      final permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        final req = await Geolocator.requestPermission();
-        if (req == LocationPermission.denied) {
+      double lat = 3.8480, lng = 11.5021;
+      try {
+        final permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          final req = await Geolocator.requestPermission();
+          if (req == LocationPermission.denied || req == LocationPermission.deniedForever) {
+            if (mounted) setState(() => _weatherLoading = false);
+            return;
+          }
+        } else if (permission == LocationPermission.deniedForever) {
           if (mounted) setState(() => _weatherLoading = false);
           return;
         }
-      }
-      if (permission == LocationPermission.deniedForever) {
-        if (mounted) setState(() => _weatherLoading = false);
-        return;
-      }
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.low, timeLimit: Duration(seconds: 8)),
-      );
-      final weather = await WeatherService.instance.getCurrentWeather(position.latitude, position.longitude);
+        try {
+          final position = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.low, timeLimit: Duration(seconds: 8)),
+          );
+          lat = position.latitude;
+          lng = position.longitude;
+        } catch (_) {
+          final last = await Geolocator.getLastKnownPosition();
+          if (last != null) { lat = last.latitude; lng = last.longitude; }
+        }
+      } catch (_) {}
+      final weather = await WeatherService.instance.getCurrentWeather(lat, lng);
       if (mounted) setState(() { _weather = weather; _weatherLoading = false; });
     } catch (_) {
       if (mounted) setState(() => _weatherLoading = false);

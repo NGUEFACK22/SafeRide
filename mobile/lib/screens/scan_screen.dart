@@ -27,7 +27,6 @@ class _ScanScreenState extends State<ScanScreen> {
   MobileScannerController _scanner = MobileScannerController(
     facing: CameraFacing.back,
     detectionSpeed: DetectionSpeed.noDuplicates,
-    autoStart: false,
   );
 
   @override
@@ -40,13 +39,6 @@ class _ScanScreenState extends State<ScanScreen> {
     final ok = await PermissionService.camera(context);
     if (!mounted) return;
     setState(() { _hasPermission = ok; _permissionChecked = true; _cameraError = null; });
-    if (!ok) return;
-    try {
-      await _scanner.start();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _cameraError = '$e');
-    }
   }
 
   @override
@@ -129,14 +121,7 @@ class _ScanScreenState extends State<ScanScreen> {
                 ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: () async {
-                    setState(() => _cameraError = null);
-                    try {
-                      await _scanner.start();
-                    } catch (e) {
-                      setState(() => _cameraError = '$e');
-                    }
-                  },
+                  onPressed: _initCamera,
                   icon: const Icon(Icons.refresh),
                   label: const Text('Réessayer'),
                 ),
