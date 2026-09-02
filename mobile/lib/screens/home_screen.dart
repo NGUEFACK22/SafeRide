@@ -14,6 +14,7 @@ import '../services/trip_service.dart';
 import '../services/whatsapp_service.dart';
 import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/translate_dialog.dart';
 import 'profile_screen.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -148,28 +149,34 @@ class _HomeScreenState extends State<HomeScreen> {
         centerTitle: true,
         actions: [
           if (_isGuest)
-            Padding(padding: const EdgeInsets.only(right: 12), child: FilledButton(onPressed: () => Navigator.pushNamed(context, '/register'), style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)), child: const Text('S\'inscrire', style: TextStyle(fontSize: 12)))),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(icon: const Icon(Icons.translate, color: AppTheme.primaryBlue), tooltip: 'Traduction EN↔FR', onPressed: () => showDialog(context: context, builder: (_) => const TranslateDialog())),
+              Padding(padding: const EdgeInsets.only(right: 12), child: FilledButton(onPressed: () => Navigator.pushNamed(context, '/register'), style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)), child: const Text('S\'inscrire', style: TextStyle(fontSize: 12)))),
+            ]),
           if (!_isGuest)
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.notifications_outlined, color: AppTheme.textDark),
-                  onPressed: _openNotifications,
-                ),
-                if (_unread > 0)
-                  Positioned(
-                    right: 6,
-                    top: 6,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                      decoration: const BoxDecoration(color: AppTheme.sosRed, shape: BoxShape.circle),
-                      child: Text('$_unread', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 10)),
-                    ),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(icon: const Icon(Icons.translate, color: AppTheme.primaryBlue), tooltip: 'Traduction vocale EN↔FR', onPressed: () => showDialog(context: context, builder: (_) => const TranslateDialog())),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_outlined, color: AppTheme.textDark),
+                    onPressed: _openNotifications,
                   ),
-              ],
-            ),
+                  if (_unread > 0)
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                        decoration: const BoxDecoration(color: AppTheme.sosRed, shape: BoxShape.circle),
+                        child: Text('$_unread', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 10)),
+                      ),
+                    ),
+                ],
+              ),
+            ]),
           if (!_isGuest)
             Padding(
               padding: const EdgeInsets.only(right: 12),
