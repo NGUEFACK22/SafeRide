@@ -26,16 +26,15 @@ import 'screens/admin_screen.dart';
 import 'screens/emergency_contacts_screen.dart';
 import 'theme/app_theme.dart';
 import 'services/auth_service.dart';
+import 'services/language_service.dart';
 import 'services/push_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await LanguageService.instance.init();
   try {
     await Firebase.initializeApp();
-  } catch (_) {
-    // Firebase absent (ex. google-services.json non fourni) : l'app démarre
-    // quand même, le push sera initialisé dès que la configuration existe.
-  }
+  } catch (_) {}
   runApp(const SafeRideApp());
 }
 
@@ -44,12 +43,14 @@ class SafeRideApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SafeRide AI',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      initialRoute: '/',
-      routes: {
+    return AnimatedBuilder(
+      animation: LanguageService.instance,
+      builder: (ctx, _) => MaterialApp(
+        title: 'SafeRide AI',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light,
+        initialRoute: '/',
+        routes: {
         '/': (ctx) => const SplashScreen(),
         '/login': (ctx) => const LoginScreen(),
         '/register': (ctx) => const RegisterScreen(),
@@ -91,6 +92,7 @@ class SafeRideApp extends StatelessWidget {
         },
         '/profile-edit': (ctx) => const ProfileEditScreen(),
       },
+      ),
     );
   }
 }

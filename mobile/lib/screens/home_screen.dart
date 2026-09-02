@@ -8,13 +8,13 @@ import 'package:latlong2/latlong.dart';
 
 import '../models/user.dart';
 import '../services/api_service.dart';
+import '../services/language_service.dart';
 import '../services/push_service.dart';
 import '../services/sos_service.dart';
 import '../services/trip_service.dart';
 import '../services/whatsapp_service.dart';
 import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/translate_dialog.dart';
 import 'profile_screen.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -150,12 +150,12 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           if (_isGuest)
             Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(icon: const Icon(Icons.translate, color: AppTheme.primaryBlue), tooltip: 'Traduction EN↔FR', onPressed: () => showDialog(context: context, builder: (_) => const TranslateDialog())),
-              Padding(padding: const EdgeInsets.only(right: 12), child: FilledButton(onPressed: () => Navigator.pushNamed(context, '/register'), style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)), child: const Text('S\'inscrire', style: TextStyle(fontSize: 12)))),
+              IconButton(icon: Icon(Icons.translate, color: LanguageService.instance.isFr ? AppTheme.primaryBlue : Colors.orange), tooltip: LanguageService.instance.t('translate_tooltip'), onPressed: () async { await LanguageService.instance.toggle(); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Langue : ${LanguageService.instance.t('language')}'))); }),
+              Padding(padding: const EdgeInsets.only(right: 12), child: FilledButton(onPressed: () => Navigator.pushNamed(context, '/register'), style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)), child: Text(LanguageService.instance.isFr ? 'S\'inscrire' : 'Sign up', style: const TextStyle(fontSize: 12)))),
             ]),
           if (!_isGuest)
             Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(icon: const Icon(Icons.translate, color: AppTheme.primaryBlue), tooltip: 'Traduction vocale EN↔FR', onPressed: () => showDialog(context: context, builder: (_) => const TranslateDialog())),
+              IconButton(icon: Icon(Icons.translate, color: LanguageService.instance.isFr ? AppTheme.primaryBlue : Colors.orange), tooltip: LanguageService.instance.t('translate_tooltip'), onPressed: () async { await LanguageService.instance.toggle(); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Langue : ${LanguageService.instance.t('language')}'))); }),
               Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -206,10 +206,10 @@ class _HomeScreenState extends State<HomeScreen> {
         unselectedItemColor: const Color(0xFF9AA0AE),
         type: BottomNavigationBarType.fixed,
         items: [
-          const BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Accueil'),
-          const BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Trajets'),
-          const BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map), label: 'Carte'),
-          const BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profil'),
+          BottomNavigationBarItem(icon: const Icon(Icons.home_outlined), activeIcon: const Icon(Icons.home), label: LanguageService.instance.t('home')),
+          BottomNavigationBarItem(icon: const Icon(Icons.history), label: LanguageService.instance.t('trips')),
+          BottomNavigationBarItem(icon: const Icon(Icons.map_outlined), activeIcon: const Icon(Icons.map), label: LanguageService.instance.t('map')),
+          BottomNavigationBarItem(icon: const Icon(Icons.person_outline), activeIcon: const Icon(Icons.person), label: LanguageService.instance.t('profile')),
         ],
       ),
     );
@@ -495,7 +495,7 @@ class _PassagerViewState extends State<_PassagerView> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                       decoration: BoxDecoration(color: AppTheme.sosRed, borderRadius: BorderRadius.circular(14)),
-                      child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Icon(Icons.sos, color: Colors.white, size: 16),
                         SizedBox(width: 6),
                         FittedBox(child: Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))),
@@ -510,10 +510,10 @@ class _PassagerViewState extends State<_PassagerView> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                       decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)),
-                       child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Icon(Icons.support_agent, size: 18, color: AppTheme.textDark),
                         SizedBox(width: 6),
-                        FittedBox(child: Text('ASSISTANCE', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))),
+                        FittedBox(child: Text(LanguageService.instance.t('assistance'), style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))),
                       ]),
                     ),
                   ),
@@ -674,9 +674,9 @@ class _TransporteurViewState extends State<_TransporteurView> {
           const SizedBox(height: 14),
           IntrinsicHeight(
             child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/sos-button'), child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed, borderRadius: BorderRadius.circular(14)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), FittedBox(child: Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
+              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/sos-button'), child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed, borderRadius: BorderRadius.circular(14)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), FittedBox(child: Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
               const SizedBox(width: 12),
-              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/ai'), child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 18, color: AppTheme.textDark), SizedBox(width: 6), FittedBox(child: Text('ASSISTANCE', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
+              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/ai'), child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 18, color: AppTheme.textDark), SizedBox(width: 6), FittedBox(child: Text(LanguageService.instance.t('assistance'), style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
             ]),
           ),
           const SizedBox(height: 18),
@@ -919,7 +919,7 @@ class _GuestView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Row(children: [Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(14)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: Colors.white)])))), const SizedBox(width: 10), Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade300)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 16, color: AppTheme.textGrey), SizedBox(width: 6), Text('ASSISTANCE', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: AppTheme.textGrey)]))))]),
+          Row(children: [Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(14)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: Colors.white)])))), const SizedBox(width: 10), Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade300)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 16, color: AppTheme.textGrey), SizedBox(width: 6), Text(LanguageService.instance.t('assistance'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: AppTheme.textGrey)]))))]),
           const SizedBox(height: 18),
           const Text('Aperçu des services', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 10),
