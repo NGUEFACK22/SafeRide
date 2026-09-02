@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/error_helper.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -156,7 +157,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _status = '');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

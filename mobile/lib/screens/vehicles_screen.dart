@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../utils/error_helper.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../services/api_service.dart';
@@ -39,7 +40,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -124,7 +125,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
+        SnackBar(content: Text(friendlyError(e))),
       );
     }
   }
@@ -139,7 +140,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
+        SnackBar(content: Text(friendlyError(e))),
       );
       return;
     }
@@ -341,7 +342,7 @@ class _QrDialogState extends State<_QrDialog> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }

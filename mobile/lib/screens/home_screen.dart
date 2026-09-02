@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../utils/error_helper.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -110,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('SOS manuel déclenché ✓ — contacts notifiés'), backgroundColor: AppTheme.sosRed, duration: Duration(seconds: 4)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('SOS échoué: $e'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
     }
   }
 
@@ -198,10 +199,10 @@ class _HomeScreenState extends State<HomeScreen> {
         unselectedItemColor: const Color(0xFF9AA0AE),
         type: BottomNavigationBarType.fixed,
         items: [
-          const BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),
-          const BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Trips'),
+          const BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Accueil'),
+          const BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Trajets'),
           const BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map), label: 'Carte'),
-          const BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profile'),
+          const BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profil'),
         ],
       ),
     );
@@ -502,10 +503,10 @@ class _PassagerViewState extends State<_PassagerView> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                       decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)),
-                      child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                       child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                         Icon(Icons.support_agent, size: 18, color: AppTheme.textDark),
                         SizedBox(width: 6),
-                        FittedBox(child: Text('SUPPORT', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))),
+                        FittedBox(child: Text('ASSISTANCE', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))),
                       ]),
                     ),
                   ),
@@ -668,7 +669,7 @@ class _TransporteurViewState extends State<_TransporteurView> {
             child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/sos-button'), child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed, borderRadius: BorderRadius.circular(14)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), FittedBox(child: Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
               const SizedBox(width: 12),
-              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/ai'), child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 18, color: AppTheme.textDark), SizedBox(width: 6), FittedBox(child: Text('SUPPORT', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
+              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/ai'), child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 18, color: AppTheme.textDark), SizedBox(width: 6), FittedBox(child: Text('ASSISTANCE', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
             ]),
           ),
           const SizedBox(height: 18),
@@ -779,7 +780,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> {
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() { _loading = false; _error = e.toString(); });
+      setState(() { _loading = false; _error = friendlyError(e); });
     }
   }
 
@@ -911,7 +912,7 @@ class _GuestView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Row(children: [Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(14)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: Colors.white)])))), const SizedBox(width: 10), Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade300)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 16, color: AppTheme.textGrey), SizedBox(width: 6), Text('SUPPORT', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: AppTheme.textGrey)]))))]),
+          Row(children: [Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(14)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: Colors.white)])))), const SizedBox(width: 10), Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade300)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 16, color: AppTheme.textGrey), SizedBox(width: 6), Text('ASSISTANCE', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: AppTheme.textGrey)]))))]),
           const SizedBox(height: 18),
           const Text('Aperçu des services', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 10),

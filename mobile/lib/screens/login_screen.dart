@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_helper.dart';
 import '../widgets/google_sign_in_button.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -35,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
+        SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _loading = false);

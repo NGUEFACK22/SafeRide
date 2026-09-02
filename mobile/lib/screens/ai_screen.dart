@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/error_helper.dart';
 
 import '../services/ai_service.dart';
 
@@ -55,7 +56,7 @@ class _AiScreenState extends State<AiScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

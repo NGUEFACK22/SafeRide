@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/error_helper.dart';
 
 import '../models/trip.dart';
 import '../services/trip_service.dart';
@@ -39,7 +40,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = friendlyError(e);
         _loading = false;
       });
     }

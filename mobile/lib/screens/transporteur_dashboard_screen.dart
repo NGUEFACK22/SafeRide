@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/error_helper.dart';
 
 import '../services/transporteur_service.dart';
 import '../widgets/rating_stars.dart';
@@ -37,7 +38,7 @@ class _TransporteurDashboardScreenState extends State<TransporteurDashboardScree
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = friendlyError(e);
         _loading = false;
       });
     }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/error_helper.dart';
 
 import '../models/trip.dart';
 import '../services/rating_service.dart';
@@ -59,7 +60,7 @@ class _RatingScreenState extends State<RatingScreen> {
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

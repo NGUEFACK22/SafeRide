@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/error_helper.dart';
 
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
@@ -43,7 +44,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -89,7 +90,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
+        SnackBar(content: Text(friendlyError(e))),
       );
     }
   }
@@ -237,7 +238,7 @@ class _ContactFormDialogState extends State<_ContactFormDialog> {
       if (!mounted) return;
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
+        SnackBar(content: Text(friendlyError(e))),
       );
     }
   }

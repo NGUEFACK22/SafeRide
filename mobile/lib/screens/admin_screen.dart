@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/error_helper.dart';
 
 import '../services/api_service.dart';
 
@@ -65,7 +66,7 @@ class _DashboardTabState extends State<_DashboardTab> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = friendlyError(e));
     }
   }
 
@@ -150,7 +151,7 @@ class _UsersTabState extends State<_UsersTab> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -163,7 +164,7 @@ class _UsersTabState extends State<_UsersTab> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
+        SnackBar(content: Text(friendlyError(e))),
       );
     }
   }
@@ -332,7 +333,7 @@ class _ManagersTabState extends State<_ManagersTab> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = friendlyError(e));
     }
   }
 
@@ -472,7 +473,7 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
       if (!mounted) return;
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
+        SnackBar(content: Text(friendlyError(e))),
       );
     }
   }

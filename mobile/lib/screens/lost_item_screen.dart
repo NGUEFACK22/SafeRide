@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../utils/error_helper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -74,7 +75,7 @@ class _LostReportsTabState extends State<_LostReportsTab> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -91,7 +92,7 @@ class _LostReportsTabState extends State<_LostReportsTab> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
+        SnackBar(content: Text(friendlyError(e))),
       );
     }
   }
@@ -284,7 +285,7 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
         return sReq.isGranted;
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur permission: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       return false;
     }
   }
@@ -302,7 +303,7 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Caméra/Galerie indisponible: $e'), backgroundColor: Colors.red, action: SnackBarAction(label: 'Réessayer', onPressed: () => _pickImage(source))));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red, action: SnackBarAction(label: 'Réessayer', onPressed: () => _pickImage(source))));
     }
   }
 
@@ -358,7 +359,7 @@ class _LostItemFormTabState extends State<_LostItemFormTab> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
+        SnackBar(content: Text(friendlyError(e))),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);

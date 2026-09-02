@@ -6,6 +6,7 @@ import '../models/trip.dart';
 import '../services/api_service.dart';
 import '../services/permission_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/error_helper.dart';
 import 'course_confirm_screen.dart';
 
 class ScanScreen extends StatefulWidget {
@@ -84,7 +85,7 @@ class _ScanScreenState extends State<ScanScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
+        SnackBar(content: Text(friendlyError(e))),
       );
       await _scanner.start();
       if (mounted) setState(() => _loading = false);

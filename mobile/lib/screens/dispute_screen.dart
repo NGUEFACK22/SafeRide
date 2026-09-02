@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../utils/error_helper.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../config/api_config.dart';
@@ -180,7 +181,7 @@ class _UnifiedLitigesTabState extends State<_UnifiedLitigesTab> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = friendlyError(e);
         _loading = false;
       });
     }
@@ -535,7 +536,7 @@ class _CreateTabState extends State<_CreateTab> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
+        SnackBar(content: Text(friendlyError(e))),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);

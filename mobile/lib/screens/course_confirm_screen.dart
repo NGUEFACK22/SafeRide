@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/error_helper.dart';
 
 import '../models/trip.dart';
 import '../services/trip_service.dart';
@@ -36,7 +37,7 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
       Navigator.of(context).pushReplacementNamed('/trip-active', arguments: trip);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       setState(() => _loading = false);
     }
   }

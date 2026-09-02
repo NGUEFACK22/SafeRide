@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../utils/error_helper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -89,7 +90,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
         return false;
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur permission: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       return false;
     }
   }
@@ -101,7 +102,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
       if (picked != null && mounted) setState(() => _recto = picked);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Caméra indisponible: $e'), backgroundColor: Colors.red, action: SnackBarAction(label: 'Galerie', onPressed: () => _pickRecto(ImageSource.gallery))));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red, action: SnackBarAction(label: 'Galerie', onPressed: () => _pickRecto(ImageSource.gallery))));
     }
   }
 
@@ -112,7 +113,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
       if (picked != null && mounted) setState(() => _verso = picked);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Caméra indisponible: $e'), backgroundColor: Colors.red, action: SnackBarAction(label: 'Galerie', onPressed: () => _pickVerso(ImageSource.gallery))));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red, action: SnackBarAction(label: 'Galerie', onPressed: () => _pickVerso(ImageSource.gallery))));
     }
   }
 
@@ -189,7 +190,7 @@ class _IdentityScreenState extends State<IdentityScreen> {
     } on ApiException catch (e) {
       if (mounted) setState(() {_error = true; _message = e.message;});
     } catch (e) {
-      if (mounted) setState(() {_error = true; _message = 'Erreur réseau : $e';});
+      if (mounted) setState(() {_error = true; _message = friendlyError(e);});
     } finally {
       if (mounted) setState(() => _loading = false);
     }
