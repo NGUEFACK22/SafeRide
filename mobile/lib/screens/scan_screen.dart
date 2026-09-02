@@ -23,6 +23,7 @@ class _ScanScreenState extends State<ScanScreen> {
   bool _loading = false;
   bool _hasPermission = false;
   bool _permissionChecked = false;
+  String? _cameraError;
 
   @override
   void initState() {
@@ -38,9 +39,14 @@ class _ScanScreenState extends State<ScanScreen> {
   Future<void> _checkPermission() async {
     final ok = await PermissionService.camera(context);
     if (!mounted) return;
-    setState(() { _hasPermission = ok; _permissionChecked = true; });
+    setState(() { _hasPermission = ok; _permissionChecked = true; _cameraError = null; });
     if (ok) {
-      try { await _scanner.start(); } catch (_) {}
+      try {
+        await _scanner.start();
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _cameraError = 'Caméra indisponible: $e — vérifiez qu\'aucune autre app n\'utilise la caméra');
+      }
     }
   }
 
@@ -142,8 +148,16 @@ class _ScanScreenState extends State<ScanScreen> {
       body: Stack(
         children: [
           // Caméra plein écran avec overlay
-          MobileScanner(controller: _scanner, onDetect: _onDetect),
-          Container(color: Colors.black.withValues(alpha: 0.2)),
+          SizedBox.expand(
+            child: _cameraError != null
+                ? Container(color: Colors.black, child: Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.videocam_off, size: 48, color: Colors.white70), const SizedBox(height: 12), Text(_cameraError!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white)), const SizedBox(height: 12), FilledButton.icon(onPressed: _checkPermission, icon: const Icon(Icons.refresh), label: const Text('Réessayer'))]))))
+                : MobileScanner(
+                    controller: _scanner,
+                    onDetect: _onDetect,
+                    errorBuilder: (ctx, err, __) => Container(color: Colors.black, child: Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.error_outline, size: 48, color: Colors.white70), const SizedBox(height: 12), Text('Erreur caméra: ${err.errorDetails?.message ?? err.errorCode}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white)), const SizedBox(height: 12), FilledButton.icon(onPressed: _checkPermission, icon: const Icon(Icons.refresh), label: const Text('Réessayer'))])))),
+                  ),
+          ),
+          if (_cameraError == null) Container(color: Colors.black.withValues(alpha: 0.12)),
           Positioned(
             top: 24,
             left: 16,
