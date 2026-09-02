@@ -623,8 +623,17 @@ class TripController extends Controller
             return null;
         }
 
-        $payload = base64_decode($token);
-        $parts = explode('.', $payload, 2);
+        // Compatibilité : les QR régénérés après un scan sont des hex purs (bin2hex 16)
+        // sans signature — les accepter si présents en base
+        if (preg_match('/^[a-f0-9]{32}$/i', $token)) {
+            return $qr;
+        }
+
+        $decoded = base64_decode($token, true);
+        if ($decoded === false) {
+            return null;
+        }
+        $parts = explode('.', $decoded, 2);
         if (count($parts) !== 2) {
             return null;
         }
