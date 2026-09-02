@@ -42,7 +42,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _fieldsLoading = true;
   bool _saving = false;
 
-  bool _animateEntry = false;
+  bool _animateEntry = true; // animation désactivée à la demande
 
   // Voix — empreinte vocale 3 prises
   final _voiceprint = VoiceprintService();
