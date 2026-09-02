@@ -123,7 +123,7 @@ class _LostReportsTabState extends State<_LostReportsTab> {
             margin: const EdgeInsets.symmetric(vertical: 4),
             child: ListTile(
               leading: hasImage
-                  ? ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network('${ApiConfig.baseUrl.replaceAll('/api/v1', '')}/storage/${report['image_url']}', width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(Icons.work_outline, color: color)))
+                  ? ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network('${ApiConfig.baseUrl.replaceAll('/api/v1', '')}/storage/${report['image_url']}', width: 44, height: 44, fit: BoxFit.cover, errorBuilder: (_, _, _) => Icon(Icons.work_outline, color: color)))
                   : Icon(Icons.work_outline, color: color),
               title: Text(report['objet'] ?? 'Objet'),
               subtitle: Text(

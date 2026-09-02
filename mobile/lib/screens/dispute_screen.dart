@@ -359,7 +359,7 @@ class _DossierDetailSheet extends StatelessWidget {
                   height: 150,
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
+                  errorBuilder: (_, _, _) =>
                       const Icon(Icons.broken_image, size: 48),
                 ),
               ),

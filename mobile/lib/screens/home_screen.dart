@@ -106,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final data = await SosService().triggerButton(trip.id, pos.latitude, pos.longitude);
       final sms = data['sms_message'] as String?;
       final contacts = data['emergency_contacts'] as List<dynamic>? ?? [];
-      final phones = contacts.map((c) => ((c['whatsapp_telephone'] as String?)?.trim().isNotEmpty == true ? c['whatsapp_telephone'] : c['telephone']) as String?).where((p) => p != null && p!.isNotEmpty).cast<String>().toList();
+      final phones = contacts.map((c) => ((c['whatsapp_telephone'] as String?)?.trim().isNotEmpty == true ? c['whatsapp_telephone'] : c['telephone']) as String?).where((p) => p != null && p.isNotEmpty).cast<String>().toList();
       if (phones.isNotEmpty && sms != null) await WhatsAppService.instance.sendBulk(phones, sms);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LanguageService.instance.t('sos_triggered')), backgroundColor: AppTheme.sosRed, duration: Duration(seconds: 4)));
@@ -264,10 +264,12 @@ class _LocationPreviewState extends State<_LocationPreview> {
         if (mounted) setState(() { _userLocation = LatLng(pos.latitude, pos.longitude); _loading = false; });
       } catch (_) {
         final last = await Geolocator.getLastKnownPosition();
-        if (mounted) setState(() {
-          _userLocation = last != null ? LatLng(last.latitude, last.longitude) : null;
-          _loading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _userLocation = last != null ? LatLng(last.latitude, last.longitude) : null;
+            _loading = false;
+          });
+        }
       }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
@@ -937,7 +939,7 @@ class _GuestView extends StatelessWidget {
           const SizedBox(height: 18),
           Text(LanguageService.instance.t('services_preview'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 10),
-          _guestCard(Icons.trip_origin, LanguageService.instance.t('trip'), LanguageService.instance.t('trip_tracking') + ' + SOS', onAction),
+          _guestCard(Icons.trip_origin, LanguageService.instance.t('trip'), '${LanguageService.instance.t('trip_tracking')} + SOS', onAction),
           const SizedBox(height: 8),
           _guestCard(Icons.gavel_outlined, LanguageService.instance.t('dispute'), LanguageService.instance.t('lost_and_sos'), onAction),
           const SizedBox(height: 8),

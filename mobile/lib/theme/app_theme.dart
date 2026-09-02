@@ -22,7 +22,6 @@ class AppTheme {
       seedColor: primaryBlue,
       primary: primaryBlue,
       surface: Colors.white,
-      background: background,
     );
 
     return ThemeData(

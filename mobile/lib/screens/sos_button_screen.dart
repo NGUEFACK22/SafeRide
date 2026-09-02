@@ -108,6 +108,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     }
     // Demander la permission microphone avant l'enrôlement
     if (!await PermissionService.microphone(context)) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Permission microphone requise pour l\'enrôlement vocal')));
       return;
     }

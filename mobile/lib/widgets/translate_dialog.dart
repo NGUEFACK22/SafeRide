@@ -33,9 +33,16 @@ class _TranslateDialogState extends State<TranslateDialog> {
   Future<void> _listen() async {
     if (_listening) { await _stt.stop(); setState(() => _listening = false); return; }
     final avail = await _stt.initialize();
-    if (!avail) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Micro indisponible'))); return; }
+    if (!avail) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Micro indisponible')));
+      return;
+    }
     setState(() => _listening = true);
-    await _stt.listen(localeId: _from == 'fr' ? 'fr_FR' : 'en_US', onResult: (r) => setState(() => _controller.text = r.recognizedWords));
+    await _stt.listen(
+      listenOptions: stt.SpeechListenOptions(localeId: _from == 'fr' ? 'fr_FR' : 'en_US'),
+      onResult: (r) => setState(() => _controller.text = r.recognizedWords),
+    );
     _stt.statusListener = (s) { if (s == 'notListening' && mounted) setState(() => _listening = false); };
   }
 

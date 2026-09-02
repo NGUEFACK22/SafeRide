@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:onnxruntime/onnxruntime.dart' as ort;
 import 'package:path_provider/path_provider.dart';
@@ -42,16 +42,16 @@ class VoiceprintService {
       ByteData data;
       try {
         data = await rootBundle.load(modelAssetInt8);
-        print('[Voiceprint] chargement quantifié int8 (${data.lengthInBytes/1e6} MB)');
+        debugPrint('[Voiceprint] chargement quantifié int8 (${data.lengthInBytes/1e6} MB)');
       } catch (_) {
         data = await rootBundle.load(modelAsset);
-        print('[Voiceprint] chargement FP32 (${data.lengthInBytes/1e6} MB)');
+        debugPrint('[Voiceprint] chargement FP32 (${data.lengthInBytes/1e6} MB)');
       }
       final options = ort.OrtSessionOptions()..setIntraOpNumThreads(1);
       _session = ort.OrtSession.fromBuffer(data.buffer.asUint8List(), options);
       _loaded = true;
     } catch (e) {
-      print('[Voiceprint] ensureLoaded échec: $e');
+      debugPrint('[Voiceprint] ensureLoaded échec: $e');
       _loaded = false;
     }
     _loading = false;
@@ -70,9 +70,9 @@ class VoiceprintService {
       final opts = ort.OrtSessionOptions()..setIntraOpNumThreads(1);
       _vadSession = ort.OrtSession.fromBuffer(data.buffer.asUint8List(), opts);
       _vadLoaded = true;
-      print('[VAD] silero_vad chargé: inputs=${_vadSession!.inputNames} outputs=${_vadSession!.outputNames}');
+      debugPrint('[VAD] silero_vad chargé: inputs=${_vadSession!.inputNames} outputs=${_vadSession!.outputNames}');
     } catch (e) {
-      print('[VAD] échec chargement silero: $e');
+      debugPrint('[VAD] échec chargement silero: $e');
       _vadLoaded = false;
     }
     _vadLoading = false;
@@ -88,7 +88,7 @@ class VoiceprintService {
       try {
         return await _sileroFilter(pcm);
       } catch (e) {
-        print('[VAD] sileroFilter échec fallback énergie: $e');
+        debugPrint('[VAD] sileroFilter échec fallback énergie: $e');
       }
     }
     return _energyVadFilter(pcm);
@@ -106,7 +106,9 @@ class VoiceprintService {
     // Détection nommage : input / sr / h / c ou variantes
     String findInput(List<String> names, List<String> candidates) {
       for (final cand in candidates) {
-        for (final n in names) if (n.toLowerCase().contains(cand)) return n;
+        for (final n in names) {
+        if (n.toLowerCase().contains(cand)) return n;
+      }
       }
       return names.first;
     }
@@ -117,7 +119,9 @@ class VoiceprintService {
 
     for (int off = 0; off + win <= pcm.length; off += win) {
       final chunk = Float32List(win);
-      for (int i = 0; i < win; i++) chunk[i] = pcm[off + i] / 32768.0;
+      for (int i = 0; i < win; i++) {
+        chunk[i] = pcm[off + i] / 32768.0;
+      }
       final inputs = <String, ort.OrtValue>{};
       inputs[inAudio] = ort.OrtValueTensor.createTensorWithDataList([chunk], [1, win]);
       if (inSr.isNotEmpty) inputs[inSr] = ort.OrtValueTensor.createTensorWithDataList([sr], [1]);
@@ -156,7 +160,13 @@ class VoiceprintService {
   Float32List _flattenToFloat32(dynamic v) {
     final flat = <double>[];
     void rec(dynamic x) {
-      if (x is List) { for (final e in x) rec(e); } else if (x is num) flat.add(x.toDouble());
+      if (x is List) {
+        for (final e in x) {
+          rec(e);
+        }
+      } else if (x is num) {
+        flat.add(x.toDouble());
+      }
     }
     rec(v);
     return Float32List.fromList(flat);
@@ -240,10 +250,10 @@ class VoiceprintService {
         _session!.outputNames,
       );
       final emb = _flattenEmbedding(outputs);
-      print('[Voiceprint] stopAndEmbed ${useSamples.length} samples (${_samples.length} bruts) → ${emb?.length} dim');
+      debugPrint('[Voiceprint] stopAndEmbed ${useSamples.length} samples (${_samples.length} bruts) → ${emb?.length} dim');
       return emb;
     } catch (e) {
-      print('[Voiceprint] stopAndEmbed échec: $e');
+      debugPrint('[Voiceprint] stopAndEmbed échec: $e');
       return null;
     }
   }
@@ -273,15 +283,17 @@ class VoiceprintService {
     final filtered = await _applyVad(samples);
     final useSamples = filtered.length >= sampleRate ? filtered : samples;
     final input = Float32List(useSamples.length);
-    for (var i = 0; i < useSamples.length; i++) input[i] = useSamples[i] / 32768.0;
+    for (var i = 0; i < useSamples.length; i++) {
+      input[i] = useSamples[i] / 32768.0;
+    }
     try {
       final tensor = ort.OrtValueTensor.createTensorWithDataList([input], [1, input.length]);
       final outputs = _session!.run(ort.OrtRunOptions(), {_session!.inputNames.first: tensor}, _session!.outputNames);
       final emb = _flattenEmbedding(outputs);
-      print('[Voiceprint] wav ${useSamples.length}/${samples.length} samples → ${emb?.length} dim');
+      debugPrint('[Voiceprint] wav ${useSamples.length}/${samples.length} samples → ${emb?.length} dim');
       return emb;
     } catch (e) {
-      print('[Voiceprint] embeddingFromWavBytes échec: $e');
+      debugPrint('[Voiceprint] embeddingFromWavBytes échec: $e');
       return null;
     }
   }
@@ -353,7 +365,7 @@ class VoiceprintService {
       await file.writeAsBytes(wav);
       return file.path;
     } catch (e) {
-      print('[Voiceprint] save wav échec: $e');
+      debugPrint('[Voiceprint] save wav échec: $e');
       return null;
     }
   }
@@ -439,10 +451,14 @@ class VoiceprintService {
     }
     // Normalisation L2 pour que cosine = dot product
     double norm = 0;
-    for (final v in avg) norm += v * v;
+    for (final v in avg) {
+      norm += v * v;
+    }
     norm = math.sqrt(norm);
     if (norm > 0) {
-      for (int i = 0; i < dim; i++) avg[i] /= norm;
+      for (int i = 0; i < dim; i++) {
+        avg[i] /= norm;
+      }
     }
     return avg;
   }
@@ -474,7 +490,9 @@ class VoiceprintService {
   Future<List<double>?> _embeddingForSamples(List<int> samples) async {
     if (samples.length < sampleRate) return null;
     final input = Float32List(samples.length);
-    for (int i = 0; i < samples.length; i++) input[i] = samples[i] / 32768.0;
+    for (int i = 0; i < samples.length; i++) {
+      input[i] = samples[i] / 32768.0;
+    }
     try {
       final tensor = ort.OrtValueTensor.createTensorWithDataList([input], [1, input.length]);
       final outs = _session!.run(ort.OrtRunOptions(), {_session!.inputNames.first: tensor}, _session!.outputNames);

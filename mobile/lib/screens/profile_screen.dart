@@ -48,7 +48,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _voiceprint = VoiceprintService();
   bool _voiceEnrolled = false;
   bool _voiceActive = false;
-  bool _voiceLoading = true;
   bool _voiceEnrolling = false;
   String _voiceProgress = '';
   bool _voiceAvailable = false;
@@ -115,11 +114,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _voiceEnrolled = vp?['enrolled'] == true;
         _voiceActive = vp?['actif'] == true;
         _fieldsLoading = false;
-        _voiceLoading = false;
       });
       _voiceprint.ensureLoaded().then((ok) { if (mounted) setState(() => _voiceAvailable = ok); });
     } catch (_) {
-      if (mounted) setState(() { _fieldsLoading = false; _voiceLoading = false; });
+      if (mounted) setState(() { _fieldsLoading = false; });
     }
   }
 
@@ -213,10 +211,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         throw Exception('bytes vides');
       }
     } catch (_) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fichier illisible'), backgroundColor: Colors.red));
       return;
     }
     if (bytes.length < 32000) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fichier trop court (<2s) — enregistrez 30s WAV mono 16kHz'), backgroundColor: Colors.red));
       return;
     }
@@ -651,6 +651,7 @@ class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
         setState(() => _playing = true);
         _player.playerStateStream.listen((s) { if (s.processingState == ProcessingState.completed) setState(() => _playing = false); });
       } catch (_) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lecture impossible')));
       }
     }

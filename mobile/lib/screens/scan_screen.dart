@@ -24,7 +24,7 @@ class _ScanScreenState extends State<ScanScreen> {
   bool _permissionChecked = false;
   String? _cameraError;
 
-  MobileScannerController _scanner = MobileScannerController(
+  final MobileScannerController _scanner = MobileScannerController(
     facing: CameraFacing.back,
     detectionSpeed: DetectionSpeed.noDuplicates,
   );

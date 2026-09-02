@@ -322,6 +322,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
         return;
       }
       // Demander permission microphone
+      if (!mounted) return;
       if (!await PermissionService.microphone(context)) {
         if (mounted) setState(() => _voiceStatus = 'Permission microphone refusée');
         return;
