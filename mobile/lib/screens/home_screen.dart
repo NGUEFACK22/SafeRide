@@ -8,6 +8,9 @@ import 'package:latlong2/latlong.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/push_service.dart';
+import '../services/sos_service.dart';
+import '../services/trip_service.dart';
+import '../services/whatsapp_service.dart';
 import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
 import 'profile_screen.dart';
@@ -73,6 +76,42 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _triggerManualSos() async {
+    if (_isGuest) { _requireAuth(); return; }
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(children: [Icon(Icons.warning, color: AppTheme.sosRed), SizedBox(width: 8), Text('SOS URGENCE')]),
+        content: const Text('Déclencher une alerte SOS manuelle ?\nVos contacts d\'urgence, le gestionnaire et les services seront notifiés avec votre position.'),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')), FilledButton(style: FilledButton.styleFrom(backgroundColor: AppTheme.sosRed), onPressed: () => Navigator.pop(ctx, true), child: const Text('Déclencher SOS'))],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      final trip = await TripService().currentTrip();
+      if (trip == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucun trajet actif — scannez le QR pour démarrer un trajet'), backgroundColor: Colors.orange));
+        Navigator.pushNamed(context, '/trip-active');
+        return;
+      }
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) throw Exception('Permission localisation refusée');
+      final pos = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+      final data = await SosService().triggerButton(trip.id, pos.latitude, pos.longitude);
+      final sms = data['sms_message'] as String?;
+      final contacts = data['emergency_contacts'] as List<dynamic>? ?? [];
+      final phones = contacts.map((c) => ((c['whatsapp_telephone'] as String?)?.trim().isNotEmpty == true ? c['whatsapp_telephone'] : c['telephone']) as String?).where((p) => p != null && p!.isNotEmpty).cast<String>().toList();
+      if (phones.isNotEmpty && sms != null) await WhatsAppService.instance.sendBulk(phones, sms);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('SOS manuel déclenché ✓ — contacts notifiés'), backgroundColor: AppTheme.sosRed, duration: Duration(seconds: 4)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('SOS échoué: $e'), backgroundColor: Colors.red));
+    }
   }
 
   Widget _buildBody() {
@@ -141,6 +180,15 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _triggerManualSos,
+        backgroundColor: AppTheme.sosRed,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.sos),
+        label: const Text('SOS', style: TextStyle(fontWeight: FontWeight.w800)),
+        tooltip: 'SOS manuel — appui pour déclencher',
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       body: _buildBody(),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
