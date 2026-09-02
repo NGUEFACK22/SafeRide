@@ -60,15 +60,19 @@ class TripController extends Controller
             return response()->json(['message' => 'Le transporteur est suspendu. Trajet impossible.'], 403);
         }
 
-        // Vérification de proximité GPS : le passager doit se trouver à ±50m du véhicule
+        // Vérification de proximité GPS : ±50m si position véhicule connue et fraîche
         $proximity = $this->checkProximity($data['latitude'], $data['longitude'], $vehicle);
 
-        if (! $proximity['ok']) {
+        if (! $proximity['ok'] && ($proximity['verified'] ?? false)) {
             return response()->json([
                 'message' => 'Proximité non vérifiée : vous devez être à proximité immédiate du véhicule pour scanner.',
                 'distance_m' => $proximity['distance_m'],
                 'max_distance_m' => $proximity['max_distance_m'],
             ], 422);
+        }
+        // Si position véhicule inconnue/périmée, on autorise le scan (mode test) mais on log
+        if (! ($proximity['verified'] ?? false)) {
+            \Log::info('Scan proximité non vérifiée (véhicule sans position fraîche) — autorisé en mode test', ['vehicle_id' => $vehicle->id, 'reason' => $proximity['reason'] ?? 'unknown']);
         }
 
         try {
