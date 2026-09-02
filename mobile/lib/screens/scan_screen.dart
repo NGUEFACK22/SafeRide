@@ -26,8 +26,12 @@ class _ScanScreenState extends State<ScanScreen> {
 
   final MobileScannerController _scanner = MobileScannerController(
     facing: CameraFacing.back,
-    detectionSpeed: DetectionSpeed.noDuplicates,
+    detectionSpeed: DetectionSpeed.normal,
   );
+
+  /// Anti-rebond : évite de re-déclencher l'API à chaque frame si le QR
+  /// reste dans le champ de la caméra après un échec.
+  DateTime _lastAttempt = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
@@ -49,10 +53,12 @@ class _ScanScreenState extends State<ScanScreen> {
 
   Future<void> _onDetect(BarcodeCapture capture) async {
     if (_loading) return;
+    if (DateTime.now().difference(_lastAttempt) < const Duration(seconds: 2)) return;
     final barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
     final code = barcodes.first.rawValue;
     if (code == null || code.isEmpty) return;
+    _lastAttempt = DateTime.now();
     await _startTripWithToken(code);
   }
 
@@ -134,6 +140,33 @@ class _ScanScreenState extends State<ScanScreen> {
     return MobileScanner(
       controller: _scanner,
       onDetect: _onDetect,
+      errorBuilder: (context, error, child) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _cameraError == null) {
+            setState(() => _cameraError = error.errorCode.name);
+          }
+        });
+        return Container(
+          color: Colors.black,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.videocam_off, size: 48, color: Colors.white70),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Erreur caméra: ${error.errorCode.name}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
