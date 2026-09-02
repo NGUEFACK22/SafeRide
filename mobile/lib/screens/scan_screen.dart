@@ -19,7 +19,7 @@ class ScanScreen extends StatefulWidget {
 
 class _ScanScreenState extends State<ScanScreen> {
   final _api = ApiService();
-  late final MobileScannerController _scanner;
+  MobileScannerController? _scanner;
   bool _loading = false;
   bool _hasPermission = false;
   bool _permissionChecked = false;
@@ -28,36 +28,29 @@ class _ScanScreenState extends State<ScanScreen> {
   @override
   void initState() {
     super.initState();
-    _scanner = MobileScannerController(
-      facing: CameraFacing.back,
-      detectionSpeed: DetectionSpeed.noDuplicates,
-      torchEnabled: false,
-    );
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkPermission());
   }
 
   Future<void> _checkPermission() async {
     final ok = await PermissionService.camera(context);
     if (!mounted) return;
-    setState(() { _hasPermission = ok; _permissionChecked = true; _cameraError = null; });
     if (ok) {
       try {
-        await _scanner.start();
+        final controller = MobileScannerController(facing: CameraFacing.back, detectionSpeed: DetectionSpeed.noDuplicates);
+        setState(() { _hasPermission = true; _permissionChecked = true; _scanner = controller; _cameraError = null; });
       } catch (e) {
-        if (!mounted) return;
-        setState(() => _cameraError = 'Caméra indisponible: $e — vérifiez qu\'aucune autre app n\'utilise la caméra');
+        setState(() { _hasPermission = true; _permissionChecked = true; _cameraError = 'Caméra indisponible: $e'; });
       }
+    } else {
+      setState(() { _hasPermission = false; _permissionChecked = true; });
     }
   }
 
   @override
   void dispose() {
-    _manualController.dispose();
-    _scanner.dispose();
+    _scanner?.dispose();
     super.dispose();
   }
-
-  final _manualController = TextEditingController();
 
   Future<void> _onDetect(BarcodeCapture capture) async {
     if (_loading) return;
@@ -71,7 +64,6 @@ class _ScanScreenState extends State<ScanScreen> {
   Future<void> _startTripWithToken(String code) async {
     if (code.trim().isEmpty) return;
     setState(() => _loading = true);
-    await _scanner.stop();
     try {
       // Localisation avec fallback pour éviter "An unexpected error"
       double lat = 3.8480, lng = 11.5021; // Yaoundé fallback
@@ -108,9 +100,8 @@ class _ScanScreenState extends State<ScanScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
+        SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
       );
-      await _scanner.start();
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -141,7 +132,7 @@ class _ScanScreenState extends State<ScanScreen> {
         title: Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
         centerTitle: true,
         actions: [
-          IconButton(icon: Icon(Icons.flash_on, color: Colors.white), tooltip: LanguageService.instance.t('torch'), onPressed: () => _scanner.toggleTorch()),
+          IconButton(icon: const Icon(Icons.flash_on, color: Colors.white), tooltip: LanguageService.instance.t('torch'), onPressed: () => _scanner?.toggleTorch()),
           const Padding(padding: EdgeInsets.only(right: 12), child: CircleAvatar(radius: 14, backgroundColor: Color(0xFF1E3A5F), child: Icon(Icons.person, size: 16, color: Colors.white))),
         ],
       ),
@@ -151,11 +142,13 @@ class _ScanScreenState extends State<ScanScreen> {
           SizedBox.expand(
             child: _cameraError != null
                 ? Container(color: Colors.black, child: Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.videocam_off, size: 48, color: Colors.white70), const SizedBox(height: 12), Text(_cameraError!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white)), const SizedBox(height: 12), FilledButton.icon(onPressed: _checkPermission, icon: const Icon(Icons.refresh), label: const Text('Réessayer'))]))))
-                : MobileScanner(
-                    controller: _scanner,
-                    onDetect: _onDetect,
-                    errorBuilder: (ctx, err, __) => Container(color: Colors.black, child: Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.error_outline, size: 48, color: Colors.white70), const SizedBox(height: 12), Text('Erreur caméra: ${err.errorDetails?.message ?? err.errorCode}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white)), const SizedBox(height: 12), FilledButton.icon(onPressed: _checkPermission, icon: const Icon(Icons.refresh), label: const Text('Réessayer'))])))),
-                  ),
+                : _scanner == null
+                    ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                    : MobileScanner(
+                        controller: _scanner!,
+                        onDetect: _onDetect,
+                        errorBuilder: (ctx, err, __) => Container(color: Colors.black, child: Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.error_outline, size: 48, color: Colors.white70), const SizedBox(height: 12), Text('Erreur caméra: ${err.errorDetails?.message ?? err.errorCode}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white)), const SizedBox(height: 12), FilledButton.icon(onPressed: _checkPermission, icon: const Icon(Icons.refresh), label: const Text('Réessayer'))])))),
+                      ),
           ),
           if (_cameraError == null) Container(color: Colors.black.withValues(alpha: 0.12)),
           Positioned(
@@ -183,13 +176,7 @@ class _ScanScreenState extends State<ScanScreen> {
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Row(children: [Container(width: 44, height: 44, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)), child: Icon(Icons.qr_code_scanner, color: AppTheme.primaryBlue)), SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(LanguageService.instance.t('mode_scan_active'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)), Text(LanguageService.instance.t('align_qr'), style: TextStyle(fontSize: 12, color: AppTheme.textGrey))]))]),
-                const SizedBox(height: 10),
-                Row(children: [Expanded(child: TextField(controller: _manualController, decoration: InputDecoration(hintText: 'Token QR manuel (test)', border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)), isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)))), SizedBox(width: 8), FilledButton(onPressed: () => _startTripWithToken(_manualController.text), child: Text('Tester'))]),
-                const SizedBox(height: 4),
-                const Text('Si le scan échoue, collez le token ici', style: TextStyle(fontSize: 10, color: AppTheme.textGrey)),
-              ]),
+              child: Row(children: [Container(width: 44, height: 44, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.qr_code_scanner, color: AppTheme.primaryBlue)), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(LanguageService.instance.t('mode_scan_active'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)), Text(LanguageService.instance.t('align_qr'), style: TextStyle(fontSize: 12, color: AppTheme.textGrey))]))]),
             ),
           ),
         ],
