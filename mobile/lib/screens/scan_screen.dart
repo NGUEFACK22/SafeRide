@@ -46,9 +46,12 @@ class _ScanScreenState extends State<ScanScreen> {
 
   @override
   void dispose() {
+    _manualController.dispose();
     _scanner.dispose();
     super.dispose();
   }
+
+  final _manualController = TextEditingController();
 
   Future<void> _onDetect(BarcodeCapture capture) async {
     if (_loading) return;
@@ -56,21 +59,34 @@ class _ScanScreenState extends State<ScanScreen> {
     if (barcodes.isEmpty) return;
     final code = barcodes.first.rawValue;
     if (code == null || code.isEmpty) return;
+    await _startTripWithToken(code);
+  }
 
+  Future<void> _startTripWithToken(String code) async {
+    if (code.trim().isEmpty) return;
     setState(() => _loading = true);
     await _scanner.stop();
     try {
-      if (!await PermissionService.location(context)) {
-        throw Exception(LanguageService.instance.t('location_permission_denied'));
+      // Localisation avec fallback pour éviter "An unexpected error"
+      double lat = 3.8480, lng = 11.5021; // Yaoundé fallback
+      try {
+        if (!await PermissionService.location(context)) {
+          throw Exception(LanguageService.instance.t('location_permission_denied'));
+        }
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 8)),
+        );
+        lat = pos.latitude; lng = pos.longitude;
+      } catch (_) {
+        try {
+          final last = await Geolocator.getLastKnownPosition();
+          if (last != null) { lat = last.latitude; lng = last.longitude; }
+        } catch (_) {}
       }
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
-      // Appel direct pour récupérer transporteur + véhicule (nouveau flux)
       final data = await _api.post('/trips/start', {
-        'token': code,
-        'latitude': position.latitude,
-        'longitude': position.longitude,
+        'token': code.trim(),
+        'latitude': lat,
+        'longitude': lng,
       });
       if (!mounted) return;
       final trip = Trip.fromJson(data['trip'] as Map<String, dynamic>);
@@ -153,7 +169,13 @@ class _ScanScreenState extends State<ScanScreen> {
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-              child: Row(children: [Container(width: 44, height: 44, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)), child: Icon(Icons.qr_code_scanner, color: AppTheme.primaryBlue)), SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(LanguageService.instance.t('mode_scan_active'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)), Text(LanguageService.instance.t('align_qr'), style: TextStyle(fontSize: 12, color: AppTheme.textGrey))]))]),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Row(children: [Container(width: 44, height: 44, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)), child: Icon(Icons.qr_code_scanner, color: AppTheme.primaryBlue)), SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(LanguageService.instance.t('mode_scan_active'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)), Text(LanguageService.instance.t('align_qr'), style: TextStyle(fontSize: 12, color: AppTheme.textGrey))]))]),
+                const SizedBox(height: 10),
+                Row(children: [Expanded(child: TextField(controller: _manualController, decoration: InputDecoration(hintText: 'Token QR manuel (test)', border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)), isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)))), SizedBox(width: 8), FilledButton(onPressed: () => _startTripWithToken(_manualController.text), child: Text('Tester'))]),
+                const SizedBox(height: 4),
+                const Text('Si le scan échoue, collez le token ici', style: TextStyle(fontSize: 10, color: AppTheme.textGrey)),
+              ]),
             ),
           ),
         ],
