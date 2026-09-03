@@ -19,62 +19,73 @@ class ScanScreen extends StatefulWidget {
 
 class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   final _api = ApiService();
+  final MobileScannerController _scanner = MobileScannerController(
+    facing: CameraFacing.back,
+    detectionSpeed: DetectionSpeed.noDuplicates,
+    autoStart: false,
+  );
+
   bool _loading = false;
   bool _hasPermission = false;
   bool _permissionChecked = false;
+  bool _cameraStarted = false;
   String? _cameraError;
-
-  MobileScannerController? _scanner;
   DateTime _lastAttempt = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initCamera());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkPermission());
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _hasPermission && _scanner != null && _cameraError == null) {
-      _scanner!.start().catchError((_) {});
+    if (!mounted) return;
+    if (state == AppLifecycleState.resumed && _hasPermission && _cameraError == null) {
+      if (!_cameraStarted) {
+        _startCamera();
+      } else {
+        _scanner.start().catchError((_) {});
+      }
     }
-    if (state == AppLifecycleState.paused && _scanner != null) {
-      _scanner!.stop();
+    if (state == AppLifecycleState.paused) {
+      _scanner.stop().catchError((_) {});
     }
   }
 
-  Future<void> _initCamera() async {
+  Future<void> _checkPermission() async {
     final ok = await PermissionService.camera(context);
     if (!mounted) return;
+    setState(() {
+      _hasPermission = ok;
+      _permissionChecked = true;
+    });
     if (ok) {
-      final controller = MobileScannerController(
-        facing: CameraFacing.back,
-        detectionSpeed: DetectionSpeed.noDuplicates,
-      );
-      setState(() {
-        _hasPermission = true;
-        _permissionChecked = true;
-        _cameraError = null;
-        _scanner = controller;
-      });
-    } else {
-      setState(() {
-        _hasPermission = false;
-        _permissionChecked = true;
-      });
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
+      await _startCamera();
+    }
+  }
+
+  Future<void> _startCamera() async {
+    try {
+      await _scanner.start();
+      if (mounted) setState(() { _cameraStarted = true; _cameraError = null; });
+    } catch (e) {
+      if (mounted) setState(() { _cameraError = '$e'; _cameraStarted = false; });
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _scanner?.dispose();
+    _scanner.dispose();
     super.dispose();
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
-    if (_loading || _scanner == null) return;
+    if (_loading) return;
     if (DateTime.now().difference(_lastAttempt) < const Duration(seconds: 2)) return;
     final barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
@@ -160,7 +171,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
                 ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: _initCamera,
+                  onPressed: _checkPermission,
                   icon: const Icon(Icons.refresh),
                   label: Text(LanguageService.instance.t('retry')),
                 ),
@@ -171,60 +182,47 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       );
     }
 
-    final scanner = _scanner;
-
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
       appBar: _buildAppBar(),
       body: Stack(
         children: [
-          if (scanner != null && _cameraError == null)
-            MobileScanner(
-              controller: scanner,
-              onDetect: _onDetect,
-              errorBuilder: (context, error, child) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted && _cameraError == null) {
-                    setState(() => _cameraError = '${error.errorCode.name}: ${error.errorDetails?.message ?? ''}');
-                  }
-                });
-                return const SizedBox.expand();
-              },
-            ),
-          if (_cameraError != null)
-            Container(
-              color: Colors.black,
-              width: double.infinity,
-              height: double.infinity,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.videocam_off, size: 48, color: Colors.white70),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Erreur caméra:\n$_cameraError',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white, fontSize: 14),
+          SizedBox.expand(
+            child: _cameraError != null
+                ? Container(
+                    color: Colors.black,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.videocam_off, size: 48, color: Colors.white70),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Erreur caméra:\n$_cameraError',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.white, fontSize: 14),
+                            ),
+                            const SizedBox(height: 16),
+                            FilledButton.icon(
+                              onPressed: () {
+                                setState(() { _cameraError = null; _cameraStarted = false; });
+                                _startCamera();
+                              },
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Réessayer'),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed: () async {
-                          setState(() { _cameraError = null; _scanner = null; });
-                          await Future.delayed(const Duration(milliseconds: 200));
-                          if (!mounted) return;
-                          _initCamera();
-                        },
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Réessayer'),
-                      ),
-                    ],
+                    ),
+                  )
+                : MobileScanner(
+                    controller: _scanner,
+                    onDetect: _onDetect,
                   ),
-                ),
-              ),
-            ),
+          ),
           Positioned(
             top: 24,
             left: 16,
@@ -311,12 +309,11 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       title: Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
       centerTitle: true,
       actions: [
-        if (_scanner != null)
-          IconButton(
-            icon: const Icon(Icons.flash_on, color: Colors.white),
-            tooltip: LanguageService.instance.t('torch'),
-            onPressed: () => _scanner!.toggleTorch(),
-          ),
+        IconButton(
+          icon: const Icon(Icons.flash_on, color: Colors.white),
+          tooltip: LanguageService.instance.t('torch'),
+          onPressed: () => _scanner.toggleTorch(),
+        ),
         const Padding(
           padding: EdgeInsets.only(right: 12),
           child: CircleAvatar(
