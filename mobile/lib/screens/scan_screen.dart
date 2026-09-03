@@ -17,41 +17,19 @@ class ScanScreen extends StatefulWidget {
   State<ScanScreen> createState() => _ScanScreenState();
 }
 
-class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
+class _ScanScreenState extends State<ScanScreen> {
   final _api = ApiService();
-  final MobileScannerController _scanner = MobileScannerController(
-    facing: CameraFacing.back,
-    detectionSpeed: DetectionSpeed.noDuplicates,
-    autoStart: false,
-  );
 
   bool _loading = false;
   bool _hasPermission = false;
   bool _permissionChecked = false;
-  bool _cameraStarted = false;
   String? _cameraError;
   DateTime _lastAttempt = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkPermission());
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!mounted) return;
-    if (state == AppLifecycleState.resumed && _hasPermission && _cameraError == null) {
-      if (!_cameraStarted) {
-        _startCamera();
-      } else {
-        _scanner.start().catchError((_) {});
-      }
-    }
-    if (state == AppLifecycleState.paused) {
-      _scanner.stop().catchError((_) {});
-    }
   }
 
   Future<void> _checkPermission() async {
@@ -61,27 +39,6 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       _hasPermission = ok;
       _permissionChecked = true;
     });
-    if (ok) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (!mounted) return;
-      await _startCamera();
-    }
-  }
-
-  Future<void> _startCamera() async {
-    try {
-      await _scanner.start();
-      if (mounted) setState(() { _cameraStarted = true; _cameraError = null; });
-    } catch (e) {
-      if (mounted) setState(() { _cameraError = '$e'; _cameraStarted = false; });
-    }
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _scanner.dispose();
-    super.dispose();
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
@@ -207,8 +164,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
                             const SizedBox(height: 16),
                             FilledButton.icon(
                               onPressed: () {
-                                setState(() { _cameraError = null; _cameraStarted = false; });
-                                _startCamera();
+                                setState(() => _cameraError = null);
                               },
                               icon: const Icon(Icons.refresh),
                               label: const Text('Réessayer'),
@@ -219,8 +175,15 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
                     ),
                   )
                 : MobileScanner(
-                    controller: _scanner,
                     onDetect: _onDetect,
+                    errorBuilder: (context, error, child) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted && _cameraError == null) {
+                          setState(() => _cameraError = error.errorCode.name);
+                        }
+                      });
+                      return const SizedBox.expand();
+                    },
                   ),
           ),
           Positioned(
@@ -309,11 +272,6 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       title: Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
       centerTitle: true,
       actions: [
-        IconButton(
-          icon: const Icon(Icons.flash_on, color: Colors.white),
-          tooltip: LanguageService.instance.t('torch'),
-          onPressed: () => _scanner.toggleTorch(),
-        ),
         const Padding(
           padding: EdgeInsets.only(right: 12),
           child: CircleAvatar(
