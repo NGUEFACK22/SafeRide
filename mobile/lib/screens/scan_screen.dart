@@ -24,11 +24,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   bool _permissionChecked = false;
   String? _cameraError;
 
-  final MobileScannerController _scanner = MobileScannerController(
-    facing: CameraFacing.back,
-    detectionSpeed: DetectionSpeed.normal,
-  );
-
+  MobileScannerController? _scanner;
   DateTime _lastAttempt = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
@@ -40,42 +36,45 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Redémarrer le flux caméra au retour sur l'app (évite l'aperçu noir)
-    if (state == AppLifecycleState.resumed && _hasPermission && _cameraError == null) {
-      _scanner.start().catchError((_) {});
+    if (state == AppLifecycleState.resumed && _hasPermission && _scanner != null && _cameraError == null) {
+      _scanner!.start().catchError((_) {});
+    }
+    if (state == AppLifecycleState.paused && _scanner != null) {
+      _scanner!.stop();
     }
   }
 
   Future<void> _initCamera() async {
     final ok = await PermissionService.camera(context);
     if (!mounted) return;
-    setState(() {
-      _hasPermission = ok;
-      _permissionChecked = true;
-      _cameraError = null;
-    });
     if (ok) {
-      // Laisser le widget MobileScanner se monter d'abord, puis démarrer
-      await Future.delayed(const Duration(milliseconds: 300));
-      if (!mounted) return;
-      try {
-        await _scanner.start();
-      } catch (e) {
-        if (!mounted) return;
-        setState(() => _cameraError = '$e');
-      }
+      final controller = MobileScannerController(
+        facing: CameraFacing.back,
+        detectionSpeed: DetectionSpeed.noDuplicates,
+      );
+      setState(() {
+        _hasPermission = true;
+        _permissionChecked = true;
+        _cameraError = null;
+        _scanner = controller;
+      });
+    } else {
+      setState(() {
+        _hasPermission = false;
+        _permissionChecked = true;
+      });
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _scanner.dispose();
+    _scanner?.dispose();
     super.dispose();
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
-    if (_loading) return;
+    if (_loading || _scanner == null) return;
     if (DateTime.now().difference(_lastAttempt) < const Duration(seconds: 2)) return;
     final barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
@@ -128,83 +127,19 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
     }
   }
 
-  Widget _buildCameraView() {
-    if (_cameraError != null) {
-      return Container(
-        color: Colors.black,
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.videocam_off, size: 48, color: Colors.white70),
-                const SizedBox(height: 12),
-                Text(
-                  'Erreur: $_cameraError',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white),
-                ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: () async {
-                    setState(() => _cameraError = null);
-                    await Future.delayed(const Duration(milliseconds: 300));
-                    if (!mounted) return;
-                    try {
-                      await _scanner.start();
-                                  } catch (e) {
-                      if (mounted) setState(() => _cameraError = '$e');
-                    }
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Réessayer'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-    return MobileScanner(
-      controller: _scanner,
-      onDetect: _onDetect,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (!_permissionChecked) {
       return Scaffold(
         backgroundColor: const Color(0xFF0B1220),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.shield, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-          centerTitle: true,
-        ),
+        appBar: _buildAppBar(),
         body: const Center(child: CircularProgressIndicator(color: Colors.white)),
       );
     }
     if (!_hasPermission) {
       return Scaffold(
         backgroundColor: const Color(0xFF0B1220),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.shield, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-          centerTitle: true,
-        ),
+        appBar: _buildAppBar(),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -215,7 +150,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
                 const SizedBox(height: 16),
                 Text(
                   LanguageService.instance.t('permission_camera_denied'),
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -235,38 +170,61 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
         ),
       );
     }
+
+    final scanner = _scanner;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.shield, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.flash_on, color: Colors.white),
-            tooltip: LanguageService.instance.t('torch'),
-            onPressed: () => _scanner.toggleTorch(),
-          ),
-          const Padding(
-            padding: EdgeInsets.only(right: 12),
-            child: CircleAvatar(
-              radius: 14,
-              backgroundColor: Color(0xFF1E3A5F),
-              child: Icon(Icons.person, size: 16, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
+      appBar: _buildAppBar(),
       body: Stack(
         children: [
-          SizedBox.expand(child: _buildCameraView()),
-          if (_cameraError == null) Container(color: Colors.black.withValues(alpha: 0.12)),
+          if (scanner != null && _cameraError == null)
+            MobileScanner(
+              controller: scanner,
+              onDetect: _onDetect,
+              errorBuilder: (context, error, child) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _cameraError == null) {
+                    setState(() => _cameraError = '${error.errorCode.name}: ${error.errorDetails?.message ?? ''}');
+                  }
+                });
+                return const SizedBox.expand();
+              },
+            ),
+          if (_cameraError != null)
+            Container(
+              color: Colors.black,
+              width: double.infinity,
+              height: double.infinity,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.videocam_off, size: 48, color: Colors.white70),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Erreur caméra:\n$_cameraError',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: () async {
+                          setState(() { _cameraError = null; _scanner = null; });
+                          await Future.delayed(const Duration(milliseconds: 200));
+                          if (!mounted) return;
+                          _initCamera();
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Réessayer'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           Positioned(
             top: 24,
             left: 16,
@@ -338,6 +296,36 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
+    );
+  }
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.shield, color: Colors.white),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+      centerTitle: true,
+      actions: [
+        if (_scanner != null)
+          IconButton(
+            icon: const Icon(Icons.flash_on, color: Colors.white),
+            tooltip: LanguageService.instance.t('torch'),
+            onPressed: () => _scanner!.toggleTorch(),
+          ),
+        const Padding(
+          padding: EdgeInsets.only(right: 12),
+          child: CircleAvatar(
+            radius: 14,
+            backgroundColor: Color(0xFF1E3A5F),
+            child: Icon(Icons.person, size: 16, color: Colors.white),
+          ),
+        ),
+      ],
     );
   }
 }
