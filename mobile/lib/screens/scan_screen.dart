@@ -26,11 +26,9 @@ class _ScanScreenState extends State<ScanScreen> {
 
   final MobileScannerController _scanner = MobileScannerController(
     facing: CameraFacing.back,
-    detectionSpeed: DetectionSpeed.normal,
+    detectionSpeed: DetectionSpeed.noDuplicates,
   );
 
-  /// Anti-rebond : évite de re-déclencher l'API à chaque frame si le QR
-  /// reste dans le champ de la caméra après un échec.
   DateTime _lastAttempt = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
@@ -42,7 +40,22 @@ class _ScanScreenState extends State<ScanScreen> {
   Future<void> _initCamera() async {
     final ok = await PermissionService.camera(context);
     if (!mounted) return;
-    setState(() { _hasPermission = ok; _permissionChecked = true; _cameraError = null; });
+    setState(() {
+      _hasPermission = ok;
+      _permissionChecked = true;
+      _cameraError = null;
+    });
+    if (ok) {
+      // Laisser le widget MobileScanner se monter d'abord, puis démarrer
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+      try {
+        await _scanner.start();
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _cameraError = '$e');
+      }
+    }
   }
 
   @override
@@ -79,10 +92,7 @@ class _ScanScreenState extends State<ScanScreen> {
       } catch (_) {
         try {
           final last = await Geolocator.getLastKnownPosition();
-          if (last != null) {
-            lat = last.latitude;
-            lng = last.longitude;
-          }
+          if (last != null) { lat = last.latitude; lng = last.longitude; }
         } catch (_) {}
       }
       final data = await _api.post('/trips/start', {
@@ -121,13 +131,22 @@ class _ScanScreenState extends State<ScanScreen> {
                 const Icon(Icons.videocam_off, size: 48, color: Colors.white70),
                 const SizedBox(height: 12),
                 Text(
-                  'Erreur caméra: $_cameraError',
+                  'Erreur: $_cameraError',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white),
                 ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: _initCamera,
+                  onPressed: () async {
+                    setState(() => _cameraError = null);
+                    await Future.delayed(const Duration(milliseconds: 300));
+                    if (!mounted) return;
+                    try {
+                      await _scanner.start();
+                                  } catch (e) {
+                      if (mounted) setState(() => _cameraError = '$e');
+                    }
+                  },
                   icon: const Icon(Icons.refresh),
                   label: const Text('Réessayer'),
                 ),
@@ -140,33 +159,6 @@ class _ScanScreenState extends State<ScanScreen> {
     return MobileScanner(
       controller: _scanner,
       onDetect: _onDetect,
-      errorBuilder: (context, error, child) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _cameraError == null) {
-            setState(() => _cameraError = error.errorCode.name);
-          }
-        });
-        return Container(
-          color: Colors.black,
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.videocam_off, size: 48, color: Colors.white70),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Erreur caméra: ${error.errorCode.name}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 
