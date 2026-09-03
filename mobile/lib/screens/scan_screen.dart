@@ -17,7 +17,7 @@ class ScanScreen extends StatefulWidget {
   State<ScanScreen> createState() => _ScanScreenState();
 }
 
-class _ScanScreenState extends State<ScanScreen> {
+class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   final _api = ApiService();
 
   bool _loading = false;
@@ -26,10 +26,65 @@ class _ScanScreenState extends State<ScanScreen> {
   String? _cameraError;
   DateTime _lastAttempt = DateTime.fromMillisecondsSinceEpoch(0);
 
+  // Contrôleur géré manuellement : autoStart désactivé pour contrôler
+  // précisément le cycle de vie de la caméra (évite les doubles démarrages).
+  MobileScannerController _scanner = MobileScannerController(
+    autoStart: false,
+    facing: CameraFacing.back,
+    detectionSpeed: DetectionSpeed.normal,
+  );
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkPermission());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_hasPermission) return;
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _startCamera();
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+        _stopCamera();
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> _startCamera() async {
+    if (_cameraError != null) return;
+    try {
+      await _scanner.start();
+    } catch (e) {
+      if (mounted) setState(() => _cameraError = e.toString());
+    }
+  }
+
+  Future<void> _stopCamera() async {
+    try {
+      await _scanner.stop();
+    } catch (_) {}
+  }
+
+  Future<void> _restartCamera() async {
+    setState(() => _cameraError = null);
+    // Recréer un contrôleur propre après une erreur caméra
+    try {
+      await _scanner.dispose();
+    } catch (_) {}
+    _scanner = MobileScannerController(
+      autoStart: false,
+      facing: CameraFacing.back,
+      detectionSpeed: DetectionSpeed.normal,
+    );
+    if (mounted) setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startCamera());
   }
 
   Future<void> _checkPermission() async {
@@ -39,6 +94,54 @@ class _ScanScreenState extends State<ScanScreen> {
       _hasPermission = ok;
       _permissionChecked = true;
     });
+    if (ok) {
+      // Le MobileScanner se monte à la prochaine frame, puis on démarre la caméra
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startCamera());
+    }
+  }
+
+  Widget _buildCameraView() {
+    if (_cameraError != null) {
+      return Container(
+        color: Colors.black,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.videocam_off, size: 48, color: Colors.white70),
+                const SizedBox(height: 12),
+                Text(
+                  'Erreur caméra:\n$_cameraError',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _restartCamera,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Réessayer'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return MobileScanner(
+      controller: _scanner,
+      onDetect: _onDetect,
+      errorBuilder: (context, error, child) {
+        // Afficher la vraie erreur au lieu d'un écran noir muet
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _cameraError == null) {
+            setState(() => _cameraError = error.toString());
+          }
+        });
+        return const ColoredBox(color: Colors.black);
+      },
+    );
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
@@ -96,6 +199,13 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
   @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _scanner.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (!_permissionChecked) {
       return Scaffold(
@@ -144,48 +254,7 @@ class _ScanScreenState extends State<ScanScreen> {
       appBar: _buildAppBar(),
       body: Stack(
         children: [
-          SizedBox.expand(
-            child: _cameraError != null
-                ? Container(
-                    color: Colors.black,
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.videocam_off, size: 48, color: Colors.white70),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Erreur caméra:\n$_cameraError',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.white, fontSize: 14),
-                            ),
-                            const SizedBox(height: 16),
-                            FilledButton.icon(
-                              onPressed: () {
-                                setState(() => _cameraError = null);
-                              },
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('Réessayer'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
-                : MobileScanner(
-                    onDetect: _onDetect,
-                    errorBuilder: (context, error, child) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted && _cameraError == null) {
-                          setState(() => _cameraError = error.errorCode.name);
-                        }
-                      });
-                      return const SizedBox.expand();
-                    },
-                  ),
-          ),
+          SizedBox.expand(child: _buildCameraView()),
           Positioned(
             top: 24,
             left: 16,
