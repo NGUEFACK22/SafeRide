@@ -50,6 +50,11 @@
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="high_importance_channel" />
 
+        <!-- Désactive Impeller : corrige l'aperçu caméra noir (mobile_scanner) sur certains appareils -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
+
         <!-- Service de fond (GPS) déclaré pour Android 14+ (foregroundServiceType) -->
         <service
             android:name="id.flutter.flutter_background_service.BackgroundService"

@@ -17,7 +17,7 @@ class ScanScreen extends StatefulWidget {
   State<ScanScreen> createState() => _ScanScreenState();
 }
 
-class _ScanScreenState extends State<ScanScreen> {
+class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   final _api = ApiService();
   bool _loading = false;
   bool _hasPermission = false;
@@ -26,7 +26,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
   final MobileScannerController _scanner = MobileScannerController(
     facing: CameraFacing.back,
-    detectionSpeed: DetectionSpeed.noDuplicates,
+    detectionSpeed: DetectionSpeed.normal,
   );
 
   DateTime _lastAttempt = DateTime.fromMillisecondsSinceEpoch(0);
@@ -34,7 +34,16 @@ class _ScanScreenState extends State<ScanScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _initCamera());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Redémarrer le flux caméra au retour sur l'app (évite l'aperçu noir)
+    if (state == AppLifecycleState.resumed && _hasPermission && _cameraError == null) {
+      _scanner.start().catchError((_) {});
+    }
   }
 
   Future<void> _initCamera() async {
@@ -60,6 +69,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scanner.dispose();
     super.dispose();
   }
