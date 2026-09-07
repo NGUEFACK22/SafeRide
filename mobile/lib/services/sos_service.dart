@@ -63,6 +63,10 @@ class SosService {
     return await _api.get('/voice/profile');
   }
 
+  Future<Map<String, dynamic>> contacts() async {
+    return await _api.get('/emergency-contacts');
+  }
+
   /// Sel device persistant permettant de (re)générer un token d'empreinte reproductible.
   Future<String> deviceSalt() async {
     final prefs = await SharedPreferences.getInstance();

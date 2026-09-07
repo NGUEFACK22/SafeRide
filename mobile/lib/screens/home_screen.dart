@@ -126,8 +126,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (trip == null) {
         // SOS hors trajet : on collecte la destination du passager,
         // puis la position GPS est envoyée avec l'alerte.
-        destination = await _askDestination();
-        if (destination == null) return;
+        // Destination facultative — si annulée, l'alerte part avec la position.
+        destination ??= await _askDestination() ?? '';
       }
       var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();

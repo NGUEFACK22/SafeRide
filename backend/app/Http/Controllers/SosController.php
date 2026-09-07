@@ -281,10 +281,10 @@ class SosController extends Controller
                     }
                 }
 
-                // 3) Email
+                // 3) Email — envoyé en file (non bloquant), ne casse jamais le SOS
                 if ($contact->email) {
                     try {
-                        Mail::to($contact->email)->send(new SosAlertMail($sos, $trip, $contact->nom));
+                        Mail::queue(new SosAlertMail($sos, $trip, $contact->nom));
                         $emailSent = true;
                         $canaux[] = 'email (' . $contact->email . ')';
                     } catch (\Throwable $e) {}
@@ -315,7 +315,7 @@ class SosController extends Controller
         // Services d'urgence
         EmergencyService::get()->each(function (EmergencyService $service) use ($sos, $trip) {
             if ($service->email) {
-                try { Mail::to($service->email)->send(new SosAlertMail($sos, $trip, $service->nom)); } catch (\Throwable $e) {}
+                try { Mail::queue(new SosAlertMail($sos, $trip, $service->nom)); } catch (\Throwable $e) {}
             }
             $sos->emergencyNotifications()->create(['emergency_service_id' => $service->id, 'notifie_le' => now(), 'statut' => 'TRANSMISE']);
         });
@@ -383,11 +383,11 @@ class SosController extends Controller
             ]);
 
             if ($manager->email) {
-                try {
-                    Mail::to($manager->email)->send(new SosAlertMail($sos, $sos->trip, $manager->nom));
-                } catch (\Throwable $e) {
+                    try {
+                        Mail::queue(new SosAlertMail($sos, $sos->trip, $manager->nom));
+                    } catch (\Throwable $e) {
+                    }
                 }
-            }
         }
     }
 

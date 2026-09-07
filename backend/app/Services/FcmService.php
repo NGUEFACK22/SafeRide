@@ -54,7 +54,7 @@ class FcmService
 
         $assertion = $header.'.'.$claims.'.'.$this->b64url($signature);
 
-        $response = Http::asForm()->post(
+        $response = Http::timeout(5)->asForm()->post(
             $this->account['token_uri'] ?? 'https://oauth2.googleapis.com/token',
             [
                 'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
@@ -90,7 +90,7 @@ class FcmService
 
         foreach (array_unique($tokens) as $token) {
             try {
-                Http::withToken($accessToken)->post(
+                Http::timeout(10)->withToken($accessToken)->post(
                     sprintf('https://fcm.googleapis.com/v1/projects/%s/messages:send', $this->account['project_id']),
                     [
                         'message' => [

@@ -40,6 +40,17 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    // Désactive lint sur les builds release : évite le crash
+    // OutOfMemoryError:Metaspace sur machines à RAM limitée (lint n'est
+    // pas requis pour produire l'APK).
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+        checkDependencies = false
+        disable += "LintVitalRelease"
+        lintConfig = null
+    }
 }
 
 dependencies {

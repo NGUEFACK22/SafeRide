@@ -23,15 +23,24 @@ class Notification extends Model
     protected static function booted(): void
     {
         static::created(function (Notification $notification) {
-            app(\App\Services\FcmService::class)->sendToUser(
-                $notification->user_id,
-                $notification->titre,
-                $notification->message,
-                [
-                    'notification_id' => (string) $notification->id,
-                    'type' => (string) $notification->type,
-                ]
-            );
+            // Le push FCM ne doit JAMAIS casser le flux métier (ex: SOS).
+            // Toute erreur réseau/push est loggée et ignorée.
+            try {
+                app(\App\Services\FcmService::class)->sendToUser(
+                    $notification->user_id,
+                    $notification->titre,
+                    $notification->message,
+                    [
+                        'notification_id' => (string) $notification->id,
+                        'type' => (string) $notification->type,
+                    ]
+                );
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('FCM hook skipped', [
+                    'notification_id' => $notification->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         });
     }
 

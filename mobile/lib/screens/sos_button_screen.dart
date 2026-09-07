@@ -342,8 +342,9 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       final trip = _trip;
       String? destination;
       if (trip == null) {
-        destination = await _askDestination();
-        if (destination == null) return;
+        // Destination facultative : si l'utilisateur annule, le SOS part
+        // quand même avec la position seule.
+        destination ??= await _askDestination() ?? '';
       }
       final pos = await _position();
       final data = await _sosService.triggerButton(trip?.id, pos.latitude, pos.longitude, destination: destination);
@@ -640,18 +641,16 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
 
   /// Vérifie si l'utilisateur a au moins 2 contacts d'urgence enregistrés.
 /// Retourne true s'il en a >= 2, false sinon (obligatoire avant SOS).
+/// API dédiée GET /emergency-contacts -> { contacts: [...] }.
+/// En cas d'erreur réseau, fail-open : un SOS d'urgence ne doit jamais être
+/// bloqué par une panne de connexion (le backend relève l'alerte quand même).
 Future<bool> _hasEmergencyContacts() async {
   try {
-    final profile = await _sosService.profile();
-    final user = profile['user'] as Map<String, dynamic>?;
-    if (user != null) {
-      final contacts = user['emergency_contacts'] as List<dynamic>? ?? [];
-      return contacts.length >= 2;
-    }
-    // Si pas de profil utilisateur, pas de contacts → on bloque SOS
-    return false;
+    final data = await _sosService.contacts();
+    final contacts = data['contacts'] as List<dynamic>? ?? [];
+    return contacts.length >= 2;
   } catch (_) {
-    return false;
+    return true;
   }
 }
 

@@ -43,7 +43,7 @@ class SmsService
         }
 
         try {
-            $response = Http::withHeaders([
+            $response = Http::timeout(8)->withHeaders([
                 'Authorization' => 'App ' . $this->apiKey,
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
