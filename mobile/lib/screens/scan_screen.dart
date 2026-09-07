@@ -168,11 +168,18 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
         _showLocationDialog();
         return;
       }
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 8)),
-      );
-      lat = pos.latitude;
-      lng = pos.longitude;
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 8)),
+        );
+        lat = pos.latitude;
+        lng = pos.longitude;
+      } catch (_) {
+        // GPS indisponible (intérieur, aucun fix) : on garde la position par
+        // défaut de test pour ne pas bloquer le démarrage. Le backend valide
+        // ensuite la proximité si le véhicule a une position fraîche.
+        if (!mounted) return;
+      }
       final data = await _api.post('/trips/start', {
         'token': code.trim(),
         'latitude': lat,
