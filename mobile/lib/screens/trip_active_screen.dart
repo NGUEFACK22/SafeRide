@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../utils/error_helper.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
@@ -57,6 +59,12 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   // Météo pendant le trajet
   WeatherData? _weather;
   bool _weatherLoading = false;
+
+  // Carte live : position + itinéraire (zoom précis pour se voir sur la route)
+  final _mapController = MapController();
+  LatLng? _livePosition;
+  List<LatLng> _liveRoute = [];
+  static const LatLng _mapFallback = LatLng(3.8480, 11.5021); // Yaoundé
 
   @override
   void initState() {
@@ -272,6 +280,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   Future<void> _sendLocation() async {
     if (_trip == null) return;
     try {
+      // Haute précision : permet au suivi de rester précis sur la route.
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
@@ -281,10 +290,39 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
         position.longitude,
         position.speed * 3.6,
       );
+      _updateLiveMap(LatLng(position.latitude, position.longitude));
     } catch (_) {
       // GPS indisponible : le service de fond réessaiera
     }
     await _refreshPending();
+  }
+
+  /// Met à jour la carte live : position de l'utilisateur + itinéraire réel
+  /// accumulé. Recentre + zoom précis (17) sur la position pour que
+  /// l'utilisateur se voie clairement sur la route.
+  void _updateLiveMap(LatLng position) {
+    if (!mounted) return;
+    setState(() {
+      _livePosition = position;
+      _liveRoute = [..._liveRoute, position];
+    });
+    try {
+      if (_livePosition != null) {
+        _mapController.move(position, 18);
+      }
+    } catch (_) {
+      // caméra non encore attachée — le initialZoom s'occupe du premier affichage
+    }
+  }
+
+  /// Centre la carte sur la position courante de l'utilisateur (zoom précis).
+  void _centerMapOnUser() {
+    final pos = _livePosition;
+    if (pos == null) {
+      _sendLocation();
+      return;
+    }
+    _mapController.move(pos, 18);
   }
 
   Future<void> _endTrip() async {
@@ -708,6 +746,120 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     );
   }
 
+  /// Carte live du trajet en cours : position GPS de l'utilisateur
+  /// superposée à l'itinéraire, zoom précis (17) pour se voir sur la route.
+  Widget _liveMapCard(Trip trip) {
+    final center = _livePosition ?? _mapFallback;
+    final destination = trip.destinationLatitude != null && trip.destinationLongitude != null
+        ? LatLng(trip.destinationLatitude!, trip.destinationLongitude!)
+        : null;
+
+    return Card(
+      elevation: 2,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 8, 2),
+            child: Row(
+              children: [
+                const Icon(Icons.my_location, size: 16, color: AppTheme.primaryBlue),
+                const SizedBox(width: 6),
+                Text(
+                  _livePosition != null ? 'Ma position — zoom 17' : 'Localisation…',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.center_focus_strong, size: 18),
+                  tooltip: 'Recentrer sur moi',
+                  onPressed: _centerMapOnUser,
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 220,
+            child: Stack(
+              children: [
+                FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: center,
+                    initialZoom: 17,
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.tech.saveride',
+                    ),
+                    if (_liveRoute.length >= 2)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: _liveRoute,
+                            color: Colors.blue,
+                            strokeWidth: 4,
+                          ),
+                        ],
+                      ),
+                    if (destination != null)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: [center, destination],
+                            color: Colors.grey.withValues(alpha: 0.5),
+                            strokeWidth: 2,
+                            pattern: const StrokePattern.dotted(),
+                          ),
+                        ],
+                      ),
+                    MarkerLayer(
+                      markers: [
+                        if (_livePosition != null)
+                          Marker(
+                            point: _livePosition!,
+                            width: 24,
+                            height: 24,
+                            alignment: Alignment.center,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryBlue,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 3),
+                                boxShadow: [BoxShadow(blurRadius: 6, color: Colors.black38)],
+                              ),
+                            ),
+                          ),
+                        if (destination != null)
+                          Marker(
+                            point: destination,
+                            width: 34,
+                            height: 34,
+                            child: const Icon(Icons.flag, color: Colors.red, size: 30),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                if (_livePosition == null)
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black26,
+                      child: const Center(
+                        child: CircularProgressIndicator(color: Colors.white),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _enCoursStep(Trip trip) {
     // E.23 : hiérarchie priorité — destination + SOS toujours visibles
     return Column(
@@ -724,6 +876,9 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
             trailing: const Icon(Icons.check_circle, color: Colors.green, size: 22),
           ),
         ),
+        const SizedBox(height: 10),
+        // Carte live : position de l'utilisateur sur la route, zoom précis.
+        _liveMapCard(trip),
         const SizedBox(height: 10),
         Card(
           child: ListTile(

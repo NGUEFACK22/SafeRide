@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../services/language_service.dart';
 import '../utils/error_helper.dart';
+import '../theme/app_theme.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/trip.dart';
+import '../services/alert_counter_service.dart';
 import '../services/whatsapp_service.dart';
 import '../services/sos_service.dart';
 import '../services/trip_service.dart';
@@ -166,10 +168,6 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   }
 
   Future<void> _startListening() async {
-    if (_trip == null) {
-      _noTripMessage();
-      return;
-    }
     final word = _securityWord?.trim();
     if (word == null || word.isEmpty) {
       if (!mounted) return;
@@ -274,23 +272,39 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   }
 
   Future<void> _sendVocalSos(String keyword, Object empreinte) async {
+    // --- NOUVEAU : Vérifier contacts d'urgence obligatoires ---
+    if (!await _hasEmergencyContacts()) {
+      if (!mounted) return;
+      final go = await _showRegisterContactsDialog();
+      if (!go) return; // utilisateur annule → on sort
+      if (!mounted) return;
+      // Rediriger vers profil pour enregistrer
+      Navigator.pop(context); // fermer l'écran SOS
+      Navigator.pushNamed(context, '/profile');
+      return;
+    }
+    // -----------------------------------------------------
     try {
       final trip = _trip;
+      String? destination;
       if (trip == null) {
-        _noTripMessage();
-        return;
+        destination = await _askDestination();
+        if (destination == null) return;
       }
       final pos = await _position();
       final data = await _sosService.triggerVocal(
-        trip.id,
+        trip?.id,
         pos.latitude,
         pos.longitude,
         keyword,
         empreinte,
+        destination: destination,
       );
 
       // Envoyer des SOS via WhatsApp aux contacts d'urgence
       await _sendWhatsAppSos(data);
+
+      await AlertCounterService.increment();
 
       final sos = data['sos'] as Map<String, dynamic>?;
       final details = sos?['details'] as Map<String, dynamic>?;
@@ -311,18 +325,33 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   }
 
   Future<void> _fallbackButton() async {
+    // --- NOUVEAU : Vérifier contacts d'urgence obligatoires ---
+    if (!await _hasEmergencyContacts()) {
+      if (!mounted) return;
+      final go = await _showRegisterContactsDialog();
+      if (!go) return; // utilisateur annule → on sort
+      if (!mounted) return;
+      // Rediriger vers profil pour enregistrer
+      Navigator.pop(context); // fermer l'écran SOS
+      Navigator.pushNamed(context, '/profile');
+      return;
+    }
+    // -----------------------------------------------------
     setState(() => _loading = true);
     try {
       final trip = _trip;
+      String? destination;
       if (trip == null) {
-        _noTripMessage();
-        return;
+        destination = await _askDestination();
+        if (destination == null) return;
       }
       final pos = await _position();
-      final data = await _sosService.triggerButton(trip.id, pos.latitude, pos.longitude);
+      final data = await _sosService.triggerButton(trip?.id, pos.latitude, pos.longitude, destination: destination);
 
       // Envoyer des SOS via WhatsApp aux contacts d'urgence
       await _sendWhatsAppSos(data);
+
+      await AlertCounterService.increment();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -395,14 +424,21 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
           children: [
             const Icon(Icons.info_outline, size: 48, color: Colors.grey),
             const SizedBox(height: 16),
-            Text(LanguageService.instance.t('no_trip_body'), style: TextStyle(fontSize: 20)),
-            const SizedBox(height: 8),
             Text(
-              LanguageService.instance.t('no_trip_sos_msg'),
+              'SOS hors trajet : alerte possible. '
+              'Le système collecte vos informations, la destination et votre position.',
               textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
             ),
             const SizedBox(height: 16),
-            OutlinedButton.icon(
+            FilledButton.icon(
+              onPressed: _loading ? null : _fallbackButton,
+              icon: const Icon(Icons.sos),
+              label: Text('Déclencher SOS sans trajet'),
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            ),
+            const SizedBox(height: 16),
+            TextButton.icon(
               onPressed: () => Navigator.pushNamed(context, '/trip-active'),
               icon: const Icon(Icons.trip_origin),
               label: Text(LanguageService.instance.t('see_current_trip')),
@@ -413,14 +449,45 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     );
   }
 
-  void _noTripMessage() {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Aucun trajet actif : scannez le QR du transporteur '
-            'pour démarrer un trajet.'),
+  /// Boîte de dialogue pour collecter la destination lors d'un SOS hors trajet.
+  /// Retourne null si l'utilisateur annule.
+  Future<String?> _askDestination() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: [const Icon(Icons.add_location_alt, color: Colors.red), SizedBox(width: 8), Text('SOS sans trajet actif')]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Aucun trajet actif. L\'alerte sera envoyée avec votre position '
+                'et vos informations aux contacts d\'urgence, au gestionnaire et aux services.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Destination (facultative)',
+                hintText: 'Ex : Bonamoussadi, Yaoundé',
+                prefixIcon: Icon(Icons.place_outlined),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(LanguageService.instance.t('cancel'))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Déclencher SOS'),
+          ),
+        ],
       ),
     );
+    controller.dispose();
+    return result;
   }
 
   Widget _buttonBody() {
@@ -571,7 +638,51 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     );
   }
 
-  /// Envoie le message SOS via WhatsApp aux contacts d'urgence.
+  /// Vérifie si l'utilisateur a au moins 2 contacts d'urgence enregistrés.
+/// Retourne true s'il en a >= 2, false sinon (obligatoire avant SOS).
+Future<bool> _hasEmergencyContacts() async {
+  try {
+    final profile = await _sosService.profile();
+    final user = profile['user'] as Map<String, dynamic>?;
+    if (user != null) {
+      final contacts = user['emergency_contacts'] as List<dynamic>? ?? [];
+      return contacts.length >= 2;
+    }
+    // Si pas de profil utilisateur, pas de contacts → on bloque SOS
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Affiche un dialogue demandant d'enregistrer un contact d'urgence
+/// avant de pouvoir lancer le SOS. Retourne true si l'utilisateur accepte
+/// d'aller enregister ses contacts, false si elle annule.
+Future<bool> _showRegisterContactsDialog() async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Row(children: [Icon(Icons.person_add, color: AppTheme.primaryBlue), SizedBox(width: 8), Text('Contacts d\'urgence requis')]),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Pour recevoir des alertes SOS (SMS, WhatsApp, email), vous devez d\'abord enregistrer au moins un contact d\'urgence dans votre profil.'),
+          const SizedBox(height: 16),
+          Text('Voulez-vous aller dans votre profil maintenant pour ajouter vos contacts ?', style: TextStyle(fontSize: 13)),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Non, plus tard')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Colors.red),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text('Enregistrer mes contacts'),
+        ),
+      ],
+    ),
+  );
+  return result ?? false;
+}
   /// Le backend retourne la liste des contacts et le message SMS à envoyer.
   Future<void> _sendWhatsAppSos(Map<String, dynamic> data) async {
     try {

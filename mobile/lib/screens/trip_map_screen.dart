@@ -139,7 +139,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
       final loc = LatLng(position.latitude, position.longitude);
       if (!mounted) return;
       setState(() => _userLocation = loc);
-      _mapController.move(loc, 15);
+      _mapController.move(loc, 17);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -158,7 +158,9 @@ class _TripMapScreenState extends State<TripMapScreen> {
     return _fallbackCenter;
   }
 
-  double get _zoom => _userLocation != null ? 15 : 13;
+  // Zoom précis : la vue est centrée sur la position de l'utilisateur
+  // pour qu'il se voie clairement sur la route (niveau rue).
+  double get _zoom => _userLocation != null ? 18 : 13;
 
   @override
   Widget build(BuildContext context) {

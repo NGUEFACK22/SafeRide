@@ -2,6 +2,7 @@
 .claude/
 .idea/
 .vscode/
+.kilo/
 *.log
 .DS_Store
 Thumbs.db
@@ -13,6 +14,11 @@ Thumbs.db
 # Builds
 /build/
 /dist/
+
+# APK / heap dumps / artefacts Gradle
+*.apk
+*.hprof
+mobile/android/.kotlin/
 
 # Flutter mobile
 mobile/build/

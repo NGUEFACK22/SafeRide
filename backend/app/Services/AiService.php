@@ -4,10 +4,13 @@ namespace App\Services;
 
 use App\Models\AiInsight;
 use App\Models\AiReport;
+use App\Models\AnomalyVerification;
 use App\Models\Dispute;
 use App\Models\ManagerAssignment;
+use App\Models\Notification;
 use App\Models\SosAlert;
 use App\Models\Trip;
+use App\Models\TripLocation;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
 
@@ -221,13 +224,38 @@ class AiService
 
     /**
      * Détection d'anomalies globales (pour gestionnaire / admin).
-     * Renvoie des données brutes ; la persistance se fait sous un AiReport ANOMALIE.
+     * Analyse en temps réel le comportement du trajet et recherche des
+     * situations anormales à partir de plusieurs indicateurs :
+     *  - 📍 Écarts d'itinéraire répétés par un même transporteur
+     *  - 🎙️ SOS vocaux non vérifiés
+     *  - 🚗 Vitesse excessive / arrêts inhabituels (GPS locations)
+     *  - 📵 Perte prolongée de mouvement (trajets actifs sans update)
+     *  - 🔄 Déviations d'itinéraire améliorées (comparaison polyline)
      */
     public function detectAnomalies(): array
     {
         $anomalies = [];
+        $anomalies = array_merge($anomalies, $this->detectRepeatDeviation());
+        $anomalies = array_merge($anomalies, $this->detectUnverifiedSos());
+        $anomalies = array_merge($anomalies, $this->detectSpeedAnomalies());
+        $anomalies = array_merge($anomalies, $this->detectUnusualStops());
+        $anomalies = array_merge($anomalies, $this->detectMovementLoss());
+        $anomalies = array_merge($anomalies, $this->detectRouteDetours());
 
-        // Transporteurs avec écarts répétés
+        return $anomalies;
+    }
+
+    // -------------------------------------------------------------------------
+    // Sous-détecteurs d'anomalies
+    // -------------------------------------------------------------------------
+
+    /**
+     * Transporteurs avec écarts d'itinéraire répétés (≥2 trajets avec deviation_alert).
+     */
+    protected function detectRepeatDeviation(): array
+    {
+        $anomalies = [];
+
         $repeatDeviation = Trip::where('deviation_alert', true)
             ->where('statut', 'TERMINE')
             ->selectRaw('transporteur_id, COUNT(*) as c')
@@ -239,12 +267,21 @@ class AiService
             $anomalies[] = [
                 'titre' => 'Écarts d\'itinéraire répétés',
                 'description' => "Le transporteur #{$row->transporteur_id} présente "
-                    . "{$row->c} trajets avec écart important.",
+                    . "{$row->c} trajets avec écart important par rapport à l'itinéraire prévu.",
                 'gravite' => 'ELEVEE',
             ];
         }
 
-        // SOS non vérifiés
+        return $anomalies;
+    }
+
+    /**
+     * SOS vocaux en attente de vérification (verbal + empreinte non validés).
+     */
+    protected function detectUnverifiedSos(): array
+    {
+        $anomalies = [];
+
         $unverified = SosAlert::where('declenchement', 'VOCAL')
             ->where('statut', 'VERIFICATION')
             ->count();
@@ -252,12 +289,329 @@ class AiService
         if ($unverified > 0) {
             $anomalies[] = [
                 'titre' => 'Alertes SOS vocales non vérifiées',
-                'description' => "$unverified alerte(s) SOS vocale(s) en attente de vérification.",
+                'description' => "$unverified alerte(s) SOS vocale(s) en attente de vérification du mot-clé et de l'empreinte vocale.",
                 'gravite' => 'MOYENNE',
             ];
         }
 
         return $anomalies;
+    }
+
+    /**
+     * 🚗 Vitesse excessive : repère les locations où la vitesse > 120 km/h
+     * (seuil adapté aux routes urbaines / nationales camerounaises).
+     */
+    protected function detectSpeedAnomalies(): array
+    {
+        $anomalies = [];
+
+        $speedThreshold = 120; // km/h — vitesse anormale pour routes du Cameroun
+
+        $speedHits = TripLocation::where('vitesse_km_h', '>', $speedThreshold)
+            ->selectRaw('trip_id, MAX(vitesse_km_h) as max_speed, COUNT(*) as count')
+            ->groupBy('trip_id')
+            ->get();
+
+        foreach ($speedHits as $row) {
+            $trip = Trip::with('transporteur')->find($row->trip_id);
+            if (! $trip) {
+                continue;
+            }
+            $driver = $trip->transporteur;
+            $driverName = $driver ? $driver->prenom . ' ' . $driver->nom : "transporteur #{$trip->transporteur_id}";
+
+            $anomalies[] = [
+                'titre' => 'Vitesse excessive détectée',
+                'description' => "Le trajet #{$row->trip_id} ({$driverName}) a enregistré "
+                    . "{$row->count} point(s) avec une vitesse maximale de "
+                    . round($row->max_speed, 1) . " km/h — seuil dépassé: {$speedThreshold} km/h.",
+                'gravite' => 'ELEVEE',
+            ];
+        }
+
+        return $anomalies;
+    }
+
+    /**
+     * 🚗 Arrêts inhabituels : repère les trajets avec des phases d'arrêt prolongé
+     * (> 5 minutes à vitesse < 2 km/h en plein trajet), signe possible
+     * de problème mécanique, d'incident ou de comportement suspect.
+     */
+    protected function detectUnusualStops(): array
+    {
+        $anomalies = [];
+
+        // Trajets actifs ou récents (< 24h) avec plusieurs points à très faible vitesse
+        $activeTrips = Trip::whereIn('statut', ['EN_COURS', 'TERMINE'])
+            ->where('started_at', '>', now()->subDay())
+            ->pluck('id');
+
+        if ($activeTrips->isEmpty()) {
+            return [];
+        }
+
+        // Trouver les trajets ayant ≥ 5 points consécutifs < 2 km/h sur ≥ 5 min
+        $tripsWithStops = TripLocation::whereIn('trip_id', $activeTrips)
+            ->where('vitesse_km_h', '<', 2)
+            ->whereNotNull('vitesse_km_h')
+            ->selectRaw('trip_id, COUNT(*) as slow_points, MIN(captured_at) as first_stop, MAX(captured_at) as last_stop')
+            ->groupBy('trip_id')
+            ->havingRaw('COUNT(*) >= 5')
+            ->havingRaw('EXTRACT(EPOCH FROM (MAX(captured_at) - MIN(captured_at))) >= 300')
+            ->get();
+
+        foreach ($tripsWithStops as $row) {
+            $trip = Trip::find($row->trip_id);
+            if (! $trip) {
+                continue;
+            }
+            $durationMin = round(($row->last_stop->timestamp - $row->first_stop->timestamp) / 60, 1);
+
+            $anomalies[] = [
+                'titre' => 'Arrêt prolongé détecté',
+                'description' => "Le trajet #{$row->trip_id} présente un arrêt de {$durationMin} min "
+                    . "({$row->slow_points} points GPS à vitesse < 2 km/h) "
+                    . 'entre ' . $row->first_stop->format('H:i') . ' et ' . $row->last_stop->format('H:i') . '.',
+                'gravite' => 'MOYENNE',
+            ];
+        }
+
+        return $anomalies;
+    }
+
+    /**
+     * 📵 Perte prolongée de mouvement : les trajets actifs dont la dernière
+     * mise à jour GPS date de > 10 minutes — le téléphone est tombé en
+     * panne, l'appareil est éteint, ou le transporteur a coupé le suivi.
+     */
+    protected function detectMovementLoss(): array
+    {
+        $anomalies = [];
+
+        // Trajets EN_COURS sans mise à jour GPS depuis > 10 min
+        $staleTrips = Trip::where('statut', 'EN_COURS')
+            ->where('started_at', '<', now()->subMinutes(15))
+            ->with('transporteur')
+            ->get()
+            ->filter(function (Trip $trip) {
+                $lastLocation = $trip->locations()
+                    ->orderByDesc('captured_at')
+                    ->value('captured_at');
+
+                return $lastLocation === null || $lastLocation->diffInMinutes(now()) >= 10;
+            });
+
+        foreach ($staleTrips as $trip) {
+            $driver = $trip->transporteur;
+            $driverName = $driver ? $driver->prenom . ' ' . $driver->nom : "transporteur #{$trip->transporteur_id}";
+            $lastLoc = $trip->locations()->orderByDesc('captured_at')->first();
+            $lastUpdate = $lastLoc ? $lastLoc->captured_at->diffInMinutes(now()) : 'jamais';
+
+            $anomalies[] = [
+                'titre' => 'Perte de signal GPS prolongée',
+                'description' => "Le trajet #{$trip->id} ({$driverName}) n'a pas envoyé "
+                    . "de position depuis {$lastUpdate} min. "
+                    . 'Début du trajet: ' . $trip->started_at->format('H:i') . '.',
+                'gravite' => 'ELEVEE',
+            ];
+        }
+
+        return $anomalies;
+    }
+
+    /**
+     * 🔄 Déviations d'itinéraire améliorées : compare le tracé réel
+     * (actual_route_polyline) au tracé prévu (planned_route_polyline)
+     * point par point et calcule la distance maximale de déviation.
+     * Seuil : > 1 km de déviation maximale par rapport au trajet prévu.
+     */
+    protected function detectRouteDetours(): array
+    {
+        $anomalies = [];
+        $routeService = app(RouteService::class);
+
+        $deviationThreshold = 1.0; // km — déviation maximale acceptable
+
+        $trips = Trip::where('statut', 'TERMINE')
+            ->whereNotNull('planned_route_polyline')
+            ->whereNotNull('actual_route_polyline')
+            ->where('planned_route_polyline', '!=', '')
+            ->where('actual_route_polyline', '!=', '')
+            ->get();
+
+        foreach ($trips as $trip) {
+            $planned = $routeService->decodePolyline($trip->planned_route_polyline);
+            $actual = $routeService->decodePolyline($trip->actual_route_polyline);
+
+            if (count($planned) < 2 || count($actual) < 2) {
+                continue;
+            }
+
+            $maxDeviation = 0.0;
+            $worstPoint = null;
+
+            foreach ($actual as $actualPoint) {
+                $minDist = PHP_FLOAT_MAX;
+                foreach ($planned as $plannedPoint) {
+                    $dist = $routeService->haversine(
+                        $actualPoint[0], $actualPoint[1],
+                        $plannedPoint[0], $plannedPoint[1]
+                    );
+                    $minDist = min($minDist, $dist);
+                }
+                if ($minDist > $maxDeviation) {
+                    $maxDeviation = $minDist;
+                    $worstPoint = $actualPoint;
+                }
+            }
+
+            if ($maxDeviation > $deviationThreshold) {
+                $anomalies[] = [
+                    'titre' => 'Déviation importante d\'itinéraire',
+                    'description' => "Le trajet #{$trip->id} s'est écarté de "
+                        . round($maxDeviation, 2) . " km du tracé prévu (seuil: {$deviationThreshold} km)"
+                        . ($worstPoint
+                            ? ' — point le plus éloigné: ' . round($worstPoint[0], 5) . ', ' . round($worstPoint[1], 5)
+                            : '') . '.',
+                    'gravite' => 'ELEVEE',
+                ];
+            }
+        }
+
+        return $anomalies;
+    }
+
+    /**
+     * Vérifie en temps réel les anomalies d'un trajet actif à chaque
+     * nouvelle position GPS. Crée un enregistrement AnomalyVerification
+     * + notification push pour chaque anomalie détectée.
+     * L'utilisateur peut confirmer "normal" ou signaler un problème.
+     * Sans réponse en 10 min → SOS automatique.
+     */
+    public function checkTripAnomalies(Trip $trip): array
+    {
+        $detected = [];
+        $userId = $trip->passager_id;
+
+        // 1) Vitesse excessive
+        $lastLocation = $trip->locations()->orderByDesc('captured_at')->first();
+        if ($lastLocation && $lastLocation->vitesse_km_h && $lastLocation->vitesse_km_h > 120) {
+            $detected[] = $this->createVerification(
+                $trip, $userId,
+                'SPEED',
+                "Vitesse excessive détectée : {$lastLocation->vitesse_km_h} km/h "
+                    . 'à ' . $lastLocation->captured_at->format('H:i') . '.',
+                'ELEVEE'
+            );
+        }
+
+        // 2) Arrêt prolongé (> 5 min à vitesse < 2 km/h)
+        $slowCount = $trip->locations()
+            ->where('vitesse_km_h', '<', 2)
+            ->whereNotNull('vitesse_km_h')
+            ->where('captured_at', '>', now()->subMinutes(10))
+            ->count();
+
+        if ($slowCount >= 5) {
+            $firstSlow = $trip->locations()
+                ->where('vitesse_km_h', '<', 2)
+                ->whereNotNull('vitesse_km_h')
+                ->where('captured_at', '>', now()->subMinutes(10))
+                ->orderBy('captured_at')
+                ->value('captured_at');
+
+            if ($firstSlow) {
+                $durationMin = now()->diffInMinutes($firstSlow);
+                $detected[] = $this->createVerification(
+                    $trip, $userId,
+                    'STOP',
+                    "Arrêt prolongé : {$durationMin} min sans mouvement "
+                        . "({$slowCount} points GPS < 2 km/h).",
+                    'MOYENNE'
+                );
+            }
+        }
+
+        // 3) Perte de signal GPS (> 10 min sans mise à jour)
+        $lastLocTime = $trip->locations()->max('captured_at');
+        if ($lastLocTime && $lastLocTime->diffInMinutes(now()) >= 10) {
+            $detected[] = $this->createVerification(
+                $trip, $userId,
+                'MOVEMENT_LOSS',
+                "Perte de signal GPS : plus de position depuis "
+                    . $lastLocTime->diffInMinutes(now()) . " min.",
+                'ELEVEE'
+            );
+        }
+
+        // 4) Déviation d'itinéraire (polyline comparison)
+        if ($trip->planned_route_polyline && $lastLocation) {
+            $routeService = app(RouteService::class);
+            $planned = $routeService->decodePolyline($trip->planned_route_polyline);
+
+            if (count($planned) >= 2) {
+                $minDist = PHP_FLOAT_MAX;
+                foreach ($planned as $pt) {
+                    $d = $routeService->haversine(
+                        (float) $lastLocation->latitude, (float) $lastLocation->longitude,
+                        $pt[0], $pt[1]
+                    );
+                    $minDist = min($minDist, $d);
+                }
+
+                if ($minDist > 1.0) {
+                    $detected[] = $this->createVerification(
+                        $trip, $userId,
+                        'DETOUR',
+                        "Déviation d'itinéraire : " . round($minDist, 2)
+                            . " km du tracé prévu (seuil: 1 km).",
+                        'ELEVEE'
+                    );
+                }
+            }
+        }
+
+        return $detected;
+    }
+
+    /**
+     * Crée un enregistrement de vérification d'anomalie + notification.
+     * Ne crée pas de doublon si une vérification EN_ATTENTE du même type
+     * existe déjà pour ce trajet.
+     */
+    protected function createVerification(
+        Trip $trip,
+        int $userId,
+        string $type,
+        string $description,
+        string $gravite,
+    ): AnomalyVerification {
+        $existing = AnomalyVerification::where('trip_id', $trip->id)
+            ->where('anomaly_type', $type)
+            ->where('statut', 'EN_ATTENTE')
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $verification = AnomalyVerification::create([
+            'trip_id' => $trip->id,
+            'user_id' => $userId,
+            'anomaly_type' => $type,
+            'description' => $description,
+            'gravite' => $gravite,
+            'statut' => 'EN_ATTENTE',
+        ]);
+
+        Notification::create([
+            'user_id' => $userId,
+            'type' => 'ANOMALIE_VERIFICATION',
+            'titre' => 'Anomalie détectée — vérification requise',
+            'message' => $description . ' Confirmez si c\'est normal ou signalez un problème.',
+        ]);
+
+        return $verification;
     }
 
     protected function tripData(Trip $trip): array

@@ -189,9 +189,16 @@ class VehicleController extends Controller
         ]);
     }
 
+    /**
+     * Génère un token QR signé cohérent (accessible aux autres contrôleurs).
+     */
+    public function signedTokenFor(Vehicle $vehicle): string
+    {
+        return $this->generateSignedToken($vehicle);
+    }
+
     protected function generateSignedToken(Vehicle $vehicle): string
     {
-        // Charger le transporteur pour inclure son nom dans le QR (demandé)
         $transporteur = $vehicle->relationLoaded('transporteur') ? $vehicle->transporteur : User::find($vehicle->transporteur_id);
 
         $payload = json_encode([

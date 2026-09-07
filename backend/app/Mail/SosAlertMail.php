@@ -24,6 +24,7 @@ class SosAlertMail extends Mailable
         $trip = $this->trip;
         $passager = $this->sos->passager;
         $transporteur = $trip?->transporteur;
+        $destination = $this->sos->destination ?? $trip?->destination_address;
 
         $html = '<h2>🚨 Alerte SOS SafeRide</h2>'
             . '<p>Une alerte SOS a été déclenchée et transmise automatiquement par la plateforme.</p>'
@@ -32,6 +33,7 @@ class SosAlertMail extends Mailable
             . '<li><strong>Moyen de déclenchement :</strong> ' . e($this->sos->declenchement) . '</li>'
             . '<li><strong>Statut :</strong> ' . e($this->sos->statut) . '</li>'
             . '<li><strong>Position (lat, lng) :</strong> ' . e($this->sos->latitude . ', ' . $this->sos->longitude) . '</li>'
+            . '<li><strong>Destination :</strong> ' . e($destination ?? '—') . '</li>'
             . '<li><strong>Heure de détection :</strong> ' . e((string) $this->sos->heure_detection) . '</li>'
             . '<li><strong>Trajet # :</strong> ' . e((string) ($trip?->id ?? '—')) . '</li>'
             . '<li><strong>Transporteur :</strong> ' . e(($transporteur?->prenom . ' ' . $transporteur?->nom) ?: '—') . '</li>'

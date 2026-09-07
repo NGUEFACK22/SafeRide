@@ -17,6 +17,7 @@ class SosAlert extends Model
         'declenchement',
         'latitude',
         'longitude',
+        'destination',
         'heure_detection',
         'statut',
         'details',

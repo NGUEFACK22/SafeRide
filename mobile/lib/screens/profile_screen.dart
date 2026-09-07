@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user.dart';
 import '../services/api_service.dart';
+import '../services/alert_counter_service.dart';
 import '../services/auth_service.dart';
 import '../services/permission_service.dart';
 import '../services/voiceprint_service.dart';
@@ -34,6 +35,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   double _totalKm = 0;
   double _avgRating = 0;
   bool _statsLoading = true;
+  int _sosCount = 0;
 
   // Champs éditables inline
   final _emailController = TextEditingController();
@@ -42,7 +44,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _fieldsLoading = true;
   bool _saving = false;
 
-  bool _animateEntry = true; // animation désactivée à la demande
+  final bool _animateEntry = false; // animation désactivée — plus de effet sur l'avatar
 
   // Voix — empreinte vocale 3 prises
   final _voiceprint = VoiceprintService();
@@ -58,9 +60,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadVerif();
     _loadStats();
     _loadFields();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _animateEntry = true);
-    });
+    // Animation d'entrée désactivée — pas de remise à true automatique
+    // WidgetsBinding.instance.addPostFrameCallback((_) {
+    //   if (mounted) setState(() => _animateEntry = true);
+    // });
   }
 
   Future<void> _loadVerif() async {
@@ -97,6 +100,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (_) {
       if (mounted) setState(() => _statsLoading = false);
+    } finally {
+      final sosCount = await AlertCounterService.getCount();
+      if (mounted) setState(() => _sosCount = sosCount);
     }
   }
 
@@ -417,6 +423,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Expanded(child: _statBox(_totalKm.toStringAsFixed(0), 'KM TOTAL')),
                         const SizedBox(width: 8),
                         Expanded(child: _statBoxBlue(_avgRating.toStringAsFixed(1), 'NOTE')),
+                        const SizedBox(width: 8),
+                        Expanded(child: _statBoxRed(_sosCount.toString(), 'SOS')),
                       ],
                     ),
             ),
@@ -607,6 +615,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppTheme.lightBlueBorder)),
       child: Column(children: [Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.primaryBlue)), const SizedBox(width: 4), const Icon(Icons.verified, size: 14, color: AppTheme.primaryBlue)]), const SizedBox(height: 2), Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppTheme.primaryBlue))]),
+    );
+  }
+
+  static Widget _statBoxRed(String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(color: Color(0xFFFFE9E9), borderRadius: BorderRadius.circular(12), border: Border.all(color: Color(0xFFF5C6C6))),
+      child: Column(children: [Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.sosRed)), const SizedBox(width: 4), const Icon(Icons.sos, size: 14, color: AppTheme.sosRed)]), const SizedBox(height: 2), Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppTheme.sosRed))]),
     );
   }
 

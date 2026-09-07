@@ -11,3 +11,6 @@ Artisan::command('inspire', function () {
 // Résumé IA hebdomadaire : chaque dimanche à 08h00.
 // (php artisan schedule:run doit être appelé par le cron du serveur)
 Schedule::command('ai:weekly-reports')->weeklyOn(0, '08:00');
+
+// Vérification des timeouts d'anomalies : chaque minute.
+Schedule::command('anomaly:check-timeouts')->everyMinute();

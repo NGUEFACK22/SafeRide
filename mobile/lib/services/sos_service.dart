@@ -10,13 +10,17 @@ class SosService {
   final ApiService _api = ApiService();
 
   /// Déclenchement par bouton (fallback immédiat, Point 9).
+  /// [tripId] null autorisé : alerte SOS hors trajet (destination + position
+  /// GPS du téléphone envoyées aux contacts).
   Future<Map<String, dynamic>> triggerButton(
-    int tripId,
+    int? tripId,
     double latitude,
-    double longitude,
-  ) async {
+    double longitude, {
+    String? destination,
+  }) async {
     return await _api.post('/sos', {
-      'trip_id': tripId,
+      'trip_id': ?tripId,
+      if (destination != null && destination.trim().isNotEmpty) 'destination': destination.trim(),
       'latitude': latitude,
       'longitude': longitude,
       'declenchement': 'BOUTON',
@@ -26,15 +30,18 @@ class SosService {
   /// Déclenchement vocal : mot-clé détecté + empreinte vocale.
   /// [empreinte] est soit l'embedding de voix (`List<double>`, biométrie ECAPA-TDNN),
   /// soit un token (repli si le modèle ONNX est absent).
+  /// [tripId] null autorisé : alerte SOS hors trajet.
   Future<Map<String, dynamic>> triggerVocal(
-    int tripId,
+    int? tripId,
     double latitude,
     double longitude,
     String keyword,
-    Object empreinte,
-  ) async {
+    Object empreinte, {
+    String? destination,
+  }) async {
     return await _api.post('/sos', {
-      'trip_id': tripId,
+      'trip_id': ?tripId,
+      if (destination != null && destination.trim().isNotEmpty) 'destination': destination.trim(),
       'latitude': latitude,
       'longitude': longitude,
       'declenchement': 'VOCAL',

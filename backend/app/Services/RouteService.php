@@ -110,4 +110,57 @@ class RouteService
 
         return $chunk . chr($value + 63);
     }
+
+    /**
+     * Décode une polyline Google en une liste de points [lat, lng].
+     */
+    public function decodePolyline(string $encoded): array
+    {
+        if ($encoded === '') {
+            return [];
+        }
+
+        $points = [];
+        $index = 0;
+        $len = strlen($encoded);
+        $lat = 0;
+        $lng = 0;
+
+        while ($index < $len) {
+            foreach (['lat', 'lng'] as $coord) {
+                $shift = 0;
+                $result = 0;
+                do {
+                    $b = ord($encoded[$index++]) - 63;
+                    $result |= ($b & 0x1f) << $shift;
+                    $shift += 5;
+                } while ($b >= 0x20);
+
+                $dlat = ($result & 1) ? ~ ($result >> 1) : ($result >> 1);
+                $lat += $dlat;
+
+                if ($coord === 'lng') {
+                    $lng += $dlat;
+                    $points[] = [$lat / 1e5, $lng / 1e5];
+                }
+            }
+        }
+
+        return $points;
+    }
+
+    /**
+     * Distance en km entre deux points GPS (Haversine).
+     */
+    public function haversine(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earthRadius = 6371;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+
+        $a = sin($dLat / 2) ** 2
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+
+        return $earthRadius * 2 * atan2(sqrt($a), sqrt(1 - $a));
+    }
 }

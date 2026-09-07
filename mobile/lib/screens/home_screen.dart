@@ -7,7 +7,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../models/user.dart';
+import '../services/alert_counter_service.dart';
 import '../services/api_service.dart';
+import '../services/anomaly_service.dart';
 import '../services/language_service.dart';
 import '../services/push_service.dart';
 import '../services/sos_service.dart';
@@ -15,6 +17,7 @@ import '../services/trip_service.dart';
 import '../services/whatsapp_service.dart';
 import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/anomaly_verification_dialog.dart';
 import 'profile_screen.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -33,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _unread = 0;
   Timer? _timer;
   int _selectedIndex = 0;
+  bool _checkingAnomalies = false;
 
   bool get _isGuest => _user == null;
 
@@ -41,8 +45,12 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _user = widget.user;
     if (!_isGuest) {
-      _timer = Timer.periodic(const Duration(seconds: 15), (_) => _refreshUnread());
+      _timer = Timer.periodic(const Duration(seconds: 15), (_) {
+        _refreshUnread();
+        _checkAnomalies();
+      });
       _refreshUnread();
+      _checkAnomalies();
       PushService.instance.addRefreshListener(_refreshUnread);
     }
   }
@@ -51,6 +59,27 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _timer?.cancel();
     super.dispose();
+  }
+
+  /// Vérifie les anomalies détectées par l'IA en temps réel et demande
+  /// confirmation à l'utilisateur si une vérification est en attente.
+  Future<void> _checkAnomalies() async {
+    if (_checkingAnomalies) return;
+    _checkingAnomalies = true;
+    try {
+      final verifications = await AnomalyService().getPending();
+      if (!mounted || verifications.isEmpty) return;
+
+      // Affiche les vérifications en attente une à une.
+      for (final v in verifications) {
+        if (!mounted) return;
+        await showAnomalyDialog(context, v);
+      }
+    } catch (_) {
+      // silent — non bloquant
+    } finally {
+      _checkingAnomalies = false;
+    }
   }
 
   Future<void> _refreshUnread() async {
@@ -93,27 +122,69 @@ class _HomeScreenState extends State<HomeScreen> {
     if (confirm != true) return;
     try {
       final trip = await TripService().currentTrip();
+      String? destination;
       if (trip == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LanguageService.instance.t('no_active_trip_scan')), backgroundColor: Colors.orange));
-        Navigator.pushNamed(context, '/trip-active');
-        return;
+        // SOS hors trajet : on collecte la destination du passager,
+        // puis la position GPS est envoyée avec l'alerte.
+        destination = await _askDestination();
+        if (destination == null) return;
       }
       var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
       if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) throw Exception(LanguageService.instance.t('location_permission_denied'));
       final pos = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
-      final data = await SosService().triggerButton(trip.id, pos.latitude, pos.longitude);
+      final data = await SosService().triggerButton(trip?.id, pos.latitude, pos.longitude, destination: destination);
       final sms = data['sms_message'] as String?;
       final contacts = data['emergency_contacts'] as List<dynamic>? ?? [];
       final phones = contacts.map((c) => ((c['whatsapp_telephone'] as String?)?.trim().isNotEmpty == true ? c['whatsapp_telephone'] : c['telephone']) as String?).where((p) => p != null && p.isNotEmpty).cast<String>().toList();
       if (phones.isNotEmpty && sms != null) await WhatsAppService.instance.sendBulk(phones, sms);
+      await AlertCounterService.increment();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LanguageService.instance.t('sos_triggered')), backgroundColor: AppTheme.sosRed, duration: Duration(seconds: 4)));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
     }
+  }
+
+  /// Boîte de dialogue pour collecter la destination lors d'un SOS hors trajet.
+  /// Retourne null si l'utilisateur annule.
+  Future<String?> _askDestination() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: [Icon(Icons.add_location_alt, color: AppTheme.sosRed), SizedBox(width: 8), Text(LanguageService.instance.t('sos_no_trip_title'))]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(LanguageService.instance.t('sos_no_trip_msg')),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                labelText: LanguageService.instance.t('destination_optional'),
+                hintText: LanguageService.instance.t('destination_hint'),
+                prefixIcon: const Icon(Icons.place_outlined),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(LanguageService.instance.t('cancel'))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.sosRed),
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: Text(LanguageService.instance.t('trigger_sos')),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
   }
 
   Widget _buildBody() {
@@ -286,7 +357,7 @@ class _LocationPreviewState extends State<_LocationPreview> {
       final loc = LatLng(pos.latitude, pos.longitude);
       if (!mounted) return;
       setState(() => _userLocation = loc);
-      _mapController.move(loc, 15);
+      _mapController.move(loc, 17);
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LanguageService.instance.t('location_unavailable'))));
     } finally {
@@ -303,7 +374,7 @@ class _LocationPreviewState extends State<_LocationPreview> {
       children: [
         FlutterMap(
           mapController: _mapController,
-          options: MapOptions(initialCenter: _userLocation ?? _fallback, initialZoom: _userLocation != null ? 15 : 12),
+          options: MapOptions(initialCenter: _userLocation ?? _fallback, initialZoom: _userLocation != null ? 18 : 12),
           children: [
             TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.tech.saveride'),
             if (_userLocation != null)
@@ -908,11 +979,6 @@ class _GuestView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200)),
-            child: Row(children: [Icon(Icons.visibility, color: Colors.orange.shade700, size: 18), SizedBox(width: 8), Expanded(child: Text(LanguageService.instance.t('guest_mode'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF9A3412)))), SizedBox(width: 8), FilledButton(onPressed: () => Navigator.pushNamed(context, '/register'), style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue, padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)), child: Text(LanguageService.instance.t('register'), style: TextStyle(fontSize: 11)))]),
-          ),
           const SizedBox(height: 12),
           Text(LanguageService.instance.t('welcome'), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 6),

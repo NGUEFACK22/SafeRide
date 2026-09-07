@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AnomalyVerificationController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\DisputeController;
@@ -65,6 +66,10 @@ Route::get('auth/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail
         // SOS — rate limit 5/min anti-spam (P2-15) + anti double 30s dans controller (P2-9)
         Route::post('sos', [SosController::class, 'create'])->middleware('throttle:5,1');
         Route::get('sos/my', [SosController::class, 'myAlerts']);
+
+        // Vérification d'anomalies (détection IA → demande interactive → SOS auto si timeout)
+        Route::get('anomaly-verifications', [AnomalyVerificationController::class, 'index']);
+        Route::post('anomaly-verifications/{id}/respond', [AnomalyVerificationController::class, 'respond']);
 
         // Contacts d'urgence (notifiés lors d'un SOS)
         Route::get('emergency-contacts', [EmergencyContactController::class, 'index']);

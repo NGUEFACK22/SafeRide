@@ -23,7 +23,8 @@ class SosController extends Controller
     public function create(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'trip_id' => 'required|exists:trips,id',
+            'trip_id' => 'nullable|integer|exists:trips,id',
+            'destination' => 'nullable|string|max:255',
             'latitude' => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
             'declenchement' => 'required|in:VOCAL,BOUTON',
@@ -35,21 +36,32 @@ class SosController extends Controller
             $request->validate(['empreinte.*' => 'numeric']);
         }
 
-        $trip = Trip::where('id', $data['trip_id'])
-            ->where('passager_id', $request->user()->id)
-            ->where('statut', 'EN_COURS')
-            ->first();
+        // L'alerte SOS peut être déclenchée sans trajet actif :
+        // le passager renseigne sa destination, le système envoie
+        // position + destination + infos aux contacts d'urgence.
+        $trip = null;
+        if (! empty($data['trip_id'])) {
+            $trip = Trip::where('id', $data['trip_id'])
+                ->where('passager_id', $request->user()->id)
+                ->where('statut', 'EN_COURS')
+                ->first();
 
-        if (! $trip) {
-            return response()->json(['message' => 'Aucun trajet actif pour cet utilisateur'], 422);
+            if (! $trip) {
+                return response()->json(['message' => 'Aucun trajet actif pour cet utilisateur'], 422);
+            }
         }
 
         // P2-9 : anti double SOS / replay 30s
-        $recent = SosAlert::where('trip_id', $trip->id)
-            ->where('passager_id', $request->user()->id)
+        $recent = SosAlert::where('passager_id', $request->user()->id)
             ->where('created_at', '>', now()->subSeconds(30))
-            ->whereNotIn('statut', ['RESOLU', 'CLOTE', 'FAUSSE_ALERTE'])
-            ->first();
+            ->whereNotIn('statut', ['RESOLU', 'CLOTE', 'FAUSSE_ALERTE']);
+        if ($trip) {
+            $recent = $recent->where('trip_id', $trip->id);
+        } else {
+            // SOS sans trajet : anti-double global sur 30s (pas de répisé avec un autre SOS)
+            $recent = $recent->whereNull('trip_id');
+        }
+        $recent = $recent->first();
         if ($recent) {
             return response()->json(['message' => 'Alerte déjà envoyée il y a moins de 30s — anti-spam', 'sos' => $recent], 429);
         }
@@ -59,11 +71,12 @@ class SosController extends Controller
         $statut = $verification['statut'];
 
         $sos = SosAlert::create([
-            'trip_id' => $trip->id,
+            'trip_id' => $trip?->id,
             'passager_id' => $request->user()->id,
             'declenchement' => $data['declenchement'],
             'latitude' => $data['latitude'],
             'longitude' => $data['longitude'],
+            'destination' => $data['destination'] ?? ($trip?->destination_address ?? null),
             'heure_detection' => now(),
             'statut' => $statut,
             'details' => $verification['details'],
@@ -75,11 +88,11 @@ class SosController extends Controller
         // — Stockage direct en litige : les 2 types de litige sont "objet perdu" et "alerte SOS"
         // Chaque SOS devient un dossier LITIGE pour suivi unifié dans /disputes
         $disputeSos = Dispute::create([
-            'trip_id' => $trip->id,
+            'trip_id' => $trip?->id,
             'passager_id' => $request->user()->id,
-            'transporteur_id' => $trip->transporteur_id,
+            'transporteur_id' => $trip?->transporteur_id,
             'motif' => 'Alerte SOS — ' . $data['declenchement'] . ' #' . $sos->id,
-            'description' => 'SOS ' . $data['declenchement'] . ' du ' . $sos->heure_detection->toDateTimeString() . ' — position https://maps.google.com/?q=' . $sos->latitude . ',' . $sos->longitude . ' — statut SOS: ' . $sos->statut . ' — détails: ' . json_encode($verification['details']),
+            'description' => 'SOS ' . $data['declenchement'] . ' du ' . $sos->heure_detection->toDateTimeString() . ' — position https://maps.google.com/?q=' . $sos->latitude . ',' . $sos->longitude . ($sos->destination ? ' — destination: ' . $sos->destination : '') . ($trip ? ' — trajet #' . $trip->id : ' — hors trajet') . ' — statut SOS: ' . $sos->statut . ' — détails: ' . json_encode($verification['details']),
             'statut' => 'OUVERT',
         ]);
         $this->assignDisputeManager($disputeSos, $trip);
@@ -320,8 +333,10 @@ class SosController extends Controller
 
     /**
      * Message SMS court envoyé au contact d'urgence lors d'un SOS.
+     * Sans trajet actif, la destination saisie par le passager est
+     * utilisée (colonne destination) + position GPS du téléphone.
      */
-    protected function smsMessage(SosAlert $sos, Trip $trip, ?EmergencyContact $contact): string
+    protected function smsMessage(SosAlert $sos, ?Trip $trip, ?EmergencyContact $contact): string
     {
         $passager = $sos->passager;
 
@@ -333,8 +348,9 @@ class SosController extends Controller
                 . $sos->latitude . ',' . $sos->longitude;
         }
 
-        if ($trip->destination_address) {
-            $message .= ' Destination : ' . $trip->destination_address;
+        $destination = $sos->destination ?? $trip?->destination_address;
+        if ($destination) {
+            $message .= ' Destination : ' . $destination;
         }
 
         if ($contact) {
@@ -375,7 +391,7 @@ class SosController extends Controller
         }
     }
 
-    protected function assignDisputeManager(Dispute $dispute, Trip $trip): void
+    protected function assignDisputeManager(Dispute $dispute, ?Trip $trip): void
     {
         $manager = User::whereHas('roles', fn ($q) => $q->where('slug', 'gestionnaire'))
             ->withCount(['managerAssignments as ouvertes' => fn ($q) => $q->where('statut', '!=', 'CLOTURE')])
@@ -394,12 +410,12 @@ class SosController extends Controller
                 'user_id' => $manager->id,
                 'type' => 'DOSSIER',
                 'titre' => 'Nouveau litige — SOS #' . $dispute->id,
-                'message' => 'Litige SOS créé depuis alerte #' . $dispute->id . ' — trajet #' . $trip->id,
+                'message' => 'Litige SOS créé depuis alerte #' . $dispute->id . ' — ' . ($trip ? 'trajet #' . $trip->id : 'hors trajet'),
             ]);
         }
     }
 
-    protected function notifyAll(Request $request, SosAlert $sos, Trip $trip): array
+    protected function notifyAll(Request $request, SosAlert $sos, ?Trip $trip): array
     {
         $withNetwork = true; // placeholder réseau ; en production : vérifier la connectivité réelle
 

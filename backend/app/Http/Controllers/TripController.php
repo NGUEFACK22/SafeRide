@@ -103,8 +103,9 @@ class TripController extends Controller
                 ]);
 
                 // Régénérer un nouveau QR code pour le véhicule
+                // (même format signé que VehicleController pour cohérence QR affiché)
                 $vehicle->qrCodes()->create([
-                    'token' => bin2hex(random_bytes(16)),
+                    'token' => app(VehicleController::class)->signedTokenFor($vehicle),
                     'actif' => true,
                 ]);
 
@@ -356,6 +357,15 @@ class TripController extends Controller
             'vitesse_km_h' => $data['vitesse_km_h'] ?? null,
             'captured_at' => $data['captured_at'],
         ]);
+
+        // Détection IA en temps réel : vérifie les anomalies
+        // (vitesse, arrêts, perte signal, déviation) et crée
+        // une demande de vérification interactive + notification.
+        try {
+            $this->aiService->checkTripAnomalies($trip);
+        } catch (\Throwable $e) {
+            // non bloquant
+        }
 
         return response()->json(['message' => 'Position enregistrée'], 201);
     }

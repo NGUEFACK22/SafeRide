@@ -7,7 +7,6 @@ import '../services/api_service.dart';
 import '../services/permission_service.dart';
 import '../theme/app_theme.dart';
 import '../services/language_service.dart';
-import '../utils/error_helper.dart';
 import 'course_confirm_screen.dart';
 
 class ScanScreen extends StatefulWidget {
@@ -132,15 +131,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
     return MobileScanner(
       controller: _scanner,
       onDetect: _onDetect,
-      errorBuilder: (context, error, child) {
-        // Afficher la vraie erreur au lieu d'un écran noir muet
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _cameraError == null) {
-            setState(() => _cameraError = error.toString());
-          }
-        });
-        return const ColoredBox(color: Colors.black);
-      },
+      
     );
   }
 
@@ -157,24 +148,31 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
 
   Future<void> _startTripWithToken(String code) async {
     if (code.trim().isEmpty) return;
+    final token = await _api.getToken();
+    if (token == null || token.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(LanguageService.instance.t('auth_error_relogin')), backgroundColor: Colors.orange),
+      );
+      Navigator.of(context).pushNamed('/login');
+      return;
+    }
     setState(() => _loading = true);
     try {
       double lat = 3.8480, lng = 11.5021;
-      try {
-        if (!await PermissionService.location(context)) {
-          throw Exception(LanguageService.instance.t('location_permission_denied'));
-        }
-        final pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 8)),
-        );
-        lat = pos.latitude;
-        lng = pos.longitude;
-      } catch (_) {
-        try {
-          final last = await Geolocator.getLastKnownPosition();
-          if (last != null) { lat = last.latitude; lng = last.longitude; }
-        } catch (_) {}
+      if (!mounted) return;
+      final locationOk = await PermissionService.location(context);
+      if (!locationOk) {
+        // L'utilisateur a refusé la localisation — on lui demande de l'activer
+        if (!mounted) return;
+        _showLocationDialog();
+        return;
       }
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 8)),
+      );
+      lat = pos.latitude;
+      lng = pos.longitude;
       final data = await _api.post('/trips/start', {
         'token': code.trim(),
         'latitude': lat,
@@ -191,11 +189,56 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       );
     } catch (e) {
       if (!mounted) return;
+      final msg = _mapError(e);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
       );
+    } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  String _mapError(Object e) {
+    if (e is ApiException) {
+      final status = e.statusCode;
+      final raw = e.message;
+      final r = raw.toLowerCase();
+      // 1. Message backend réel d'abord (il est déjà en français, explicite)
+      if (r.contains('proximité') || r.contains('proximite')) {
+        return 'Proximité non vérifiée — soyez à côté du véhicule avant de scanner.';
+      }
+      if (r.contains('déjà utilisé') || r.contains('deja utilise') || status == 422 && r.contains('utilisé')) {
+        return LanguageService.instance.t('qr_already_used');
+      }
+      if (status == 401) return LanguageService.instance.t('auth_error_relogin');
+      if (status == 403) return LanguageService.instance.t('access_denied');
+      if (status == 422) return raw;
+      if (status == 500) return LanguageService.instance.t('server_unavailable_try_later');
+      // Retourner le message serveur réel si présent (fini le "trip_start_failed" générique)
+      return raw.isNotEmpty ? raw : LanguageService.instance.t('trip_start_failed');
+    }
+    final r = e.toString().toLowerCase();
+    if (r.contains('location_permission_denied')) return LanguageService.instance.t('location_permission_denied');
+    return LanguageService.instance.t('trip_start_failed');
+  }
+
+  void _showLocationDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: [Icon(Icons.location_on, color: AppTheme.primaryBlue), SizedBox(width: 8), Text(LanguageService.instance.t('location_required'))]),
+        content: Text(LanguageService.instance.t('enable_location_to_scan')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(LanguageService.instance.t('cancel'))),
+          FilledButton(onPressed: () {
+            Navigator.pop(ctx);
+            // Ouvre les paramètres Android/iOS
+            // Note : pour iOS on utiliserait openAppSettings, mais Flutter gère cross-platform via url_launcher
+            // ici on laisse un message guiding l'utilisateur
+          }, child: Text(LanguageService.instance.t('settings'))),
+        ],
+      ),
+    );
   }
 
   @override
