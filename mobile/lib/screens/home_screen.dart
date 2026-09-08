@@ -59,8 +59,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _refreshUnread();
       _checkAnomalies();
       PushService.instance.addRefreshListener(_refreshUnread);
-      if (_isTransporteur) PushService.instance.addRefreshListener(_checkPendingRequest);
+      PushService.instance.addRefreshListener(_checkPendingRequest);
       _startPendingPoll();
+      // Rafraîchir le user depuis le serveur (source de vérité) : le rôle
+      // en cache peut être obsolète (rôle transporteur attribué après le
+      // login, connexion Google, etc.). Si le rôle change (ex : devient
+      // transporteur), on démarre le polling de demandes de course.
+      _refreshUserFromServer();
+    }
+  }
+
+  /// Recharge le profil serveur (rôles à jour) et démarre le polling
+  /// transporteur si le rôle vient d'être détecté.
+  Future<void> _refreshUserFromServer() async {
+    try {
+      final data = await _api.get('/auth/profile');
+      final user = User.fromJson(data['user']);
+      final wasTransporteur = _isTransporteur;
+      if (!mounted) return;
+      setState(() => _user = user);
+      if (!wasTransporteur && _isTransporteur) {
+        // Le rôle est arrivé après le boot : démarrer le polling maintenant.
+        _startPendingPoll();
+      }
+    } catch (_) {
+      // Hors-ligne : on reste sur le user en cache.
     }
   }
 
@@ -83,6 +106,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _startPendingPoll() {
     if (!_isTransporteur) return;
+    // Idempotent : un seul timer de polling, même après refresh du rôle.
+    if (_pendingPoll?.isActive ?? false) return;
     _pendingPoll = Timer.periodic(const Duration(seconds: 3), (_) => _checkPendingRequest());
     _checkPendingRequest();
   }
@@ -759,16 +784,107 @@ class _TransporteurView extends StatefulWidget {
 class _TransporteurViewState extends State<_TransporteurView> {
   WeatherData? _weather;
   bool _weatherLoading = true;
+  Trip? _pendingTrip;
+  bool _handling = false;
+  Timer? _pendingPoll;
 
   @override
   void initState() {
     super.initState();
     _loadWeather();
+    _pollPending();
   }
 
   @override
   void dispose() {
+    _pendingPoll?.cancel();
     super.dispose();
+  }
+
+  /// Poll la demande de course en attente — la carte reste visible en
+  /// continu (pas seulement le dialogue automatique du HomeScreen) tant
+  /// que le passager attend la réponse du transporteur.
+  void _pollPending() {
+    _pendingPoll = Timer.periodic(const Duration(seconds: 4), (_) async {
+      if (_handling) return;
+      try {
+        final trip = await TripService().pendingTrip();
+        if (!mounted) return;
+        if ((trip?.id) != (_pendingTrip?.id)) {
+          setState(() => _pendingTrip = trip);
+        }
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _respond(bool accept) async {
+    if (_pendingTrip == null || _handling) return;
+    setState(() => _handling = true);
+    try {
+      if (accept) {
+        final updated = await TripService().acceptCourse(_pendingTrip!.id);
+        if (!mounted) return;
+        setState(() { _pendingTrip = null; _handling = false; });
+        Navigator.of(context).pushReplacementNamed('/trip-active', arguments: updated);
+      } else {
+        await TripService().declineCourse(_pendingTrip!.id);
+        if (!mounted) return;
+        setState(() { _pendingTrip = null; _handling = false; });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Course refusée')));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _handling = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+    }
+  }
+
+  Widget _pendingRequestCard() {
+    final trip = _pendingTrip!;
+    final name = '${trip.passager?['prenom'] ?? ''} ${trip.passager?['nom'] ?? ''}'.trim();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.primaryBlue, width: 1.5),
+        boxShadow: [BoxShadow(color: AppTheme.primaryBlue.withValues(alpha: 0.12), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(children: [
+            Container(width: 38, height: 38, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, shape: BoxShape.circle), child: const Icon(Icons.notifications_active, color: AppTheme.primaryBlue, size: 20)),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Nouvelle course demandée', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+              const Text('Le passager attend votre réponse', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+            ])),
+          ]),
+          const SizedBox(height: 12),
+          Text(name.isEmpty ? 'Un passager' : name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          if (trip.vehicle != null)
+            Text('${trip.vehicle?['marque']} ${trip.vehicle?['modele']} • ${trip.vehicle?['immatriculation']}', style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: OutlinedButton.icon(
+              onPressed: _handling ? null : () => _respond(false),
+              icon: const Icon(Icons.close, size: 18),
+              label: const Text('Refuser'),
+              style: OutlinedButton.styleFrom(foregroundColor: AppTheme.sosRed, side: const BorderSide(color: AppTheme.sosRed)),
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: FilledButton.icon(
+              onPressed: _handling ? null : () => _respond(true),
+              icon: _handling ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.check, size: 18),
+              label: const Text('Accepter'),
+              style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue),
+            )),
+          ]),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadWeather() async {
@@ -824,6 +940,8 @@ class _TransporteurViewState extends State<_TransporteurView> {
             ]),
           ),
           const SizedBox(height: 10),
+          // Demande de course en attente : carte persistante Accepter/Refuser
+          if (_pendingTrip != null) _pendingRequestCard(),
           if (_weatherLoading)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
