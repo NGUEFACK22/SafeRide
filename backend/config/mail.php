@@ -65,6 +65,12 @@ return [
             'transport' => 'resend',
         ],
 
+        // Transport Resend SANS dépendance resend/resend-php (Packagist
+        // injoignable) : appelle l'API HTTP directement. Voir ResendHttpTransport.
+        'resend-http' => [
+            'transport' => 'resend-http',
+        ],
+
         'sendmail' => [
             'transport' => 'sendmail',
             'path' => env('MAIL_SENDMAIL_PATH', '/usr/sbin/sendmail -bs -i'),

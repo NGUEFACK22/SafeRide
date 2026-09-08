@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Mail\Transport\ResendHttpTransport;
 use App\Models\ManagerAssignment;
 use App\Models\SosAlert;
 use App\Models\Trip;
@@ -12,6 +13,7 @@ use App\Observers\TripObserver;
 use App\Observers\UserObserver;
 use App\Database\NeonPostgresConnector;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Mail\MailManager;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -20,6 +22,17 @@ class AppServiceProvider extends ServiceProvider
     {
         // Connecteur PostgreSQL compatible Neon (transmet endpoint + channel_binding)
         $this->app->bind('db.connector.pgsql', fn () => new NeonPostgresConnector());
+
+        // Transport Resend sans SDK : MAIL_MAILER=resend-http + RESEND_API_KEY
+        $this->app->extend(MailManager::class, function (MailManager $manager) {
+            $manager->extend('resend-http', function (array $config) {
+                return new ResendHttpTransport(
+                    $config['key'] ?? config('services.resend.key'),
+                );
+            });
+
+            return $manager;
+        });
     }
 
     public function boot(): void

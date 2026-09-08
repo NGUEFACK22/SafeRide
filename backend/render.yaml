@@ -53,20 +53,14 @@ services:
       - key: INFOBIP_WHATSAPP_SENDER
         value: ""
       - key: MAIL_MAILER
-        value: smtp
-      - key: MAIL_HOST
-        value: smtp.gmail.com
-      - key: MAIL_PORT
-        value: "587"
-      - key: MAIL_USERNAME
-        value: francknguefack19@gmail.com
-      - key: MAIL_PASSWORD
-        value: rortdnfhzslgxdgr
-      - key: MAIL_ENCRYPTION
-        value: tls
+        value: resend-http
       - key: MAIL_FROM_ADDRESS
-        value: francknguefack19@gmail.com
+        value: onboarding@resend.dev
       - key: MAIL_FROM_NAME
         value: SafeRide
+      # RESEND_API_KEY : à définir dans le dashboard Render (Env Vars > Add),
+      # jamais en clair dans le repo (GitHub Push Protection la bloque).
+      - key: RESEND_API_KEY
+        sync: false
       - key: DB_NEON_ENDPOINT
         value: ep-summer-recipe-axfvwadi

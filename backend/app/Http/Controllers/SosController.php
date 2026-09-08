@@ -283,13 +283,17 @@ class SosController extends Controller
                     }
                 }
 
-                // 3) Email — envoyé en file (non bloquant), ne casse jamais le SOS
+                // 3) Email — envoi SYNCHRONE (urgent) : Mail::queue() ne partirait
+                //    jamais sans worker de queue (Render free = serve seul).
+                //    Déjà dans try/catch : un échec SMTP ne casse jamais le SOS.
                 if ($contact->email) {
                     try {
-                        Mail::queue(new SosAlertMail($sos, $trip, $contact->nom));
+                        Mail::to($contact->email)->send(new SosAlertMail($sos, $trip, $contact->nom));
                         $emailSent = true;
                         $canaux[] = 'email (' . $contact->email . ')';
-                    } catch (\Throwable $e) {}
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::warning('Email SOS échec', ['to' => $contact->email, 'error' => $e->getMessage()]);
+                    }
                 }
 
                 $perContact[] = [
@@ -314,10 +318,14 @@ class SosController extends Controller
                 ]);
             });
 
-        // Services d'urgence
+        // Services d'urgence — email SYNCHRONE (urgent, pas de worker queue sur Render free)
         EmergencyService::get()->each(function (EmergencyService $service) use ($sos, $trip) {
             if ($service->email) {
-                try { Mail::queue(new SosAlertMail($sos, $trip, $service->nom)); } catch (\Throwable $e) {}
+                try {
+                    Mail::to($service->email)->send(new SosAlertMail($sos, $trip, $service->nom));
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Email SOS service échec', ['service' => $service->nom, 'error' => $e->getMessage()]);
+                }
             }
             $sos->emergencyNotifications()->create(['emergency_service_id' => $service->id, 'notifie_le' => now(), 'statut' => 'TRANSMISE']);
         });
@@ -396,8 +404,9 @@ class SosController extends Controller
 
         if ($manager->email) {
             try {
-                Mail::queue(new SosAlertMail($sos, $sos->trip, $manager->nom));
+                Mail::to($manager->email)->send(new SosAlertMail($sos, $sos->trip, $manager->nom));
             } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Email SOS gestionnaire échec', ['error' => $e->getMessage()]);
             }
         }
     }
