@@ -98,6 +98,12 @@ return [
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
             'neon_endpoint' => env('DB_NEON_ENDPOINT'),
+            // Pooler Neon (PgBouncer) : les "prepared statements" côté serveur ne
+            // sont pas supportés en mode transactionnel → erreur 0A000 "cached
+            // plan must not change result type". On les désactive via PDO.
+            'options' => extension_loaded('pdo_pgsql') ? [
+                PDO::PGSQL_ATTR_DISABLE_PREPARES => true,
+            ] : [],
         ],
 
         'sqlsrv' => [

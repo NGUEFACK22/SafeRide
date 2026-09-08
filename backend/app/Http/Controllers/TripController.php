@@ -36,7 +36,13 @@ class TripController extends Controller
 
         $query->where('statut', 'EN_COURS')->latest();
 
-        return response()->json(['trip' => TripResource::make($query->first())]);
+        $trip = $query->first();
+
+        if (! $trip) {
+            return response()->json(['trip' => null]);
+        }
+
+        return response()->json(['trip' => TripResource::make($trip)]);
     }
 
     public function start(Request $request): JsonResponse
