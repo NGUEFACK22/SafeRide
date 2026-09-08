@@ -13,7 +13,6 @@ use App\Services\RouteService;
 use App\Services\AiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class TripController extends Controller
 {
@@ -83,20 +82,23 @@ class TripController extends Controller
         }
 
         try {
-            $trip = DB::transaction(function () use ($request, $data, $vehicle, $qr) {
-                // Anti double démarrage (P1-2) : consommation atomique du QR.
-                // On évite SELECT ... FOR UPDATE, non fiable à travers le pooler
-                // PostgreSQL de Neon (annule la transaction → 25P02 "current
-                // transaction is aborted"). Un UPDATE conditionnel suffit :
-                // un seul appel peut passer actif=true → false.
-                $used = QrCode::where('id', $qr->id)
-                    ->where('actif', true)
-                    ->update(['actif' => false, 'last_used_at' => now()]);
+            \Log::info('Trip start autocommit v3');
 
-                if ($used !== 1) {
-                    throw new \RuntimeException('QR déjà utilisé');
-                }
+            // Consommation atomique du QR en AUTOCONMIT (instruction unique).
+            // Pas de DB::transaction ni SELECT ... FOR UPDATE : le pooler Neon
+            // (PgBouncer en mode transaction) rend les transactions explicites
+            // instables (25P02 "current transaction is aborted" sur l'INSERT).
+            // Un seul appel peut faire passer actif=true → false, ce qui suffit
+            // à garantir l'anti double démarrage (P1-2).
+            $used = QrCode::where('id', $qr->id)
+                ->where('actif', true)
+                ->update(['actif' => false, 'last_used_at' => now()]);
 
+            if ($used !== 1) {
+                return response()->json(['message' => 'QR Code déjà utilisé — veuillez scanner le nouveau QR du véhicule'], 422);
+            }
+
+            try {
                 $trip = Trip::create([
                     'passager_id' => $request->user()->id,
                     'transporteur_id' => $vehicle->transporteur_id,
@@ -128,13 +130,13 @@ class TripController extends Controller
                     'titre' => 'Transporteur identifié',
                     'message' => 'Véhicule ' . $vehicle->marque . ' ' . $vehicle->modele . ' (' . $vehicle->immatriculation . ') - Transporteur ' . $vehicle->transporteur->prenom . ' ' . $vehicle->transporteur->nom . '. Voulez-vous commencer la course ?',
                 ]);
-
-                return $trip;
-            });
-        } catch (\RuntimeException $e) {
-            if ($e->getMessage() === 'QR déjà utilisé') {
-                return response()->json(['message' => 'QR Code déjà utilisé — veuillez scanner le nouveau QR du véhicule'], 422);
+            } catch (\Throwable $e) {
+                // Ré-activer le QR si la création du trajet échoue après
+                // consommation, pour ne pas bloquer le transporteur.
+                QrCode::where('id', $qr->id)->update(['actif' => true]);
+                throw $e;
             }
+        } catch (\RuntimeException $e) {
             throw $e;
         }
 
