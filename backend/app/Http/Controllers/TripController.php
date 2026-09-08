@@ -84,18 +84,24 @@ class TripController extends Controller
 
         try {
             $trip = DB::transaction(function () use ($request, $data, $vehicle, $qr) {
-                // Lock FOR UPDATE sur le QR pour éviter double démarrage (P1-2)
-                $lockedQr = QrCode::where('id', $qr->id)->lockForUpdate()->first();
-                if (!$lockedQr || !$lockedQr->actif) {
+                // Anti double démarrage (P1-2) : consommation atomique du QR.
+                // On évite SELECT ... FOR UPDATE, non fiable à travers le pooler
+                // PostgreSQL de Neon (annule la transaction → 25P02 "current
+                // transaction is aborted"). Un UPDATE conditionnel suffit :
+                // un seul appel peut passer actif=true → false.
+                $used = QrCode::where('id', $qr->id)
+                    ->where('actif', true)
+                    ->update(['actif' => false, 'last_used_at' => now()]);
+
+                if ($used !== 1) {
                     throw new \RuntimeException('QR déjà utilisé');
                 }
-                $lockedQr->update(['last_used_at' => now(), 'actif' => false]);
 
                 $trip = Trip::create([
                     'passager_id' => $request->user()->id,
                     'transporteur_id' => $vehicle->transporteur_id,
                     'vehicle_id' => $vehicle->id,
-                    'qr_token' => $lockedQr->token,
+                    'qr_token' => $qr->token,
                     'start_latitude' => $data['latitude'],
                     'start_longitude' => $data['longitude'],
                     'started_at' => now(),
