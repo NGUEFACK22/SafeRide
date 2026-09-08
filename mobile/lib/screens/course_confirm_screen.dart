@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../utils/error_helper.dart';
 
@@ -25,12 +27,23 @@ class CourseConfirmScreen extends StatefulWidget {
 class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
   final _tripService = TripService();
   bool _loading = false;
+  bool _waiting = false;
+  Timer? _statusPoll;
 
   Future<void> _confirm() async {
     setState(() => _loading = true);
     try {
       final trip = await _tripService.confirmEmbarquement(widget.trip.id);
       if (!mounted) return;
+      if (trip.statut == 'EN_ATTENTE_TRANSPORTEUR') {
+        // Le transporteur doit accepter : on attend sa décision en pollant.
+        setState(() {
+          _waiting = true;
+          _loading = false;
+        });
+        _startPolling(widget.trip.id);
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Course acceptée — protection vocale active des deux côtés'), backgroundColor: AppTheme.primaryBlue),
       );
@@ -42,14 +55,87 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
     }
   }
 
+  void _startPolling(int tripId) {
+    _statusPoll?.cancel();
+    _statusPoll = Timer.periodic(const Duration(seconds: 3), (_) => _pollStatus(tripId));
+    _pollStatus(tripId);
+  }
+
+  Future<void> _pollStatus(int tripId) async {
+    Trip trip;
+    try {
+      trip = await _tripService.tripStatus(tripId);
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
+    switch (trip.statut) {
+      case 'CONFIRME':
+        _statusPoll?.cancel();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('⭐ Transporteur a accepté la course'), backgroundColor: AppTheme.primaryBlue),
+        );
+        Navigator.of(context).pushReplacementNamed('/trip-active', arguments: trip);
+      case 'ANNULE':
+        _statusPoll?.cancel();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Le transporteur a refusé la course. Vous pouvez scanner un autre véhicule.'), backgroundColor: AppTheme.sosRed),
+        );
+        Navigator.of(context).pop();
+      default:
+        break;
+    }
+  }
+
+  @override
+  void dispose() {
+    _statusPoll?.cancel();
+    super.dispose();
+  }
+
+  Widget _waitingView() {
+    final t = widget.transporteur;
+    final fullName = '${t['prenom'] ?? ''} ${t['nom'] ?? ''}'.trim();
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: AppTheme.textDark), onPressed: () => Navigator.pop(context)),
+        title: const Text('Course proposée', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800)),
+        centerTitle: true,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(width: 56, height: 56, child: CircularProgressIndicator(color: AppTheme.primaryBlue)),
+              const SizedBox(height: 20),
+              const Icon(Icons.handshake, size: 40, color: AppTheme.primaryBlue),
+              const SizedBox(height: 12),
+              Text('Demande envoyée à $fullName', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+              const SizedBox(height: 8),
+              const Text('Le transporteur doit confirmer qu\'il accepte la course.\nDès son accord, vous pourrez définir votre destination.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppTheme.textGrey)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_waiting) return _waitingView();
     final t = widget.transporteur;
     final v = widget.vehicle;
     final fullName = '${t['prenom'] ?? ''} ${t['nom'] ?? ''}'.trim();
     final rating = (t['average_rating'] as num?)?.toDouble() ?? 0;
     final ratingCount = t['ratings_count'] as int? ?? 0;
     final verifie = t['verifie'] as String?;
+    final tripsCount = t['trips_count'] as int? ?? 0;
+    final reviews = (t['reviews'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -93,6 +179,12 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
                         ]),
                         const SizedBox(height: 4),
                         Text(t['telephone'] ?? '', style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+                        const SizedBox(height: 6),
+                        Row(children: [
+                          const Icon(Icons.route, size: 14, color: AppTheme.primaryBlue),
+                          const SizedBox(width: 4),
+                          Text('$tripsCount course(s) réalisée(s)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.primaryBlue)),
+                        ]),
                       ],
                     ),
                   ),
@@ -119,6 +211,40 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
                 ],
               ),
             ),
+            // Avis des autres passagers
+            if (reviews.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      const Icon(Icons.rate_review, size: 16, color: AppTheme.primaryBlue),
+                      const SizedBox(width: 6),
+                      Text('Avis des passagers', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+                    ]),
+                    const SizedBox(height: 8),
+                    ...reviews.take(3).map((r) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Row(children: [
+                              Icon(Icons.star, size: 14, color: Colors.amber.shade700),
+                              Text(' ${r['rating'] ?? ''}  ', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+                              Text('${r['prenom'] ?? 'Passager'} ${r['nom'] ?? ''}'.trim(), style: const TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+                            ]),
+                            if (r['comment'] != null && (r['comment'] as String).isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 18, top: 2),
+                                child: Text(r['comment'], maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+                              ),
+                          ]),
+                        )),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),

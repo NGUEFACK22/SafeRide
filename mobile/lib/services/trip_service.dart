@@ -44,6 +44,30 @@ class TripService {
     return Trip.fromJson(data['trip']);
   }
 
+  Future<Trip> acceptCourse(int tripId) async {
+    final data = await _api.post('/trips/$tripId/accept-course', {});
+    return Trip.fromJson(data['trip']);
+  }
+
+  Future<Trip> declineCourse(int tripId) async {
+    final data = await _api.post('/trips/$tripId/decline-course', {});
+    return Trip.fromJson(data['trip']);
+  }
+
+  /// Trajet proposé au transporteur, en attente de sa décision (EN_ATTENTE_TRANSPORTEUR).
+  Future<Trip?> pendingTrip() async {
+    final data = await _api.get('/trips/pending');
+    final trip = data['trip'];
+    if (trip == null) return null;
+    return Trip.fromJson(trip);
+  }
+
+  /// État courant d'un trajet (passager ou transporteur) — pour poller l'acceptation.
+  Future<Trip> tripStatus(int tripId) async {
+    final data = await _api.get('/trips/$tripId/status');
+    return Trip.fromJson(data['trip']);
+  }
+
   Future<Trip> confirmDestination(int tripId, bool confirmed) async {
     final data = await _api.post('/trips/$tripId/confirm-destination', {
       'confirmed': confirmed,

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\QrCode;
 use App\Models\Trip;
 use App\Models\TripLocation;
+use App\Models\TripRating;
 use App\Models\Vehicle;
 use App\Models\User;
 use App\Models\Notification;
@@ -161,6 +162,22 @@ class TripController extends Controller
                     'average_rating' => $vehicle->transporteur->averageRating(),
                     'ratings_count' => $vehicle->transporteur->ratingsCount(),
                     'verifie' => $vehicle->transporteur->statutVerification(),
+                    'trips_count' => Trip::where('transporteur_id', $vehicle->transporteur_id)
+                        ->where('statut', 'TERMINE')
+                        ->count(),
+                    'reviews' => TripRating::where('rated_id', $vehicle->transporteur_id)
+                        ->with('rater:id,prenom,nom')
+                        ->latest()
+                        ->limit(6)
+                        ->get()
+                        ->map(fn ($r) => [
+                            'id' => $r->id,
+                            'rating' => $r->rating,
+                            'comment' => $r->comment,
+                            'prenom' => $r->rater?->prenom,
+                            'nom' => $r->rater?->nom,
+                            'created_at' => $r->created_at?->toIso8601String(),
+                        ]),
                 ],
                 'vehicle' => [
                     'id' => $vehicle->id,
@@ -189,54 +206,122 @@ class TripController extends Controller
     }
 
     /**
-     * Confirmation de l'embarquement par le passager ou le transporteur
-     * Passe le statut de SCANNE → CONFIRME
+     * Le passager accepte de démarrer la course (SCANNE → EN_ATTENTE_TRANSPORTEUR).
+     * Le transporteur devra ensuite accepter la course (acceptCourse) ou la refuser.
      */
     public function confirmEmbarquement(Request $request, int $id): JsonResponse
     {
         $trip = Trip::where('id', $id)
-            ->where(function ($q) use ($request) {
-                $q->where('passager_id', $request->user()->id)
-                  ->orWhere('transporteur_id', $request->user()->id);
-            })
+            ->where('passager_id', $request->user()->id)
             ->where('statut', 'SCANNE')
+            ->firstOrFail();
+
+        $trip->update(['statut' => 'EN_ATTENTE_TRANSPORTEUR']);
+
+        // Le transporteur reçoit une notification push/in-app : la course
+        // est proposée, il doit l'accepter ou la refuser depuis son app.
+        Notification::create([
+            'user_id' => $trip->transporteur_id,
+            'type' => 'TRAJET',
+            'titre' => '🛎️ Nouvelle course à accepter',
+            'message' => 'Le passager ' . $request->user()->prenom . ' ' . $request->user()->nom . ' souhaite commencer une course avec vous. Acceptez-vous la course ?',
+            'push' => true,
+        ]);
+
+        return response()->json([
+            'message' => 'Course proposée au transporteur. En attente de son accord…',
+            'trip' => new TripResource($trip->fresh()->load('passager', 'transporteur', 'vehicle')),
+            'next_step' => 'waiting_transporteur',
+        ]);
+    }
+
+    /**
+     * Le transporteur accepte la course (EN_ATTENTE_TRANSPORTEUR → CONFIRME).
+     */
+    public function acceptCourse(Request $request, int $id): JsonResponse
+    {
+        $trip = Trip::where('id', $id)
+            ->where('transporteur_id', $request->user()->id)
+            ->where('statut', 'EN_ATTENTE_TRANSPORTEUR')
             ->firstOrFail();
 
         $trip->update(['statut' => 'CONFIRME']);
 
-        $otherUserId = $trip->passager_id === $request->user()->id
-            ? $trip->transporteur_id
-            : $trip->passager_id;
-
-        // Message adapté selon qui confirme
-        $isPassenger = $trip->passager_id === $request->user()->id;
-        if ($isPassenger) {
-            Notification::create([
-                'user_id' => $trip->transporteur_id,
-                'type' => 'TRAJET',
-                'titre' => '✅ Course acceptée par le passager',
-                'message' => 'Le passager a accepté de commencer la course. Destination à définir. La surveillance vocale démarre pour vous deux.',
-            ]);
-            Notification::create([
-                'user_id' => $trip->passager_id,
-                'type' => 'TRAJET',
-                'titre' => 'Course démarrée',
-                'message' => 'Vous avez accepté la course. Définissez votre destination. La protection vocale est active pour vous et le transporteur.',
-            ]);
-        } else {
-            Notification::create([
-                'user_id' => $trip->passager_id,
-                'type' => 'TRAJET',
-                'titre' => 'Transporteur a confirmé la course',
-                'message' => 'Le transporteur confirme la course. Définissez votre destination.',
-            ]);
-        }
+        Notification::create([
+            'user_id' => $trip->passager_id,
+            'type' => 'TRAJET',
+            'titre' => '✅ Transporteur a accepté la course',
+            'message' => 'Le transporteur a accepté de commencer la course. Définissez votre destination — écoute automatique activée des deux côtés.',
+            'push' => false,
+        ]);
 
         return response()->json([
-            'message' => $isPassenger ? 'Course acceptée. Définissez votre destination — écoute automatique activée des deux côtés.' : 'Embarquement confirmé.',
+            'message' => 'Course acceptée. Définissez votre destination — écoute automatique activée des deux côtés.',
             'trip' => new TripResource($trip->fresh()->load('passager', 'transporteur', 'vehicle')),
             'next_step' => 'set_destination',
         ]);
+    }
+
+    /**
+     * Le transporteur refuse la course (EN_ATTENTE_TRANSPORTEUR → ANNULE).
+     */
+    public function declineCourse(Request $request, int $id): JsonResponse
+    {
+        $trip = Trip::where('id', $id)
+            ->where('transporteur_id', $request->user()->id)
+            ->where('statut', 'EN_ATTENTE_TRANSPORTEUR')
+            ->firstOrFail();
+
+        $trip->update(['statut' => 'ANNULE', 'end_method' => 'REFUS_TRANSPORTEUR']);
+
+        Notification::create([
+            'user_id' => $trip->passager_id,
+            'type' => 'TRAJET',
+            'titre' => '❌ Course refusée par le transporteur',
+            'message' => 'Le transporteur a refusé la course. Vous pouvez scanner un autre véhicule.',
+            'push' => false,
+        ]);
+
+        return response()->json([
+            'message' => 'Course refusée. Le passager en a été informé.',
+            'trip' => new TripResource($trip->fresh()->load('passager', 'transporteur', 'vehicle')),
+        ]);
+    }
+
+    /**
+     * Trajet proposé au transporteur en cours de décision (EN_ATTENTE_TRANSPORTEUR).
+     * GET /trips/pending (transporteur) — renvoie null s'il n'y a rien à accepter.
+     */
+    public function pending(Request $request): JsonResponse
+    {
+        $trip = Trip::with('passager', 'transporteur', 'vehicle')
+            ->where('transporteur_id', $request->user()->id)
+            ->where('statut', 'EN_ATTENTE_TRANSPORTEUR')
+            ->latest()
+            ->first();
+
+        if (! $trip) {
+            return response()->json(['trip' => null]);
+        }
+
+        return response()->json(['trip' => new TripResource($trip)]);
+    }
+
+    /**
+     * État courant d'un trajet (passager ou transporteur).
+     * GET /trips/{trip}/status — utilisé pour poller l'acceptation du transporteur.
+     */
+    public function status(Request $request, int $id): JsonResponse
+    {
+        $trip = Trip::with('passager', 'transporteur', 'vehicle')
+            ->where('id', $id)
+            ->where(function ($q) use ($request) {
+                $q->where('passager_id', $request->user()->id)
+                  ->orWhere('transporteur_id', $request->user()->id);
+            })
+            ->firstOrFail();
+
+        return response()->json(['trip' => new TripResource($trip)]);
     }
 
     /**

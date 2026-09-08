@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../models/trip.dart';
 import '../models/user.dart';
 import '../services/alert_counter_service.dart';
 import '../services/api_service.dart';
@@ -664,11 +665,78 @@ class _TransporteurView extends StatefulWidget {
 class _TransporteurViewState extends State<_TransporteurView> {
   WeatherData? _weather;
   bool _weatherLoading = true;
+  Timer? _pendingPoll;
+  int? _handledRequestId;
+  bool _dialogOpen = false;
 
   @override
   void initState() {
     super.initState();
     _loadWeather();
+    _pendingPoll = Timer.periodic(const Duration(seconds: 4), (_) => _checkPendingRequest());
+    _checkPendingRequest();
+  }
+
+  @override
+  void dispose() {
+    _pendingPoll?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkPendingRequest() async {
+    if (_dialogOpen || _handledRequestId != null) return;
+    try {
+      final trip = await TripService().pendingTrip();
+      if (!mounted) return;
+      _handledRequestId = trip?.id;
+      if (trip != null) _showAcceptRequestDialog(trip);
+    } catch (_) {
+      // route indisponible : on ré-essaiera au prochain tick
+    }
+  }
+
+  Future<void> _showAcceptRequestDialog(Trip trip) async {
+    if (_dialogOpen) return;
+    _dialogOpen = true;
+    final name = '${trip.passager?['prenom'] ?? ''} ${trip.passager?['nom'] ?? ''}'.trim();
+    final accept = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(children: [
+          Icon(Icons.notifications_active, color: AppTheme.primaryBlue),
+          SizedBox(width: 8),
+          Text('Nouvelle course'),
+        ]),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('$name souhaite débuter une course avec vous.', style: const TextStyle(fontSize: 14)),
+          const SizedBox(height: 4),
+          if (trip.vehicle != null) Text('${trip.vehicle?['marque']} ${trip.vehicle?['modele']} • ${trip.vehicle?['immatriculation']}', style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Refuser', style: TextStyle(color: AppTheme.sosRed))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue), child: const Text('Accepter la course')),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    _dialogOpen = false;
+    if (accept == true) {
+      try {
+        final updated = await TripService().acceptCourse(trip.id);
+        if (!mounted) return;
+        Navigator.of(context).pushReplacementNamed('/trip-active', arguments: updated);
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      }
+    } else {
+      try {
+        await TripService().declineCourse(trip.id);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Course refusée')));
+      } catch (_) {}
+    }
   }
 
   Future<void> _loadWeather() async {

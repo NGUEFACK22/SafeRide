@@ -26,6 +26,7 @@ return new class extends Migration
             $table->decimal('deviation_km', 8, 2)->nullable();
             $table->enum('statut', [
                 'SCANNE',
+                'EN_ATTENTE_TRANSPORTEUR',
                 'CONFIRME',
                 'DESTINATION_PROPOSEE',
                 'DESTINATION_CONFIRMEE',
@@ -33,7 +34,7 @@ return new class extends Migration
                 'TERMINE',
                 'ANNULE',
             ])->default('SCANNE');
-            $table->enum('end_method', ['MANUEL', 'AUTO_10MIN'])->nullable();
+            $table->enum('end_method', ['MANUEL', 'AUTO_10MIN', 'REFUS_TRANSPORTEUR'])->nullable();
             $table->timestamps();
 
             $table->index(['statut']);

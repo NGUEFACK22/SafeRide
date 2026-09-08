@@ -24,6 +24,8 @@ class Trip {
   final Map<String, dynamic>? myRating;
   final double? ratingsAvg;
   final int? ratingsCount;
+  final Map<String, dynamic>? passager;
+  final Map<String, dynamic>? vehicle;
 
   Trip({
     required this.id,
@@ -51,6 +53,8 @@ class Trip {
     this.myRating,
     this.ratingsAvg,
     this.ratingsCount,
+    this.passager,
+    this.vehicle,
   });
 
   factory Trip.fromJson(Map<String, dynamic> json) {
@@ -81,6 +85,8 @@ class Trip {
       myRating: json['my_rating'] as Map<String, dynamic>?,
       ratingsAvg: _toDouble(json['ratings_avg']),
       ratingsCount: json['ratings_count'] as int?,
+      passager: json['passager'] as Map<String, dynamic>?,
+      vehicle: json['vehicle'] as Map<String, dynamic>?,
     );
   }
 

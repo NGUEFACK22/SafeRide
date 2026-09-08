@@ -61,10 +61,16 @@ class TripFlowTest extends TestCase
 
         $this->assertEquals('SCANNE', $start['statut']);
 
-        // 3. Embarquement confirmé → CONFIRME.
+        // 3. Le passager accepte de démarrer → EN_ATTENTE_TRANSPORTEUR.
         $confirm = $this->postJson("/api/v1/trips/{$start['id']}/confirm-embarquement")
             ->assertOk()->json('trip');
-        $this->assertEquals('CONFIRME', $confirm['statut']);
+        $this->assertEquals('EN_ATTENTE_TRANSPORTEUR', $confirm['statut']);
+
+        // 3b. Le transporteur accepte la course → CONFIRME.
+        $accepted = $this->actingAs($transporteur)
+            ->postJson("/api/v1/trips/{$start['id']}/accept-course")
+            ->assertOk()->json('trip');
+        $this->assertEquals('CONFIRME', $accepted['statut']);
 
         // 4. Destination proposée → DESTINATION_PROPOSEE.
         $dest = $this->postJson("/api/v1/trips/{$start['id']}/destination", [
