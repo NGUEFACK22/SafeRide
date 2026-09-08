@@ -10,19 +10,26 @@ class Notification extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'type', 'titre', 'message', 'lu', 'read_at'];
+    protected $fillable = ['user_id', 'type', 'titre', 'message', 'lu', 'read_at', 'push'];
 
     protected function casts(): array
     {
         return [
             'lu' => 'boolean',
             'read_at' => 'datetime',
+            'push' => 'boolean',
         ];
     }
 
     protected static function booted(): void
     {
         static::created(function (Notification $notification) {
+            // Certaines notifications ne déclenchent pas de push FCM
+            // (ex: confirmation de course côté passager, déjà gérée à l'écran).
+            if ($notification->push === false) {
+                return;
+            }
+
             // Le push FCM ne doit JAMAIS casser le flux métier (ex: SOS).
             // Toute erreur réseau/push est loggée et ignorée.
             try {

@@ -129,6 +129,7 @@ class TripController extends Controller
                     'type' => 'TRAJET',
                     'titre' => 'Transporteur identifié',
                     'message' => 'Véhicule ' . $vehicle->marque . ' ' . $vehicle->modele . ' (' . $vehicle->immatriculation . ') - Transporteur ' . $vehicle->transporteur->prenom . ' ' . $vehicle->transporteur->nom . '. Voulez-vous commencer la course ?',
+                    'push' => false,
                 ]);
             } catch (\Throwable $e) {
                 // Ré-activer le QR si la création du trajet échoue après
