@@ -1,4 +1,4 @@
-# Modèles embarqués (offline)
+﻿# Modèles embarqués (offline)
 
 ## 1) Biométrie vocale — ECAPA-TDNN (ONNX)
 
@@ -22,12 +22,12 @@ Sans ce fichier, l'application retombe sur la vérification mot-clé seule.
 ## 2) Reconnaissance vocale offline — Vosk (FR)
 
 Le SOS vocal utilise **Vosk** en priorité (offline, sans internet) via `vosk_flutter`
-pour détecter le mot de sécurité. Le modèle français léger est à placer en :
+pour détecter le mot de sécurité. Le modèle français léger est inclus en :
 
-`mobile/assets/models/vosk-model-small-fr-0.22.zip`  (~40 Mo, Apache 2.0)
+`mobile/assets/models/vosk-model-small-fr-0.22.zip`  (42 Mo, Apache 2.0)
 
 - Source : https://alphacephei.com/vosk/models  → `vosk-model-small-fr-0.22.zip`
-- SHA prévu : voir `model-list.json` sur le site
+- SHA-256 : `cabf6180e177eb9b3a9a9d43a437bd5e549f3a7d09525e5d69a3fed787be12ad`
 - Commande :
   ```bash
   curl -L -o vosk-model-small-fr-0.22.zip https://alphacephei.com/vosk/models/vosk-model-small-fr-0.22.zip

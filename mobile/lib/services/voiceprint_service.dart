@@ -31,6 +31,10 @@ class VoiceprintService {
   final List<int> _samples = [];
   StreamSubscription<Uint8List>? _streamSub;
 
+  /// Callback niveau micro (0..1) pour l'UI d'enrôlement, throttlé ~10 Hz.
+  void Function(double level)? onLevel;
+  DateTime _lastLevelAt = DateTime.fromMillisecondsSinceEpoch(0);
+
   /// Charge le modèle ONNX depuis les assets. Retourne false si indisponible.
   Future<bool> ensureLoaded() async {
     if (_loaded) return true;
@@ -209,8 +213,20 @@ class VoiceprintService {
 
   void _appendChunk(Uint8List chunk) {
     final bytes = chunk.buffer.asUint8List();
+    var minSample = 32767;
+    var maxSample = -32768;
     for (var i = 0; i + 1 < bytes.length; i += 2) {
-      _samples.add((bytes[i] | (bytes[i + 1] << 8)).toSigned(16));
+      final s = (bytes[i] | (bytes[i + 1] << 8)).toSigned(16);
+      _samples.add(s);
+      if (s < minSample) minSample = s;
+      if (s > maxSample) maxSample = s;
+    }
+    // Niveau micro ~10 Hz pour l'onde visuelle (peak-to-peak normalisé)
+    final now = DateTime.now();
+    if (onLevel != null && now.difference(_lastLevelAt).inMilliseconds >= 100) {
+      _lastLevelAt = now;
+      final peak = (maxSample - minSample) / 65535.0;
+      onLevel!(peak.clamp(0.0, 1.0));
     }
   }
 
@@ -403,6 +419,22 @@ class VoiceprintService {
     await Future<void>.delayed(duration);
     return stopAndEmbed();
   }
+
+  /// Qualité de la dernière capture : RMS dBFS (-80 = silence, 0 = saturation).
+  /// Permet à l'UI d'avertir "parlez plus fort" / "trop de bruit" avant l'envoi.
+  double lastCaptureDb() {
+    if (_samples.isEmpty) return -80;
+    double sum = 0;
+    for (final s in _samples) {
+      final v = s / 32768.0;
+      sum += v * v;
+    }
+    final rms = math.sqrt(sum / _samples.length);
+    return 20 * (math.log(rms + 1e-9) / math.ln10);
+  }
+
+  /// Nombre d'échantillons de la dernière capture (diagnostic UI).
+  int get lastSampleCount => _samples.length;
 
   /// Capture brute PCM (pour diarization fenêtrée) — retourne les samples 16k mono
   Future<List<int>?> capturePcm(Duration duration) async {
