@@ -31,7 +31,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _api = ApiService();
   User? _user;
   int _unread = 0;
@@ -43,10 +43,12 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _requestDialogOpen = false;
 
   bool get _isGuest => _user == null;
+  bool get _isTransporteur => _user?.hasRole('transporteur') == true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _user = widget.user;
     if (!_isGuest) {
       _timer = Timer.periodic(const Duration(seconds: 15), (_) {
@@ -56,30 +58,43 @@ class _HomeScreenState extends State<HomeScreen> {
       _refreshUnread();
       _checkAnomalies();
       PushService.instance.addRefreshListener(_refreshUnread);
+      if (_isTransporteur) PushService.instance.addRefreshListener(_checkPendingRequest);
       _startPendingPoll();
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _pendingPoll?.cancel();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _isTransporteur) {
+      // Au retour au premier plan : vérifie immédiatement une demande en attente
+      // (sinon la fenêtre n'apparaît jamais si l'app était en arrière-plan).
+      _checkPendingRequest();
+    }
+  }
+
   void _startPendingPoll() {
-    if (_user?.hasRole('transporteur') != true) return;
-    _pendingPoll = Timer.periodic(const Duration(seconds: 4), (_) => _checkPendingRequest());
+    if (!_isTransporteur) return;
+    _pendingPoll = Timer.periodic(const Duration(seconds: 3), (_) => _checkPendingRequest());
     _checkPendingRequest();
   }
 
-  /// Interroge le backend toutes les 4 s : un passager attend l'accord du
-  /// transporteur (statut EN_ATTENTE_TRANSPORTEUR). Si oui → fenêtre Accepter/Refuser.
+  /// Interroge le backend : un passager attend l'accord du transporteur
+  /// (statut EN_ATTENTE_TRANSPORTEUR). Si oui → fenêtre Accepter/Refuser.
   Future<void> _checkPendingRequest() async {
-    if (_requestDialogOpen || _handledRequestId != null || !mounted) return;
+    if (_requestDialogOpen || !mounted) return;
     try {
       final trip = await TripService().pendingTrip();
       if (!mounted || trip == null) return;
+      // Nouveau trajet (id différent) → on affiche la fenêtre.
+      if (trip.id == _handledRequestId) return;
       _handledRequestId = trip.id;
       _showAcceptRequestDialog(trip);
     } catch (_) {
