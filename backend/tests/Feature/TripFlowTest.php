@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\QrCode;
 use App\Models\Role;
+use App\Models\Trip;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -116,5 +118,168 @@ class TripFlowTest extends TestCase
         // 9. L'historique du passager contient le trajet.
         $history = $this->getJson('/api/v1/trips/history')->assertOk()->json();
         $this->assertNotEmpty($history);
+    }
+
+    public function test_start_is_rejected_while_an_active_trip_exists(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-778-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $this->actingAs($transporteur)->postJson("/api/v1/vehicles/{$vehicle['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
+        // Premier scan OK.
+        $first = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertCreated()->json('trip');
+
+        // Deuxième scan interdit : un trajet actif existe déjà.
+        // On utilise le QR régénéré (frais, actif) après le premier scan.
+        $newToken = QrCode::where('vehicle_id', $vehicle['id'])
+            ->where('actif', true)
+            ->value('token');
+        $this->assertNotNull($newToken);
+
+        $second = $this->postJson('/api/v1/trips/start', [
+            'token' => $newToken,
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ]);
+
+        $this->assertEquals(422, $second->status());
+        $this->assertTrue($second->json('active_trip'));
+        $this->assertEquals($first['id'], $second->json('trip.id'));
+
+        // Le QR du second scan n'a pas été consommé.
+        $this->assertDatabaseHas('qr_codes', [
+            'token' => $newToken,
+            'actif' => true,
+        ]);
+    }
+
+    public function test_current_returns_trip_in_any_active_status(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-779-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $this->actingAs($transporteur)->postJson("/api/v1/vehicles/{$vehicle['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
+        $start = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertCreated()->json('trip');
+
+        // Statut SCANNE : le passager rouvre l'app → il retrouve son trajet.
+        $current = $this->getJson('/api/v1/trips/current')->assertOk()->json('trip');
+        $this->assertNotNull($current);
+        $this->assertEquals($start['id'], $current['id']);
+        $this->assertEquals('SCANNE', $current['statut']);
+    }
+
+    public function test_transporteur_cannot_accept_two_courses(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager1 = $this->user('passager1@example.com', '690000011', 'passager');
+        $passager2 = $this->user('passager2@example.com', '690000012', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-780-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $this->actingAs($transporteur)->postJson("/api/v1/vehicles/{$vehicle['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
+        // Course 1 : passager 1 scanne + confirme → EN_ATTENTE_TRANSPORTEUR.
+        $trip1 = $this->actingAs($passager1)->postJson('/api/v1/trips/start', [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertCreated()->json('trip');
+        $this->postJson("/api/v1/trips/{$trip1['id']}/confirm-embarquement")->assertOk();
+
+        // Le transporteur accepte la course 1 → CONFIRME.
+        $this->actingAs($transporteur)
+            ->postJson("/api/v1/trips/{$trip1['id']}/accept-course")
+            ->assertOk();
+
+        // Course 2 : le second passager passe par un second véhicule.
+        $transporteur2 = $this->user('transporteur2@example.com', '690000013', 'transporteur');
+        $vehicle2 = $this->actingAs($transporteur2)->postJson('/api/v1/vehicles', [
+            'marque' => 'Honda',
+            'modele' => 'Civic',
+            'immatriculation' => 'LT-781-CD',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+        $this->actingAs($transporteur2)->postJson("/api/v1/vehicles/{$vehicle2['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
+        $trip2 = $this->actingAs($passager2)->postJson('/api/v1/trips/start', [
+            'token' => $vehicle2['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertCreated()->json('trip');
+        $this->actingAs($passager2)->postJson("/api/v1/trips/{$trip2['id']}/confirm-embarquement")->assertOk();
+
+        // transporteur2 est libre : il accepte la course 2 → CONFIRME.
+        $ok = $this->actingAs($transporteur2)
+            ->postJson("/api/v1/trips/{$trip2['id']}/accept-course")
+            ->assertOk();
+        $this->assertEquals('CONFIRME', $ok->json('trip.statut'));
+
+        // Un troisième passager propose une course au transporteur2 (occupé) :
+        // refus 422 car il a déjà une course active.
+        $passager3 = $this->user('passager3@example.com', '690000014', 'passager');
+        $trip3 = Trip::create([
+            'passager_id' => $passager3->id,
+            'transporteur_id' => $transporteur2->id,
+            'vehicle_id' => $vehicle2['id'],
+            'qr_token' => 'tok-test-3',
+            'start_latitude' => 3.8480,
+            'start_longitude' => 11.5021,
+            'started_at' => now(),
+            'statut' => 'EN_ATTENTE_TRANSPORTEUR',
+        ]);
+
+        $refused = $this->actingAs($transporteur2)
+            ->postJson("/api/v1/trips/{$trip3->id}/accept-course");
+        $this->assertEquals(422, $refused->status());
     }
 }

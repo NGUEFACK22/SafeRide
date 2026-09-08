@@ -35,7 +35,17 @@ class TripController extends Controller
             $query->where('passager_id', $request->user()->id);
         }
 
-        $query->where('statut', 'EN_COURS')->latest();
+        // Tous les statuts actifs : un passager qui a scanné (SCANNE), attend
+        // le transporteur (EN_ATTENTE_TRANSPORTEUR) ou défini la destination
+        // (CONFIRME / DESTINATION_*) retrouve son trajet en rouvrant l'app.
+        $query->whereIn('statut', [
+            'SCANNE',
+            'EN_ATTENTE_TRANSPORTEUR',
+            'CONFIRME',
+            'DESTINATION_PROPOSEE',
+            'DESTINATION_CONFIRMEE',
+            'EN_COURS',
+        ])->orderByDesc('id');
 
         $trip = $query->first();
 
@@ -72,6 +82,25 @@ class TripController extends Controller
             if ($vehicle->transporteur->statut === 'SUSPENDU') {
                 return response()->json(['message' => 'Le transporteur est suspendu. Trajet impossible.'], 403);
             }
+
+        // Un seul trajet actif par passager : si un trajet non clôturé existe
+        // déjà (SCANNE → EN_COURS), on refuse le scan et on renvoie le trajet
+        // existant pour que le mobile rouvre l'écran trajet au lieu d'en
+        // créer un orphelin (QR consommé pour rien).
+        $activeStatuts = ['SCANNE', 'EN_ATTENTE_TRANSPORTEUR', 'CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'];
+        $existingTrip = Trip::where('passager_id', $request->user()->id)
+            ->whereIn('statut', $activeStatuts)
+            ->orderByDesc('id')
+            ->with('passager', 'transporteur', 'vehicle')
+            ->first();
+
+        if ($existingTrip) {
+            return response()->json([
+                'message' => 'Vous avez déjà un trajet en cours. Terminez-le ou annulez-le avant de scanner un nouveau véhicule.',
+                'trip' => new TripResource($existingTrip),
+                'active_trip' => true,
+            ], 422);
+        }
 
         // Vérification de proximité GPS : ±50m si position véhicule connue et fraîche
         $proximity = $this->checkProximity($data['latitude'], $data['longitude'], $vehicle);
@@ -241,6 +270,21 @@ class TripController extends Controller
      */
     public function acceptCourse(Request $request, int $id): JsonResponse
     {
+        // Un transporteur ne peut pas mener deux courses simultanément :
+        // s'il a déjà un trajet actif (CONFIRME → EN_COURS), il doit le
+        // terminer avant d'en accepter un autre.
+        $activeStatuts = ['CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'];
+        $busy = Trip::where('transporteur_id', $request->user()->id)
+            ->whereIn('statut', $activeStatuts)
+            ->where('id', '!=', $id)
+            ->exists();
+
+        if ($busy) {
+            return response()->json([
+                'message' => 'Vous avez déjà une course en cours. Terminez-la avant d\'en accepter une autre.',
+            ], 422);
+        }
+
         $trip = Trip::where('id', $id)
             ->where('transporteur_id', $request->user()->id)
             ->where('statut', 'EN_ATTENTE_TRANSPORTEUR')
@@ -565,6 +609,25 @@ class TripController extends Controller
                     $count++;
                 }
             });
+
+        // Nettoyage des trajets orphelins : un passager qui a scanné ou attendu
+        // le transporteur sans suite depuis > 15 min ne doit plus bloquer la
+        // carte "trajet actif" (le guard start exige un statut clôturé).
+        $orphanDeadline = now()->subMinutes(15);
+        $orphans = Trip::whereIn('statut', ['SCANNE', 'EN_ATTENTE_TRANSPORTEUR', 'CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE'])
+            ->where('started_at', '<', $orphanDeadline)
+            ->get();
+
+        foreach ($orphans as $orphan) {
+            $orphan->update(['statut' => 'ANNULE', 'end_method' => 'AUTO_10MIN']);
+            Notification::create([
+                'user_id' => $orphan->passager_id,
+                'type' => 'TRAJET',
+                'titre' => 'Trajet annulé automatiquement',
+                'message' => 'Votre demande de trajet n\'a pas abouti. Vous pouvez scanner un nouveau véhicule.',
+            ]);
+            $count++;
+        }
 
         return response()->json(['message' => "$count trajets clôturés automatiquement", 'closed' => $count]);
     }
