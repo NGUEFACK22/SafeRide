@@ -127,72 +127,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _enrollVoice() async {
-    final mot = _motSecuriteController.text.trim();
-    if (mot.length < 3) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Définissez d\'abord un mot de sécurité (≥3 caractères) ci-dessus et enregistrez.')));
-      return;
-    }
-    if (!await PermissionService.microphone(context)) return;
-    // S'assurer que le mot est enregistré côté backend
-    try {
-      await _api.post('/voice/security-word', {'mot_securite': mot});
-    } catch (_) {}
-    setState(() { _voiceEnrolling = true; _voiceProgress = 'Initialisation…'; });
-    try {
-      final available = await _voiceprint.ensureLoaded();
-      if (!available) {
-        // Fallback token si modèle absent
-        final token = DateTime.now().millisecondsSinceEpoch.toString();
-        await _api.post('/voice/enroll', {'empreinte': token.padLeft(64, '0').substring(0, 64)});
-        if (!mounted) return;
-        setState(() { _voiceEnrolled = true; _voiceActive = true; _voiceEnrolling = false; _voiceProgress = ''; });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Voix enregistrée (mode léger)'), backgroundColor: AppTheme.primaryBlue));
-        return;
-      }
-      setState(() => _voiceAvailable = true);
-      // Enregistrement 30 secondes — l'utilisateur prononce son mot de sécurité plusieurs fois
-      setState(() => _voiceProgress = 'Préparation micro — prononcez "$mot" dès que le compteur démarre…');
-      final okStart = await _voiceprint.startCapture();
-      if (!okStart) throw Exception('Micro indisponible — vérifiez la permission');
-      // Compte à rebours 30s avec guidage vocal à l'écran
-      for (int s = 30; s > 0; s--) {
-        if (!mounted || !_voiceEnrolling) break;
-        setState(() => _voiceProgress = 'Parlez : prononcez "$mot" — $s s restantes • répétez clairement, voix normale');
-        await Future.delayed(const Duration(seconds: 1));
-      }
-      if (!mounted || !_voiceEnrolling) {
-        setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
-        return;
-      }
-      final avg = await _voiceprint.stopAndEmbed();
-      if (avg == null) throw Exception('Audio trop court ou modèle indisponible — parlez plus fort/près du micro');
-      // Sauve WAV pour réécoute avant d'enrôler
-      final wavPath = await _voiceprint.saveLastCaptureAsWav();
-      if (!mounted) return;
-      setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
-      final confirmed = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => _VoicePreviewDialog(wavPath: wavPath, mot: mot),
-      );
-      if (confirmed != true) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Enrôlement annulé — réécouté, recommencez si besoin')));
-        return;
-      }
-      setState(() { _voiceEnrolling = true; _voiceProgress = 'Enrôlement…'; });
-      await _api.post('/voice/enroll', {'empreinte': avg});
-      try { final p = await SharedPreferences.getInstance(); await p.setString('voice_last_embedding', avg.join(',')); } catch (_) {}
-      if (!mounted) return;
-      setState(() { _voiceEnrolled = true; _voiceActive = true; _voiceEnrolling = false; _voiceProgress = ''; });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Empreinte vocale enregistrée (30s) ✓ — mot "$mot"'), backgroundColor: AppTheme.successText));
-    } catch (e) {
-      if (!mounted) return;
-      setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur voix : $e'), backgroundColor: Colors.red));
-    }
-  }
-
   Future<void> _importVoice() async {
     final mot = _motSecuriteController.text.trim();
     if (mot.length < 3) {
@@ -466,11 +400,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
 
-          // ── Empreinte vocale — 30s pour reconnaissance ──
+          // ── Empreinte vocale — reconnaissance vocale guidée ──
           const SizedBox(height: 20),
           Text(LanguageService.instance.t('voice_recognition'), style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 6),
-          const Text('Enregistrez votre voix pendant 30 secondes : prononcez votre mot de sécurité plusieurs fois, clairement, pour que le SOS ne se déclenche que sur votre voix.', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+          const Text('Enrôlement guidé en 3 prises de 3 s : prononcez votre mot de sécurité, la biométrie vocale (ECAPA-TDNN) apprend votre voix pour que le SOS ne se déclenche que sur elle.', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
           const SizedBox(height: 10),
           Container(
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: _voiceEnrolled ? AppTheme.successBorder : Colors.grey.shade200), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8)]),
@@ -482,7 +416,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     Container(width: 42, height: 42, decoration: BoxDecoration(color: _voiceEnrolled ? AppTheme.successBg : AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10), border: Border.all(color: _voiceEnrolled ? AppTheme.successBorder : AppTheme.lightBlueBorder)), child: Icon(_voiceEnrolled ? Icons.hearing : Icons.mic_outlined, color: _voiceEnrolled ? AppTheme.successText : AppTheme.primaryBlue, size: 22)),
                     const SizedBox(width: 12),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_voiceEnrolled ? 'Voix enrôlée' : 'Voix non enrôlée', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: _voiceEnrolled ? AppTheme.successText : AppTheme.textDark)), const SizedBox(height: 2), Text(_voiceActive ? 'Active • 30s' : _voiceEnrolled ? 'Enrôlée' : '30 secondes d\'enregistrement', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(_voiceEnrolled ? 'Voix enrôlée' : 'Voix non enrôlée', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: _voiceEnrolled ? AppTheme.successText : AppTheme.textDark)), const SizedBox(height: 2), Text(_voiceActive ? 'Active • biométrie ECAPA' : _voiceEnrolled ? 'Enrôlée' : '3 prises de 3 s, guidées', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: _voiceEnrolled ? AppTheme.successBg : Colors.orange.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: _voiceEnrolled ? AppTheme.successBorder : Colors.orange.shade200)), child: Text(_voiceEnrolled ? 'OK' : 'À FAIRE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _voiceEnrolled ? AppTheme.successText : Colors.orange.shade800))),
                   ],
                 ),
@@ -491,22 +425,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppTheme.lightBlueBorder)),
-                    child: Column(children: [
-                      Row(children: [const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue)), const SizedBox(width: 10), Expanded(child: Text(_voiceProgress, style: const TextStyle(fontSize: 12, color: AppTheme.primaryBlue, fontWeight: FontWeight.w700)))]),
-                      const SizedBox(height: 8),
-                      const LinearProgressIndicator(color: AppTheme.primaryBlue, backgroundColor: Colors.white),
-                      const SizedBox(height: 6),
-                      const Text('Restez à 15-20cm du micro • parlez à voix normale • répétez votre mot 5-6 fois pendant les 30s', style: TextStyle(fontSize: 10, color: AppTheme.textGrey)),
-                    ]),
+                    child: Row(children: [const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue)), const SizedBox(width: 10), Expanded(child: Text(_voiceProgress.isEmpty ? 'Analyse en cours…' : _voiceProgress, style: const TextStyle(fontSize: 12, color: AppTheme.primaryBlue, fontWeight: FontWeight.w700)))]),
                   ),
-                  const SizedBox(height: 8),
-                  TextButton.icon(onPressed: () async { setState(() { _voiceEnrolling = false; _voiceProgress = ''; }); try { await _voiceprint.stopAndEmbed(); } catch (_) {} }, icon: const Icon(Icons.close, size: 16), label: const Text('Annuler l\'enregistrement')),
                 ],
                 const SizedBox(height: 12),
                 FilledButton.icon(
-                  onPressed: _voiceEnrolling ? null : _enrollVoice,
-                  icon: _voiceEnrolling ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Icon(_voiceEnrolled ? Icons.refresh : Icons.record_voice_over),
-                  label: Text(_voiceEnrolled ? 'Ré-enregistrer ma voix (30s)' : 'Enregistrer ma voix (30s)', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  onPressed: _voiceEnrolling ? null : () => Navigator.pushNamed(context, '/voice-enroll', arguments: _motSecuriteController.text.trim()),
+                  icon: Icon(_voiceEnrolled ? Icons.refresh : Icons.record_voice_over),
+                  label: Text(_voiceEnrolled ? 'Ré-enregistrer ma voix (guidé)' : 'Enregistrer ma voix (guidé)', style: const TextStyle(fontWeight: FontWeight.w700)),
                   style: FilledButton.styleFrom(backgroundColor: _voiceEnrolled ? AppTheme.textDark : AppTheme.primaryBlue, padding: const EdgeInsets.symmetric(vertical: 12)),
                 ),
                 const SizedBox(height: 8),
