@@ -127,8 +127,9 @@ class TripController extends Controller
                 Notification::create([
                     'user_id' => $vehicle->transporteur_id,
                     'type' => 'TRAJET',
-                    'titre' => '🚕 Nouvelle course démarrée',
-                    'message' => 'Vous débutez une nouvelle course avec ' . $request->user()->prenom . ' ' . $request->user()->nom . ' (' . $request->user()->telephone . '). Vérifiez le passager et confirmez le départ.',
+                    'titre' => '🔔 Un passager a scanné votre QR',
+                    'message' => $request->user()->prenom . ' ' . $request->user()->nom . ' a scanné votre véhicule. Il va vous demander d\'accepter la course.',
+                    'push' => false,
                 ]);
 
                 Notification::create([
