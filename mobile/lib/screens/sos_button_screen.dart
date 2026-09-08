@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/language_service.dart';
-import '../utils/error_helper.dart';
-import '../theme/app_theme.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,6 +12,7 @@ import '../services/trip_service.dart';
 import '../services/permission_service.dart';
 import '../services/voiceprint_service.dart';
 import '../services/vosk_service.dart';
+import '../widgets/emergency_contacts_gate.dart';
 
 class SosButtonScreen extends StatefulWidget {
   final Trip? trip;
@@ -95,75 +94,6 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       }
     } catch (_) {
       // hors-ligne : on se base sur le cache local
-    }
-  }
-
-  Future<void> _enroll() async {
-    final word = (_wordController.text.trim().isNotEmpty ? _wordController.text.trim() : _securityWord?.trim());
-    if (word == null || word.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Veuillez saisir un mot de sécurité (3-40 caractères)')));
-      return;
-    }
-    if (word.length < 3) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Mot trop court (min 3 caractères)')));
-      return;
-    }
-    // Demander la permission microphone avant l'enrôlement
-    if (!await PermissionService.microphone(context)) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Permission microphone requise pour l\'enrôlement vocal')));
-      return;
-    }
-    _securityWord = word;
-    setState(() => _loading = true);
-    try {
-      await _sosService.setSecurityWord(word);
-
-      Object empreinte;
-      if (_voiceAvailable) {
-        // Flux 1-2 : 3 phrases -> empreinte moyenne robuste
-        setState(() => _status = 'Enrôlement 1/3 : dites « $word » clairement…');
-        final avg = await _voiceprint.captureAverageEmbedding(
-          samples: 3,
-          perSample: const Duration(seconds: 3),
-          onProgress: (cur, total) {
-            if (!mounted) return;
-            setState(() => _status = 'Enrôlement $cur/$total : dites « $word » clairement… (${cur == 1 ? 'parlez naturellement' : cur == 2 ? 'encore une fois' : 'dernière prise'})');
-          },
-        );
-        if (avg != null) {
-          empreinte = avg;
-          if (mounted) setState(() => _status = 'Empreinte moyenne créée (${avg.length} dims) — envoi…');
-        } else {
-          empreinte = await _sosService.voiceprintToken(word);
-        }
-      } else {
-        setState(() => _status = 'Modèle vocal absent — enrôlement mot-clé seul…');
-        empreinte = await _sosService.voiceprintToken(word);
-      }
-
-      await _sosService.enroll(empreinte);
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('voice_security_word', word);
-      if (!mounted) return;
-      setState(() {
-        _enrolled = true;
-        _status = '';
-      });
-      final isAvg = empreinte is List && empreinte.length == 192;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isAvg
-              ? 'Empreinte vocale créée (3 prises moyennées). SOS vocal activé.'
-              : 'Profil vocal enrôlé (mode repli : modèle vocal absent).'),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _status = '');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -272,24 +202,15 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   }
 
   Future<void> _sendVocalSos(String keyword, Object empreinte) async {
-    // --- NOUVEAU : Vérifier contacts d'urgence obligatoires ---
-    if (!await _hasEmergencyContacts()) {
-      if (!mounted) return;
-      final go = await _showRegisterContactsDialog();
-      if (!go) return; // utilisateur annule → on sort
-      if (!mounted) return;
-      // Rediriger vers profil pour enregistrer
-      Navigator.pop(context); // fermer l'écran SOS
-      Navigator.pushNamed(context, '/profile');
-      return;
-    }
-    // -----------------------------------------------------
+    // --- Gate : au moins 2 contacts d'urgence (formulaire intégré si manque) ---
+    if (!await ensureEmergencyContacts(context)) return;
     try {
-      final trip = _trip;
+      final trip = _linkableTrip();
       String? destination;
       if (trip == null) {
-        destination = await _askDestination();
-        if (destination == null) return;
+        // Destination facultative : si l'utilisateur annule, le SOS part
+        // quand même avec la position seule (même comportement que le bouton).
+        destination = await _askDestination() ?? '';
       }
       final pos = await _position();
       final data = await _sosService.triggerVocal(
@@ -325,21 +246,11 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   }
 
   Future<void> _fallbackButton() async {
-    // --- NOUVEAU : Vérifier contacts d'urgence obligatoires ---
-    if (!await _hasEmergencyContacts()) {
-      if (!mounted) return;
-      final go = await _showRegisterContactsDialog();
-      if (!go) return; // utilisateur annule → on sort
-      if (!mounted) return;
-      // Rediriger vers profil pour enregistrer
-      Navigator.pop(context); // fermer l'écran SOS
-      Navigator.pushNamed(context, '/profile');
-      return;
-    }
-    // -----------------------------------------------------
+    // --- Gate : au moins 2 contacts d'urgence (formulaire intégré si manque) ---
+    if (!await ensureEmergencyContacts(context)) return;
     setState(() => _loading = true);
     try {
-      final trip = _trip;
+      final trip = _linkableTrip();
       String? destination;
       if (trip == null) {
         // Destination facultative : si l'utilisateur annule, le SOS part
@@ -520,10 +431,10 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(LanguageService.instance.t('configure_voice_sos'), style: TextStyle(fontSize: 20)),
+          Text(LanguageService.instance.t('configure_voice_sos'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
           const SizedBox(height: 12),
           const Text(
-            'Définissez un mot de sécurité puis enrôlez votre voix en 3 prises. '
+            'Définissez un mot de sécurité puis enrôlez votre voix en 3 prises guidées. '
             'Au déclenchement, dites ce mot : mot-clé (Vosk) + biométrie vocale (ECAPA) vérifiés '
             'avant l\'alerte.',
             textAlign: TextAlign.center,
@@ -564,8 +475,12 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: _loading ? null : _enroll,
-            icon: const Icon(Icons.save),
+            onPressed: () async {
+              await Navigator.pushNamed(context, '/voice-enroll', arguments: _wordController.text.trim());
+              // L'enrôlement a pu se faire dans l'écran guidé : rafraîchir.
+              if (mounted) _loadProfile();
+            },
+            icon: const Icon(Icons.record_voice_over),
             label: Text(LanguageService.instance.t('enroll_voice_profile')),
           ),
         ],
@@ -639,49 +554,10 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     );
   }
 
-  /// Vérifie si l'utilisateur a au moins 2 contacts d'urgence enregistrés.
-/// Retourne true s'il en a >= 2, false sinon (obligatoire avant SOS).
-/// API dédiée GET /emergency-contacts -> { contacts: [...] }.
-/// En cas d'erreur réseau, fail-open : un SOS d'urgence ne doit jamais être
-/// bloqué par une panne de connexion (le backend relève l'alerte quand même).
-Future<bool> _hasEmergencyContacts() async {
-  try {
-    final data = await _sosService.contacts();
-    final contacts = data['contacts'] as List<dynamic>? ?? [];
-    return contacts.length >= 2;
-  } catch (_) {
-    return true;
-  }
-}
-
-/// Affiche un dialogue demandant d'enregistrer un contact d'urgence
-/// avant de pouvoir lancer le SOS. Retourne true si l'utilisateur accepte
-/// d'aller enregister ses contacts, false si elle annule.
-Future<bool> _showRegisterContactsDialog() async {
-  final result = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Row(children: [Icon(Icons.person_add, color: AppTheme.primaryBlue), SizedBox(width: 8), Text('Contacts d\'urgence requis')]),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('Pour recevoir des alertes SOS (SMS, WhatsApp, email), vous devez d\'abord enregistrer au moins un contact d\'urgence dans votre profil.'),
-          const SizedBox(height: 16),
-          Text('Voulez-vous aller dans votre profil maintenant pour ajouter vos contacts ?', style: TextStyle(fontSize: 13)),
-        ],
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Non, plus tard')),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: Colors.red),
-          onPressed: () => Navigator.pop(ctx, true),
-          child: Text('Enregistrer mes contacts'),
-        ),
-      ],
-    ),
-  );
-  return result ?? false;
-}
+  /// Le SOS n'est rattaché au trajet que si celui-ci est réellement EN_COURS.
+  /// Un trajet SCANNE / EN_ATTENTE_TRANSPORTEUR ne doit pas être envoyé comme
+  /// trip_id : le backend l'exigerait en statut EN_COURS (422).
+  Trip? _linkableTrip() => (_trip != null && _trip!.statut == 'EN_COURS') ? _trip : null;
   /// Le backend retourne la liste des contacts et le message SMS à envoyer.
   Future<void> _sendWhatsAppSos(Map<String, dynamic> data) async {
     try {

@@ -186,6 +186,19 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
         'longitude': lng,
       });
       if (!mounted) return;
+      // Le backend refuse le scan car un trajet actif existe déjà :
+      // on rouvre ce trajet au lieu de créer un doublon.
+      if (data['active_trip'] == true && data['trip'] != null) {
+        final existing = Trip.fromJson(data['trip'] as Map<String, dynamic>);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Vous avez déjà un trajet en cours — reprise du trajet.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        Navigator.of(context).pushReplacementNamed('/trip-active', arguments: existing);
+        return;
+      }
       final trip = Trip.fromJson(data['trip'] as Map<String, dynamic>);
       final transporteur = (data['transporteur'] as Map<String, dynamic>?) ?? {};
       final vehicle = (data['vehicle'] as Map<String, dynamic>?) ?? {};

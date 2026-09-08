@@ -46,6 +46,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   bool _offlineBanner = false;
   int _pendingCount = 0;
   Timer? _tracker;
+  Timer? _waitingPoll;
 
   // Surveillance vocale automatique pendant EN_COURS (flux 3-5)
   String? _securityWord;
@@ -82,6 +83,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   @override
   void dispose() {
     _tracker?.cancel();
+    _waitingPoll?.cancel();
     _stopVoiceMonitoring();
     _speech.cancel();
     _destinationController.dispose();
@@ -111,6 +113,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   /// Déclenche les actions liées à l'état courant (suivi GPS + écoute vocale en EN_COURS).
   void _enterState() {
     if (_trip?.statut == 'EN_COURS') {
+      _waitingPoll?.cancel();
       _startTracking();
       // Foreground Service Android : suivi GPS en arrière-plan
       Geolocator.requestPermission().then((_) {}, onError: (_) {});
@@ -204,6 +207,13 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
         _trip = trip;
         _busy = false;
       });
+      // EN_ATTENTE_TRANSPORTEUR : le transporteur doit maintenant accepter.
+      if (trip.statut == 'EN_ATTENTE_TRANSPORTEUR') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Course proposée au transporteur. En attente de son accord…')),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Embarquement confirmé. Définissez la destination.')),
       );
@@ -639,6 +649,8 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     switch (trip.statut) {
       case 'SCANNE':
         return _embarquementStep(trip);
+      case 'EN_ATTENTE_TRANSPORTEUR':
+        return _waitingTransporteurStep(trip);
       case 'CONFIRME':
         return _destinationStep(trip, editing: _editingDestination);
       case 'DESTINATION_PROPOSEE':
@@ -648,6 +660,51 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       default:
         return Center(child: Text('Trajet cloturé.'));
     }
+  }
+
+  /// Le passager attend que le transporteur accepte la course.
+  /// Poll du statut toutes les 3 s jusqu'à CONFIRME (→ destination) ou ANNULE.
+  Widget _waitingTransporteurStep(Trip trip) {
+    _startWaitingPoll(trip.id);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Center(child: SizedBox(width: 48, height: 48, child: CircularProgressIndicator(color: AppTheme.primaryBlue))),
+        const SizedBox(height: 20),
+        const Center(child: Icon(Icons.handshake, size: 40, color: AppTheme.primaryBlue)),
+        const SizedBox(height: 12),
+        Center(
+          child: Text(
+            'Demande envoyée à ${trip.transporteurFullName.isEmpty ? "votre transporteur" : trip.transporteurFullName}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.textDark),
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Center(
+          child: Text(
+            'Le transporteur doit accepter la course.\nDès son accord, vous pourrez définir votre destination.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: AppTheme.textGrey),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _startWaitingPoll(int tripId) {
+    if (_waitingPoll?.isActive ?? false) return;
+    _waitingPoll = Timer.periodic(const Duration(seconds: 3), (_) async {
+      try {
+        final trip = await _tripService.tripStatus(tripId);
+        if (!mounted) return;
+        if (trip.statut != _trip?.statut) {
+          setState(() => _trip = trip);
+          _enterState();
+        }
+      } catch (_) {}
+    });
   }
 
   Widget _embarquementStep(Trip trip) {
