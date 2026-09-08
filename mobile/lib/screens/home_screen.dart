@@ -19,6 +19,7 @@ import '../services/whatsapp_service.dart';
 import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/anomaly_verification_dialog.dart';
+import '../widgets/emergency_contacts_gate.dart';
 import 'profile_screen.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -196,6 +197,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _triggerManualSos() async {
     if (_isGuest) { _requireAuth(); return; }
+    // Gate : au moins 2 contacts d'urgence (formulaire intégré si manque) —
+    // identique à l'écran SOS dédié, le bouton accueil ne doit pas contourner.
+    if (!await ensureEmergencyContacts(context)) return;
+    if (!mounted) return;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -208,7 +213,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final trip = await TripService().currentTrip();
       String? destination;
-      if (trip == null) {
+      // Ne lier le trajet au SOS que s'il est réellement EN_COURS :
+      // un trajet SCANNE / EN_ATTENTE_TRANSPORTEUR serait rejeté par le
+      // backend (422 "Aucun trajet actif"). Sans trajet en cours, l'alerte
+      // part avec position + destination saisie (SOS hors trajet).
+      final linkable = (trip != null && trip.statut == 'EN_COURS') ? trip : null;
+      if (linkable == null) {
         // SOS hors trajet : on collecte la destination du passager,
         // puis la position GPS est envoyée avec l'alerte.
         // Destination facultative — si annulée, l'alerte part avec la position.
@@ -218,7 +228,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
       if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) throw Exception(LanguageService.instance.t('location_permission_denied'));
       final pos = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
-      final data = await SosService().triggerButton(trip?.id, pos.latitude, pos.longitude, destination: destination);
+      final data = await SosService().triggerButton(linkable?.id, pos.latitude, pos.longitude, destination: destination);
       final sms = data['sms_message'] as String?;
       final contacts = data['emergency_contacts'] as List<dynamic>? ?? [];
       final phones = contacts.map((c) => ((c['whatsapp_telephone'] as String?)?.trim().isNotEmpty == true ? c['whatsapp_telephone'] : c['telephone']) as String?).where((p) => p != null && p.isNotEmpty).cast<String>().toList();

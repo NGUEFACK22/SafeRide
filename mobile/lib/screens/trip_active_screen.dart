@@ -20,6 +20,7 @@ import '../services/whatsapp_service.dart';
 import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
 import '../services/language_service.dart';
+import '../widgets/emergency_contacts_gate.dart';
 import 'rating_screen.dart';
 
 class TripActiveScreen extends StatefulWidget {
@@ -180,6 +181,16 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       ),
     );
     if (result == true) {
+      // Gate contacts AVANT d'activer l'écoute : un SOS vocal automatique ne
+      // doit pouvoir partir que si les contacts d'urgence sont enregistrés
+      // (le déclenchement est ensuite non interactif).
+      if (!mounted) return;
+      final contactsOk = await ensureEmergencyContacts(context);
+      if (!mounted) return;
+      if (!contactsOk) {
+        setState(() => _voiceStatus = 'Écoute non activée : contacts d\'urgence requis');
+        return;
+      }
       _voiceConsentGiven = true;
       _startVoiceMonitoring();
     }

@@ -103,4 +103,74 @@ class InfobipSmsTest extends TestCase
 
         $this->assertEquals('NOTIFIE', $response->json('sos.statut'));
     }
+
+    public function test_sos_without_trip_sends_passenger_info_without_transporteur(): void
+    {
+        $user = $this->user();
+        $this->actingAs($user);
+
+        $contact = EmergencyContact::create([
+            'user_id' => $user->id,
+            'nom' => 'Maman',
+            'telephone' => '+237690000000',
+            'email' => 'maman@example.com',
+            'relation' => 'Mère',
+        ]);
+
+        // Le SMS mocké doit contenir les infos passager (nom, position, destination)
+        // et AUCUNE info transporteur (SOS hors trajet).
+        $sms = $this->mock(SmsService::class);
+        $sms->shouldReceive('send')
+            ->once()
+            ->with('+237690000000', \Mockery::on(function ($message) {
+                // Infos passager présentes
+                if (! str_contains($message, 'Test Passager')) return false;
+                if (! str_contains($message, 'https://maps.google.com/?q=3.8500000,11.5000000')) return false;
+                if (! str_contains($message, 'Bonamoussadi')) return false;
+                // Aucune mention transporteur/trajet
+                if (str_contains($message, 'trajet #')) return false;
+                return true;
+            }))
+            ->andReturn(true);
+
+        // Aucun trip_id : SOS hors trajet, destination saisie par le passager.
+        $response = $this->postJson('/api/v1/sos', [
+            'latitude' => 3.85,
+            'longitude' => 11.5,
+            'destination' => 'Bonamoussadi',
+            'declenchement' => 'BOUTON',
+        ])->assertCreated();
+
+        $sos = $response->json('sos');
+        $this->assertNull($sos['trip_id']);
+        $this->assertEquals('Bonamoussadi', $sos['destination']);
+        $this->assertEquals('NOTIFIE', $sos['statut']);
+
+        // Litige créé pour suivi (hors trajet, sans transporteur).
+        $this->assertDatabaseHas('disputes', [
+            'passager_id' => $user->id,
+            'trip_id' => null,
+            'transporteur_id' => null,
+            'statut' => 'OUVERT',
+        ]);
+    }
+
+    public function test_sos_with_non_running_trip_id_is_rejected(): void
+    {
+        $user = $this->user();
+        $this->actingAs($user);
+        $trip = $this->activeTrip($user);
+        // Statut non EN_COURS : le backend doit refuser ce trip_id.
+        $trip->update(['statut' => 'SCANNE']);
+
+        $response = $this->postJson('/api/v1/sos', [
+            'trip_id' => $trip->id,
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+            'declenchement' => 'BOUTON',
+        ]);
+
+        $response->assertStatus(422);
+        $this->assertEquals('Aucun trajet actif pour cet utilisateur', $response->json('message'));
+    }
 }
