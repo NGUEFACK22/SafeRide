@@ -142,6 +142,31 @@ class VoiceBiometricTest extends TestCase
             'declenchement' => 'BOUTON',
         ])->assertCreated();
 
+        // Sans contact d'urgence ni canal actif : l'alerte est créée et
+        // déclenchée (DECLENCHE), mais aucun destinataire n'a été notifié.
+        $this->assertEquals('DECLENCHE', $response->json('sos.statut'));
+        $this->assertTrue($response->json('sos.details.verification_passed'));
+    }
+
+    public function test_button_sos_with_contact_is_notified(): void
+    {
+        $user = $this->user();
+        $this->actingAs($user);
+        $trip = $this->activeTrip($user);
+
+        \App\Models\EmergencyContact::create([
+            'user_id' => $user->id,
+            'nom' => 'Maman',
+            'telephone' => '+237690000000',
+        ]);
+
+        $response = $this->postJson('/api/v1/sos', [
+            'trip_id' => $trip->id,
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+            'declenchement' => 'BOUTON',
+        ])->assertCreated();
+
         $this->assertEquals('NOTIFIE', $response->json('sos.statut'));
         $this->assertTrue($response->json('sos.details.verification_passed'));
     }

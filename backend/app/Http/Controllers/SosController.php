@@ -83,7 +83,8 @@ class SosController extends Controller
         ]);
 
         $alertsSent = $this->dispatchAlerts($sos);
-        $this->assignManager($sos);
+        $manager = $this->leastLoadedManager();
+        $this->assignManager($sos, $manager);
 
         // — Stockage direct en litige : les 2 types de litige sont "objet perdu" et "alerte SOS"
         // Chaque SOS devient un dossier LITIGE pour suivi unifié dans /disputes
@@ -95,16 +96,17 @@ class SosController extends Controller
             'description' => 'SOS ' . $data['declenchement'] . ' du ' . $sos->heure_detection->toDateTimeString() . ' — position https://maps.google.com/?q=' . $sos->latitude . ',' . $sos->longitude . ($sos->destination ? ' — destination: ' . $sos->destination : '') . ($trip ? ' — trajet #' . $trip->id : ' — hors trajet') . ' — statut SOS: ' . $sos->statut . ' — détails: ' . json_encode($verification['details']),
             'statut' => 'OUVERT',
         ]);
-        $this->assignDisputeManager($disputeSos, $trip);
+        $this->assignDisputeManager($disputeSos, $trip, $manager);
 
-        $transmission = $this->notifyAll($request, $sos, $trip);
+        $transmission = $this->finalizeStatus($sos, $alertsSent);
 
         $message = match (true) {
             $data['declenchement'] === 'BOUTON' => $transmission['en_attente']
                 ? 'Alerte bouton reçue. En attente de connexion.'
                 : 'Alerte bouton transmise',
             $verification['details']['verification_passed'] ?? false => 'Alerte vocale vérifiée et transmise',
-            default => 'Alerte vocale reçue mais non vérifiée — en cours de vérification.',
+            $transmission['en_attente'] => 'Alerte vocale reçue mais non vérifiée — aucune voie de transmission active.',
+            default => 'Alerte vocale reçue mais non vérifiée — transmise par voie standard, vérification en cours.',
         };
 
         // Contacts d'urgence avec téléphone pour envoi SMS/WhatsApp natif côté mobile (fallback)
@@ -360,72 +362,92 @@ class SosController extends Controller
         return $message;
     }
 
-    protected function assignManager(SosAlert $sos): void
+    /**
+     * Gestionnaire (rôle gestionnaire) avec le moins de dossiers ouverts.
+     * Requête unique partagée par l'assignation SOS et l'assignation litige.
+     */
+    protected function leastLoadedManager(): ?User
     {
-        $manager = User::whereHas('roles', fn ($q) => $q->where('slug', 'gestionnaire'))
+        return User::whereHas('roles', fn ($q) => $q->where('slug', 'gestionnaire'))
             ->withCount(['managerAssignments as ouvertes' => fn ($q) => $q->where('statut', '!=', 'CLOTURE')])
             ->orderBy('ouvertes')
             ->first();
+    }
 
-        if ($manager) {
-            ManagerAssignment::create([
-                'manager_id' => $manager->id,
-                'dossier_type' => 'SOS',
-                'dossier_id' => $sos->id,
-                'statut' => 'ATTRIBUE',
-            ]);
+    protected function assignManager(SosAlert $sos, ?User $manager): void
+    {
+        if (! $manager) {
+            return;
+        }
 
-            Notification::create([
-                'user_id' => $manager->id,
-                'type' => 'SOS',
-                'titre' => 'Nouveau dossier SOS attribué',
-                'message' => 'Une alerte SOS est attribuée à votre compte. Position : ' . $sos->latitude . ', ' . $sos->longitude,
-            ]);
+        ManagerAssignment::create([
+            'manager_id' => $manager->id,
+            'dossier_type' => 'SOS',
+            'dossier_id' => $sos->id,
+            'statut' => 'ATTRIBUE',
+        ]);
 
-            if ($manager->email) {
-                    try {
-                        Mail::queue(new SosAlertMail($sos, $sos->trip, $manager->nom));
-                    } catch (\Throwable $e) {
-                    }
-                }
+        Notification::create([
+            'user_id' => $manager->id,
+            'type' => 'SOS',
+            'titre' => 'Nouveau dossier SOS attribué',
+            'message' => 'Une alerte SOS est attribuée à votre compte. Position : ' . $sos->latitude . ', ' . $sos->longitude,
+        ]);
+
+        if ($manager->email) {
+            try {
+                Mail::queue(new SosAlertMail($sos, $sos->trip, $manager->nom));
+            } catch (\Throwable $e) {
+            }
         }
     }
 
-    protected function assignDisputeManager(Dispute $dispute, ?Trip $trip): void
+    protected function assignDisputeManager(Dispute $dispute, ?Trip $trip, ?User $manager): void
     {
-        $manager = User::whereHas('roles', fn ($q) => $q->where('slug', 'gestionnaire'))
-            ->withCount(['managerAssignments as ouvertes' => fn ($q) => $q->where('statut', '!=', 'CLOTURE')])
-            ->orderBy('ouvertes')
-            ->first();
-
-        if ($manager) {
-            ManagerAssignment::create([
-                'manager_id' => $manager->id,
-                'dossier_type' => 'LITIGE',
-                'dossier_id' => $dispute->id,
-                'statut' => 'ATTRIBUE',
-            ]);
-
-            Notification::create([
-                'user_id' => $manager->id,
-                'type' => 'DOSSIER',
-                'titre' => 'Nouveau litige — SOS #' . $dispute->id,
-                'message' => 'Litige SOS créé depuis alerte #' . $dispute->id . ' — ' . ($trip ? 'trajet #' . $trip->id : 'hors trajet'),
-            ]);
+        if (! $manager) {
+            return;
         }
+
+        ManagerAssignment::create([
+            'manager_id' => $manager->id,
+            'dossier_type' => 'LITIGE',
+            'dossier_id' => $dispute->id,
+            'statut' => 'ATTRIBUE',
+        ]);
+
+        Notification::create([
+            'user_id' => $manager->id,
+            'type' => 'DOSSIER',
+            'titre' => 'Nouveau litige — SOS #' . $dispute->id,
+            'message' => 'Litige SOS créé depuis alerte #' . $dispute->id . ' — ' . ($trip ? 'trajet #' . $trip->id : 'hors trajet'),
+        ]);
     }
 
-    protected function notifyAll(Request $request, SosAlert $sos, ?Trip $trip): array
+    /**
+     * Finalise le statut de l'alerte à partir des canaux réellement tentés :
+     * - VERIFICATION est conservé tel quel (alerte vocale non vérifiée, statut
+     *   fonctionnel exploité par AiService/ManagerController) ;
+     * - NOTIFIE si au moins un canal direct (SMS/WhatsApp/email) a été déclenché ;
+     * - DECLENCHE (en attente) si aucun contact n'a pu être joint.
+     * Contrairement à l'ancien notifyAll, le statut reflète la réalité de
+     * dispatchAlerts au lieu d'un placeholder réseau codé en dur.
+     */
+    protected function finalizeStatus(SosAlert $sos, array $alertsSent): array
     {
-        $withNetwork = true; // placeholder réseau ; en production : vérifier la connectivité réelle
-
-        // Une alerte non vérifiée (VERIFICATION) reste en attente de confirmation
         if ($sos->statut === 'VERIFICATION') {
             return ['en_attente' => false, 'verification' => false];
         }
 
-        $sos->update(['statut' => $withNetwork ? 'NOTIFIE' : 'DECLENCHE']);
+        $summary = $alertsSent['summary'] ?? [];
 
-        return ['en_attente' => ! $withNetwork];
+        $anyChannel = ($summary['sms_tried'] ?? 0) > 0
+            || ($summary['whatsapp_sent'] ?? 0) > 0
+            || ($summary['email_sent'] ?? 0) > 0;
+
+        $enAttente = ! $anyChannel;
+
+        $sos->update(['statut' => $enAttente ? 'DECLENCHE' : 'NOTIFIE']);
+
+        return ['en_attente' => $enAttente];
     }
 }

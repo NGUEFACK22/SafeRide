@@ -85,8 +85,10 @@ class WhatsappService
 
             return true;
         } catch (\Throwable $e) {
+            // Timeout réseau pendant le check : on retente l'envoi quand même,
+            // car un SOS ne doit pas être retardé par la vérification préalable.
             Log::warning('WhatsApp isOnWhatsApp check failed, mode optimiste', ['to' => $to, 'error' => $e->getMessage()]);
-            return true; // on tente l'envoi, qui échouera proprement si pas sur WhatsApp
+            return true;
         }
     }
 
