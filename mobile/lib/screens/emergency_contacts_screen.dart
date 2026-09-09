@@ -277,11 +277,11 @@ class _ContactFormDialogState extends State<_ContactFormDialog> {
               TextFormField(
                 controller: _email,
                 decoration: const InputDecoration(
-                    labelText: 'Email (optionnel)',
+                    labelText: 'Email',
                     hintText: 'Pour notification SOS par email'),
                 keyboardType: TextInputType.emailAddress,
                 validator: (v) {
-                  if (v == null || v.trim().isEmpty) return null;
+                  if (v == null || v.trim().isEmpty) return 'Requis';
                   return (v.contains('@') && v.contains('.')) ? null : 'Email invalide';
                 },
               ),

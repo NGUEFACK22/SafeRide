@@ -65,6 +65,7 @@ class _MinContactsDialog extends StatefulWidget {
 class _MinContactsDialogState extends State<_MinContactsDialog> {
   final _nom = TextEditingController();
   final _telephone = TextEditingController();
+  final _email = TextEditingController();
   final _relation = TextEditingController();
   bool _submitting = false;
   int _saved = 0;
@@ -78,6 +79,7 @@ class _MinContactsDialogState extends State<_MinContactsDialog> {
   void dispose() {
     _nom.dispose();
     _telephone.dispose();
+    _email.dispose();
     _relation.dispose();
     super.dispose();
   }
@@ -85,6 +87,7 @@ class _MinContactsDialogState extends State<_MinContactsDialog> {
   Future<void> _saveContact() async {
     final nom = _nom.text.trim();
     final tel = _telephone.text.trim();
+    final email = _email.text.trim();
 
     if (nom.isEmpty) {
       setState(() => _error = 'Le nom est requis');
@@ -92,6 +95,10 @@ class _MinContactsDialogState extends State<_MinContactsDialog> {
     }
     if (tel.length < 6) {
       setState(() => _error = 'Numéro de téléphone invalide');
+      return;
+    }
+    if (email.isEmpty || !(email.contains('@') && email.contains('.'))) {
+      setState(() => _error = 'Un email valide est requis');
       return;
     }
 
@@ -103,6 +110,7 @@ class _MinContactsDialogState extends State<_MinContactsDialog> {
       await ApiService().post('/emergency-contacts', {
         'nom': nom,
         'telephone': tel,
+        'email': email,
         if (_relation.text.trim().isNotEmpty) 'relation': _relation.text.trim(),
       });
       if (!mounted) return;
@@ -111,6 +119,7 @@ class _MinContactsDialogState extends State<_MinContactsDialog> {
         _submitting = false;
         _nom.clear();
         _telephone.clear();
+        _email.clear();
         _relation.clear();
       });
     } catch (e) {
@@ -166,6 +175,18 @@ class _MinContactsDialogState extends State<_MinContactsDialog> {
                     labelText: 'Téléphone',
                     hintText: 'Ex : +237690000000',
                     prefixIcon: Icon(Icons.phone_outlined),
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    hintText: 'Ex : nom@email.com',
+                    prefixIcon: Icon(Icons.mail_outline),
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),

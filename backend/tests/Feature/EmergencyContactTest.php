@@ -57,11 +57,13 @@ class EmergencyContactTest extends TestCase
             'user_id' => $user->id,
             'nom' => 'Frère',
             'telephone' => '690000073',
+            'email' => 'frere@example.com',
         ]);
         EmergencyContact::create([
             'user_id' => $other->id,
             'nom' => 'Autre',
             'telephone' => '690000074',
+            'email' => 'autre@example.com',
         ]);
 
         $json = $this->getJson('/api/v1/emergency-contacts')->assertOk()->json('contacts');
@@ -79,6 +81,7 @@ class EmergencyContactTest extends TestCase
             'user_id' => $user->id,
             'nom' => 'Mère',
             'telephone' => '690000075',
+            'email' => 'mere2@example.com',
         ]);
 
         $this->putJson("/api/v1/emergency-contacts/{$contact->id}", [
@@ -101,6 +104,7 @@ class EmergencyContactTest extends TestCase
             'user_id' => $other->id,
             'nom' => 'Autre',
             'telephone' => '690000078',
+            'email' => 'autre2@example.com',
         ]);
 
         $this->actingAs($user);
@@ -108,6 +112,23 @@ class EmergencyContactTest extends TestCase
             ->assertNotFound();
         $this->deleteJson("/api/v1/emergency-contacts/{$contact->id}")
             ->assertNotFound();
+    }
+
+    public function test_contact_without_email_is_rejected(): void
+    {
+        $user = $this->passager();
+        $this->actingAs($user);
+
+        $this->postJson('/api/v1/emergency-contacts', [
+            'nom' => 'Mère',
+            'telephone' => '690000080',
+            'relation' => 'Mère',
+        ])->assertStatus(422);
+
+        $this->assertDatabaseMissing('emergency_contacts', [
+            'user_id' => $user->id,
+            'telephone' => '690000080',
+        ]);
     }
 
     public function test_user_deletes_own_contact(): void
@@ -119,6 +140,7 @@ class EmergencyContactTest extends TestCase
             'user_id' => $user->id,
             'nom' => 'Mère',
             'telephone' => '690000079',
+            'email' => 'mere3@example.com',
         ]);
 
         $this->deleteJson("/api/v1/emergency-contacts/{$contact->id}")->assertOk();

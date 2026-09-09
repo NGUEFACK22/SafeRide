@@ -91,6 +91,7 @@ class InfobipSmsTest extends TestCase
             'user_id' => $user->id,
             'nom' => 'Papa',
             'telephone' => '690000001',
+            'email' => 'papa@example.com',
         ]);
 
         // Pas de mock : SmsService sans config doit retomber silencieusement.
