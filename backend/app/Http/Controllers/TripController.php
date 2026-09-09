@@ -342,7 +342,7 @@ class TripController extends Controller
         $trip = Trip::with('passager', 'transporteur', 'vehicle')
             ->where('transporteur_id', $request->user()->id)
             ->where('statut', 'EN_ATTENTE_TRANSPORTEUR')
-            ->latest()
+            ->orderByDesc('id')
             ->first();
 
         if (! $trip) {

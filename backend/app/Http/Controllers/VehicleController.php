@@ -113,7 +113,7 @@ class VehicleController extends Controller
     public function qr(Request $request, int $id): JsonResponse
     {
         $vehicle = Vehicle::where('id', $id)->where('transporteur_id', $request->user()->id)->firstOrFail();
-        $qr = $vehicle->qrCodes()->latest()->first();
+        $qr = $vehicle->qrCodes()->orderByDesc('id')->first();
 
         return response()->json([
             'qr' => $qr ? [
@@ -128,7 +128,7 @@ class VehicleController extends Controller
     public function toggleQr(Request $request, int $id): JsonResponse
     {
         $vehicle = Vehicle::where('id', $id)->where('transporteur_id', $request->user()->id)->firstOrFail();
-        $qr = $vehicle->qrCodes()->latest()->firstOrFail();
+        $qr = $vehicle->qrCodes()->orderByDesc('id')->firstOrFail();
 
         $qr->update(['actif' => ! $qr->actif]);
 
@@ -147,8 +147,6 @@ class VehicleController extends Controller
 
         // Désactiver l'ancien QR
         $vehicle->qrCodes()->where('actif', true)->update(['actif' => false]);
-
-        // Créer un nouveau QR
         $qr = $vehicle->qrCodes()->create([
             'token' => $this->generateSignedToken($vehicle),
             'actif' => true,

@@ -1021,7 +1021,7 @@ class _TransporteurQrCard extends StatefulWidget {
   State<_TransporteurQrCard> createState() => _TransporteurQrCardState();
 }
 
-class _TransporteurQrCardState extends State<_TransporteurQrCard> {
+class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBindingObserver {
   final _api = ApiService();
   String? _token;
   String? _immat;
@@ -1029,17 +1029,32 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> {
   bool _loading = true;
   String? _error;
   Timer? _pollTimer;
+  int _refreshFailures = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadQr();
+    // Le polling démarre TOUJOURS, même si le premier chargement échoue :
+    // _checkRefresh se ressynchronise automatiquement au tick suivant.
+    _startPolling();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Au retour au premier plan : le QR peut avoir été consommé pendant
+      // l'arrière-plan (scan par le passager) — re-synchronisation immédiate.
+      _checkRefresh();
+    }
   }
 
   void _startPolling() {
@@ -1048,11 +1063,17 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> {
   }
 
   Future<void> _checkRefresh() async {
-    if (_vehicleId == null || _token == null) return;
+    if (!mounted) return;
+    // Pas encore de token (échec initial) → on recharge complètement le QR.
+    if (_vehicleId == null || _token == null) {
+      _loadQr();
+      return;
+    }
     try {
       final data = await _api.get('/vehicles/$_vehicleId/qr');
       final qr = data['qr'] as Map<String, dynamic>?;
       final newToken = qr?['token'] as String?;
+      _refreshFailures = 0;
       if (newToken != null && newToken != _token && mounted) {
         setState(() => _token = newToken);
         if (mounted) {
@@ -1061,14 +1082,27 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> {
           );
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      // Erreur réseau/401 : après 5 échecs consécutifs (≈15 s), on recharge
+      // entièrement le QR (ré-authentification + nouvelle lecture) au lieu
+      // d'abandonner silencieusement.
+      _refreshFailures++;
+      if (_refreshFailures >= 5) {
+        _refreshFailures = 0;
+        _vehicleId = null;
+        _token = null;
+        _loadQr();
+      }
+    }
   }
 
   Future<void> _loadQr() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final data = await _api.get('/vehicles');
       final vehicles = data['vehicles'] as List<dynamic>? ?? [];
@@ -1088,7 +1122,6 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> {
         setState(() { _loading = false; _error = 'QR indisponible'; _immat = immat; _vehicleId = vehicleId; });
       } else {
         setState(() { _token = token; _immat = immat; _vehicleId = vehicleId; _loading = false; });
-        _startPolling();
       }
     } catch (e) {
       if (!mounted) return;
