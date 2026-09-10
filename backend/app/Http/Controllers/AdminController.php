@@ -19,7 +19,7 @@ class AdminController extends Controller
     {
         return response()->json([
             'users_total' => User::count(),
-            'trips_total' => Trip::count(),
+            'trips_total' => Trip::whereIn('statut', ['EN_COURS', 'TERMINE'])->count(),
             'trips_active' => Trip::where('statut', 'EN_COURS')->count(),
             'sos_total' => SosAlert::count(),
             'sos_open' => SosAlert::whereNotIn('statut', ['RESOLU', 'CLOTE', 'FAUSSE_ALERTE'])->count(),

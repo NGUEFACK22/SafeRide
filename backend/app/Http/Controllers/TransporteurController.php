@@ -18,13 +18,19 @@ class TransporteurController extends Controller
     {
         $user = $request->user();
 
-        $tripsQ = Trip::where('transporteur_id', $user->id);
+        // Un trajet n'est comptabilisé qu'une fois sa configuration terminée
+        // (course démarrée : EN_COURS, ou terminée : TERMINE). Les étapes de
+        // configuration (SCANNE, EN_ATTENTE…) ou les annulations ne comptent pas.
+        $realStatuts = ['EN_COURS', 'TERMINE'];
+        $tripsQ = Trip::where('transporteur_id', $user->id)->whereIn('statut', $realStatuts);
         $vehiclesCount = Vehicle::where('transporteur_id', $user->id)->count();
 
         $total = (clone $tripsQ)->count();
         $termine = (clone $tripsQ)->where('statut', 'TERMINE')->count();
         $enCours = (clone $tripsQ)->where('statut', 'EN_COURS')->count();
-        $scanne = (clone $tripsQ)->whereIn('statut', ['SCANNE','CONFIRME','DESTINATION_PROPOSEE'])->count();
+        $scanne = Trip::where('transporteur_id', $user->id)
+            ->whereIn('statut', ['SCANNE', 'CONFIRME', 'DESTINATION_PROPOSEE'])
+            ->count();
 
         $distance = round((float) (clone $tripsQ)->where('statut','TERMINE')->sum('distance_km') ?? 0, 2);
         $passagersDistinct = (clone $tripsQ)->distinct('passager_id')->count('passager_id');

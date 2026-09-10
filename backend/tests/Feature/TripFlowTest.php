@@ -120,7 +120,7 @@ class TripFlowTest extends TestCase
         $this->assertNotEmpty($history);
     }
 
-    public function test_start_is_rejected_while_an_active_trip_exists(): void
+    public function test_scan_replaces_stale_scanne_trip(): void
     {
         Http::fake(['*' => Http::response('', 500)]);
         config(['services.ai.enabled' => false]);
@@ -140,21 +140,90 @@ class TripFlowTest extends TestCase
             'longitude' => 11.5021,
         ])->assertOk();
 
-        // Premier scan OK.
+        // Premier scan OK → SCANNE.
         $first = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
             'token' => $vehicle['qr_codes'][0]['token'],
             'latitude' => 3.8480,
             'longitude' => 11.5021,
         ])->assertCreated()->json('trip');
 
-        // Deuxième scan interdit : un trajet actif existe déjà.
-        // On utilise le QR régénéré (frais, actif) après le premier scan.
+        $this->assertEquals('SCANNE', $first['statut']);
+
+        // Deuxième scan : le SCANNE est un état de configuration, pas un vrai
+        // trajet. Il est annulé automatiquement et le nouveau scan crée un
+        // trajet frais (QR régénéré consommé → le transporteur voit un QR
+        // nouveau sur son écran).
         $newToken = QrCode::where('vehicle_id', $vehicle['id'])
             ->where('actif', true)
             ->value('token');
         $this->assertNotNull($newToken);
 
-        $second = $this->postJson('/api/v1/trips/start', [
+        $second = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
+            'token' => $newToken,
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertCreated()->json('trip');
+
+        // Nouveau trajet créé.
+        $this->assertNotEquals($first['id'], $second['id']);
+        $this->assertEquals('SCANNE', $second['statut']);
+
+        // L'ancien trajet est annulé.
+        $this->assertDatabaseHas('trips', [
+            'id' => $first['id'],
+            'statut' => 'ANNULE',
+        ]);
+
+        // Le QR consommé est désactivé.
+        $this->assertDatabaseHas('qr_codes', [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'actif' => false,
+        ]);
+
+        // Un nouveau QR régénéré est actif.
+        $this->assertEquals(1, QrCode::where('vehicle_id', $vehicle['id'])
+            ->where('actif', true)
+            ->count());
+    }
+
+    public function test_scan_is_rejected_while_trip_is_confirmed(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-778-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $this->actingAs($transporteur)->postJson("/api/v1/vehicles/{$vehicle['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
+        // Scan → SCANNE → confirm-embarquement → EN_ATTENTE → accept-course → CONFIRME.
+        $trip = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertCreated()->json('trip');
+
+        $this->postJson("/api/v1/trips/{$trip['id']}/confirm-embarquement")->assertOk();
+        $this->actingAs($transporteur)
+            ->postJson("/api/v1/trips/{$trip['id']}/accept-course")
+            ->assertOk();
+
+        // Nouveau scan interdit : le trajet est CONFIRME (vrai trajet en cours).
+        $newToken = QrCode::where('vehicle_id', $vehicle['id'])
+            ->where('actif', true)
+            ->value('token');
+
+        $second = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
             'token' => $newToken,
             'latitude' => 3.8480,
             'longitude' => 11.5021,
@@ -162,13 +231,7 @@ class TripFlowTest extends TestCase
 
         $this->assertEquals(422, $second->status());
         $this->assertTrue($second->json('active_trip'));
-        $this->assertEquals($first['id'], $second->json('trip.id'));
-
-        // Le QR du second scan n'a pas été consommé.
-        $this->assertDatabaseHas('qr_codes', [
-            'token' => $newToken,
-            'actif' => true,
-        ]);
+        $this->assertEquals($trip['id'], $second->json('trip.id'));
     }
 
     public function test_current_returns_trip_in_any_active_status(): void

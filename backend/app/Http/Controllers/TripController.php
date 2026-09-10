@@ -83,11 +83,13 @@ class TripController extends Controller
                 return response()->json(['message' => 'Le transporteur est suspendu. Trajet impossible.'], 403);
             }
 
-        // Un seul trajet actif par passager : si un trajet non clôturé existe
-        // déjà (SCANNE → EN_COURS), on refuse le scan et on renvoie le trajet
-        // existant pour que le mobile rouvre l'écran trajet au lieu d'en
-        // créer un orphelin (QR consommé pour rien).
-        $activeStatuts = ['SCANNE', 'EN_ATTENTE_TRANSPORTEUR', 'CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'];
+        // Un seul trajet RÉELLEMENT actif par passager. Un trajet n'est
+        // comptabilisé/définitif qu'une fois la configuration terminée
+        // (destination confirmée puis course démarrée : EN_COURS).
+        // Les étapes de configuration (SCANNE, EN_ATTENTE_TRANSPORTEUR)
+        // ne sont pas un vrai trajet : on les annule automatiquement pour
+        // que le passager puisse rescanter (le QR est alors régénéré).
+        $activeStatuts = ['CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'];
         $existingTrip = Trip::where('passager_id', $request->user()->id)
             ->whereIn('statut', $activeStatuts)
             ->orderByDesc('id')
@@ -101,6 +103,12 @@ class TripController extends Controller
                 'active_trip' => true,
             ], 422);
         }
+
+        // Configuration en cours (scan ou en attente de transporteur) : ce
+        // n'est pas un réel trajet, on l'annule pour repartir de zéro.
+        Trip::where('passager_id', $request->user()->id)
+            ->whereIn('statut', ['SCANNE', 'EN_ATTENTE_TRANSPORTEUR'])
+            ->update(['statut' => 'ANNULE']);
 
         // Vérification de proximité GPS : ±50m si position véhicule connue et fraîche
         $proximity = $this->checkProximity($data['latitude'], $data['longitude'], $vehicle);
