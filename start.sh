@@ -61,13 +61,17 @@ php artisan key:generate --force --no-interaction
 # Lancer les migrations
 php artisan migrate --force --no-interaction
 
-# Optimiser pour la production
-cache_flags=""
+# Optimiser pour la production — NON BLOQUANT : un échec de cache ne doit
+# jamais empêcher le démarrage du serveur (sinon Render : "no open ports").
 if [ "$APP_ENV" = "production" ]; then
-  php artisan config:cache --no-interaction
-  php artisan route:cache --no-interaction
+  php artisan config:cache --no-interaction || true
+  php artisan route:cache --no-interaction || true
   php artisan view:cache --no-interaction 2>/dev/null || true
 fi
 
-# Lancer le serveur
-php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
+# Port attendu par Render : $PORT (défaut 10000), repli 8000 (= EXPOSE du Dockerfile).
+PORT="${PORT:-8000}"
+
+# exec : le serveur devient PID 1 — Render voit un crash éventuel dans les logs.
+echo ">>> SafeRide : démarrage du serveur sur 0.0.0.0:${PORT}"
+exec php artisan serve --host=0.0.0.0 --port=$PORT
