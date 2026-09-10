@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../utils/error_helper.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user.dart';
@@ -36,6 +35,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   double _avgRating = 0;
   bool _statsLoading = true;
   int _sosCount = 0;
+  bool _serverStatsLoaded = false;
 
   // Champs éditables inline
   final _emailController = TextEditingController();
@@ -55,9 +55,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _voiceProgress = '';
   bool _voiceAvailable = false;
 
+  // Utilisateur affiché : rafraîchi depuis le serveur dans _loadFields
+  // (widget.user peut être un cache obsolète du Splash, voire null).
+  User? _user;
+
   @override
   void initState() {
     super.initState();
+    _user = widget.user;
     _loadVerif();
     _loadStats();
     _loadFields();
@@ -79,6 +84,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadStats() async {
+    // Stats exactes depuis le serveur (comptages en base, sans pagination) :
+    // l'historique étant paginé à 15, le calcul local était faussé au-delà.
+    try {
+      final data = await _api.get('/auth/profile/stats');
+      final s = data['stats'] as Map<String, dynamic>?;
+      if (mounted && s != null) {
+        setState(() {
+          _tripsCount = (s['trips_count'] as num?)?.toInt() ?? 0;
+          _totalKm = (s['total_km'] as num?)?.toDouble() ?? 0;
+          _avgRating = (s['rating_avg'] as num?)?.toDouble() ?? 0;
+          _sosCount = (s['sos_count'] as num?)?.toInt() ?? 0;
+          _statsLoading = false;
+        });
+        _serverStatsLoaded = true;
+        return;
+      }
+    } catch (_) {
+      // Repli local (hors-ligne) : approximations depuis l'historique paginé.
+    }
+
     try {
       final historyData = await _api.get('/trips/history');
       final tripsList = (historyData['trips'] as Map<String, dynamic>?)?['data'] as List<dynamic>? ?? [];
@@ -103,8 +128,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {
       if (mounted) setState(() => _statsLoading = false);
     } finally {
-      final sosCount = await AlertCounterService.getCount();
-      if (mounted) setState(() => _sosCount = sosCount);
+      // Compteur SOS local (SharedPreferences) UNIQUEMENT en repli hors-ligne :
+      // sinon le finally écraserait le sos_count exact du serveur (base).
+      if (!_serverStatsLoaded) {
+        final sosCount = await AlertCounterService.getCount();
+        if (mounted) setState(() => _sosCount = sosCount);
+      }
     }
   }
 
@@ -116,6 +145,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final vp = voice['profile'] as Map<String, dynamic>?;
       if (!mounted) return;
       setState(() {
+        // Rafraîchir l'utilisateur affiché (le widget.user du Splash peut
+        // être un cache obsolète — nom/prénom édités, connexion Google…).
+        _user = User.fromJson(user);
         _emailController.text = user['email'] ?? '';
         _telephoneController.text = user['telephone'] ?? '';
         _motSecuriteController.text = vp?['mot_securite'] ?? '';
@@ -327,7 +359,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final displayName = widget.user != null ? '${widget.user!.prenom} ${widget.user!.nom}' : 'Alexandre Dubois';
+    // Nom depuis l'utilisateur serveur (rafraîchi dans _loadFields) —
+    // plus de nom de démonstration codé en dur si l'utilisateur est absent.
+    final displayName = _user != null
+        ? '${_user!.prenom} ${_user!.nom}'.trim()
+        : '—';
     final content = SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -425,9 +461,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 6),
           const Text('Vos coordonnées et votre sécurité (numéro d\'urgence inclus) — tout est centralisé ici.', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
           const SizedBox(height: 12),
-          _fieldRow(Icons.person_outline, 'Nom', widget.user?.nom ?? '—', editable: false),
+          _fieldRow(Icons.person_outline, 'Nom', _user?.nom ?? '—', editable: false),
           const SizedBox(height: 8),
-          _fieldRow(Icons.person_outline, 'Prénom', widget.user?.prenom ?? '—', editable: false),
+          _fieldRow(Icons.person_outline, 'Prénom', _user?.prenom ?? '—', editable: false),
           const SizedBox(height: 8),
           if (_fieldsLoading)
             const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)))
@@ -441,7 +477,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppTheme.lightBlueBorder)),
-              child: Row(children: const [Icon(Icons.info_outline, size: 14, color: AppTheme.primaryBlue), SizedBox(width: 6), Expanded(child: Text('Le numéro d\'urgence à contacter est géré ci-dessous dans « Contacts d\'urgence ». Ajoutez au moins un contact (téléphone seul suffit).', style: TextStyle(fontSize: 11, color: AppTheme.primaryBlue)))]),
+              child: Row(children: const [Icon(Icons.info_outline, size: 14, color: AppTheme.primaryBlue), SizedBox(width: 6), Expanded(child: Text('Le numéro d\'urgence à contacter est géré ci-dessous dans « Contacts d\'urgence ». Ajoutez au moins un contact avec un email (le téléphone seul ne suffit pas).', style: TextStyle(fontSize: 11, color: AppTheme.primaryBlue)))]),
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -619,56 +655,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         trailing: const Icon(Icons.chevron_right, size: 18, color: AppTheme.textGrey),
         onTap: onTap,
       ),
-    );
-  }
-}
-
-class _VoicePreviewDialog extends StatefulWidget {
-  final String? wavPath;
-  final String mot;
-  const _VoicePreviewDialog({required this.wavPath, required this.mot});
-  @override
-  State<_VoicePreviewDialog> createState() => _VoicePreviewDialogState();
-}
-
-class _VoicePreviewDialogState extends State<_VoicePreviewDialog> {
-  late final AudioPlayer _player;
-  bool _playing = false;
-  @override
-  void initState() { super.initState(); _player = AudioPlayer(); }
-  @override
-  void dispose() { _player.dispose(); super.dispose(); }
-  Future<void> _toggle() async {
-    if (_playing) {
-      await _player.pause();
-      setState(() => _playing = false);
-    } else {
-      if (widget.wavPath == null) return;
-      try {
-        await _player.setFilePath(widget.wavPath!);
-        await _player.play();
-        setState(() => _playing = true);
-        _player.playerStateStream.listen((s) { if (s.processingState == ProcessingState.completed) setState(() => _playing = false); });
-      } catch (_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lecture impossible')));
-      }
-    }
-  }
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Réécoutez votre voix', style: TextStyle(fontWeight: FontWeight.w800)),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text('Mot: "${widget.mot}" — 30s enregistrés. Cliquez Play pour écouter, puis Enregistrer si OK.', style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)),
-        const SizedBox(height: 12),
-        FilledButton.icon(onPressed: _toggle, icon: Icon(_playing ? Icons.pause : Icons.play_arrow), label: Text(_playing ? 'Pause' : 'Play — écouter')),
-        if (widget.wavPath == null) const Text('Fichier audio non disponible', style: TextStyle(fontSize: 11, color: Colors.red)),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Recommencer')),
-        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Enregistrer empreinte')),
-      ],
     );
   }
 }

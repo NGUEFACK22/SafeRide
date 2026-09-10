@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\SosAlert;
+use App\Models\Trip;
+use App\Models\TripRating;
 use App\Models\User;
 use App\Services\GoogleAuthService;
 use App\Mail\VerificationMail;
@@ -186,6 +189,48 @@ class AuthController extends Controller
         $user = $request->user()->load('roles', 'vehicles');
 
         return response()->json(['user' => $this->userPayload($user)]);
+    }
+
+    /**
+     * Statistiques exactes du profil : comptages directs en base (sans
+     * pagination — l'historique est limité à 15 trajets par page, ce qui
+     * faussait les stats du mobile au-delà).
+     * trips : trajets TERMINÉS de l'utilisateur (passager OU transporteur).
+     * rating_avg : vraie moyenne des notes REÇUES (pondérée par note, pas
+     * par trajet).
+     * sos_count : alertes SOS réellement enregistrées en base.
+     */
+    public function profileStats(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $role = $user->roles()->first()?->slug;
+
+        $tripsQuery = Trip::where('statut', 'TERMINE');
+        if ($role === 'transporteur') {
+            $tripsQuery->where('transporteur_id', $user->id);
+        } else {
+            $tripsQuery->where('passager_id', $user->id);
+        }
+
+        $tripsCount = (clone $tripsQuery)->count();
+        $totalKm = (clone $tripsQuery)->sum('distance_km');
+
+        // Vraie moyenne des notes reçues (par note, indépendante des trajets).
+        $rating = TripRating::where('rated_id', $user->id)->avg('rating');
+        $ratingsCount = TripRating::where('rated_id', $user->id)->count();
+
+        // SOS réels du passager (base), pas un compteur local mobile.
+        $sosCount = SosAlert::where('passager_id', $user->id)->count();
+
+        return response()->json([
+            'stats' => [
+                'trips_count' => $tripsCount,
+                'total_km' => round((float) $totalKm, 1),
+                'rating_avg' => $rating ? round((float) $rating, 2) : 0,
+                'ratings_count' => $ratingsCount,
+                'sos_count' => $sosCount,
+            ],
+        ]);
     }
 
     public function updateProfile(Request $request): JsonResponse
