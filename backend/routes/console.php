@@ -14,3 +14,8 @@ Schedule::command('ai:weekly-reports')->weeklyOn(0, '08:00');
 
 // Vérification des timeouts d'anomalies : chaque minute.
 Schedule::command('anomaly:check-timeouts')->everyMinute();
+
+// Clôture auto des trajets inactifs (>10 min) + purge des trajets orphelins
+// en pré-statuts (>15 min) : sans ceci, un passager ayant scanné sans suite
+// reste bloqué indéfiniment (le guard start exige un statut clôturé).
+Schedule::command('trips:auto-end-inactive')->everyFiveMinutes();

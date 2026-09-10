@@ -44,7 +44,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _fieldsLoading = true;
   bool _saving = false;
 
-  final bool _animateEntry = false; // animation désactivée — plus de effet sur l'avatar
+  // Animation d'entrée : démarre masqué puis s'affiche au montage (initState).
+  bool _animateEntry = false;
 
   // Voix — empreinte vocale 3 prises
   final _voiceprint = VoiceprintService();
@@ -60,10 +61,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadVerif();
     _loadStats();
     _loadFields();
-    // Animation d'entrée désactivée — pas de remise à true automatique
-    // WidgetsBinding.instance.addPostFrameCallback((_) {
-    //   if (mounted) setState(() => _animateEntry = true);
-    // });
+    // Animation d'entrée : déclenchée juste après le premier rendu
+    // (rétablit l'affichage de l'avatar, du nom, du badge et des stats).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _animateEntry = true);
+    });
   }
 
   Future<void> _loadVerif() async {

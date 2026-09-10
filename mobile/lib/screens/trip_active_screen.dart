@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../models/trip.dart';
+import '../services/api_service.dart';
 import '../services/trip_service.dart';
 import '../services/offline_service.dart';
 import '../services/background_location_service.dart';
@@ -38,6 +39,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   final _speech = stt.SpeechToText();
   final _voiceprint = VoiceprintService();
   final _sosService = SosService();
+  final _api = ApiService();
   Trip? _trip;
   bool _loading = true;
   bool _busy = false;
@@ -311,11 +313,37 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
         position.longitude,
         position.speed * 3.6,
       );
+      // Transporteur : publie aussi la position de son VÉHICULE (toutes les
+      // ~30 s via le throttle) — indispensable pour que la vérification de
+      // proximité ±50m au scan suivant soit réellement active.
+      _publishVehiclePositionThrottled(position.latitude, position.longitude);
       _updateLiveMap(LatLng(position.latitude, position.longitude));
     } catch (_) {
       // GPS indisponible : le service de fond réessaiera
     }
     await _refreshPending();
+  }
+
+  // ── Position véhicule (transporteur) ────────────────────────────────
+  DateTime _lastVehiclePositionAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Publie POST /vehicles/{id}/position au plus toutes les 30 s pendant
+  /// un trajet actif — active la vérification de proximité au scan QR.
+  void _publishVehiclePositionThrottled(double lat, double lng) {
+    if (_trip?.statut != 'EN_COURS') return;
+    if (_trip?.vehicleId == null) return;
+
+    final now = DateTime.now();
+    if (now.difference(_lastVehiclePositionAt).inSeconds < 30) return;
+    _lastVehiclePositionAt = now;
+
+    // Silencieux : la position véhicule est un service d'appui, jamais bloquant.
+    _api
+        .post('/vehicles/${_trip!.vehicleId}/position', {
+          'latitude': lat,
+          'longitude': lng,
+        })
+        .then((_) {}, onError: (_) {});
   }
 
   /// Met à jour la carte live : position de l'utilisateur + itinéraire réel
