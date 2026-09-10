@@ -17,9 +17,7 @@ class OfflineService {
     _connectivity.onConnectivityChanged.listen((result) {
       _online = !result.contains(ConnectivityResult.none);
       _connectivityController.add(_online);
-      if (_online) {
-        unawaited(flush());
-      }
+      if (_online) _replayQueues();
     });
     _init();
   }
@@ -39,6 +37,14 @@ class OfflineService {
     final result = await _connectivity.checkConnectivity();
     _online = !result.contains(ConnectivityResult.none);
     _connectivityController.add(_online);
+    if (_online) _replayQueues();
+  }
+
+  /// Rejoue les deux files (positions + opérations génériques) au retour réseau
+  /// ou au démarrage : sinon une alerte SOS en file ne partirait jamais.
+  void _replayQueues() {
+    unawaited(flush());
+    unawaited(_flushQueue());
   }
 
   /// Persiste une position localement puis tente l'envoi immédiat.
@@ -144,28 +150,55 @@ class OfflineService {
   }
 
   /// Rejoue la file d'attente. Distinction cruciale :
-  /// - erreur RÉSEAU (pas de réponse) → on réessaiera plus tard (retry_count++,
-  ///   abandon après 10 tentatives) ;
-  /// - erreur API (4xx/5xx : ex anti-spam 429 SOS, validation 422) →
+  /// - erreur TRANSIENTE (pas de réponse réseau, ou 5xx serveur) → retry_count++,
+  ///   abandon après 10 tentatives, on réessaiera à la prochaine connexion ;
+  /// - erreur PERMANENTE (4xx : ex anti-spam 429 SOS, validation 422, 401) →
   ///   l'opération est définitivement refusée par le serveur : on la retire
-  ///   de la file, sinon elle bloquerait toute la queue indéfiniment.
+  ///   de la file (et on note last_error), sinon elle bloquerait toute la queue.
   Future<void> _flushQueue() async {
     final db = await DatabaseService.database;
     final pending = await db.query('sync_queue', orderBy: 'created_at ASC');
     for (final row in pending) {
+      final id = row['id'];
       try {
         await _api.post(row['endpoint'] as String, jsonDecode(row['payload'] as String));
-        await db.delete('sync_queue', where: 'id = ?', whereArgs: [row['id']]);
-      } on ApiException {
-        // Le serveur a répondu un refus définitif (ex: SOS déjà transmis
-        // il y a <30s) : rejouer ne changera rien — on purge la ligne pour
-        // ne pas bloquer le reste de la file.
-        await db.delete('sync_queue', where: 'id = ?', whereArgs: [row['id']]);
+        await db.delete('sync_queue', where: 'id = ?', whereArgs: [id]);
+      } on ApiException catch (e) {
+        // Un 5xx est transitoire (serveur surchargé / redéploiement) : on réessaie.
+        if (e.statusCode >= 500) {
+          final retries = (row['retry_count'] as int? ?? 0) + 1;
+          if (retries >= 10) {
+            await db.delete('sync_queue', where: 'id = ?', whereArgs: [id]);
+          } else {
+            await db.update(
+              'sync_queue',
+              {
+                'retry_count': retries,
+                'last_error': e.message.substring(0, e.message.length.clamp(0, 250)),
+              },
+              where: 'id = ?',
+              whereArgs: [id],
+            );
+          }
+          break; // serveur indisponible : on arrête la boucle, on réessaiera
+        }
+        // 4xx = refus définitif du serveur : rejouer ne changera rien (ex : SOS
+        // déjà transmis il y a <30s, validation échouée). On purge la ligne pour
+        // ne pas bloquer le reste de la file, en traçant l'erreur.
+        await db.update(
+          'sync_queue',
+          {
+            'last_error': 'PERMANENT ${e.statusCode}: ${e.message.substring(0, e.message.length.clamp(0, 220))}',
+          },
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+        await db.delete('sync_queue', where: 'id = ?', whereArgs: [id]);
       } catch (e) {
         // Erreur réseau : réessayer plus tard, abandon après 10 tentatives.
         final retries = (row['retry_count'] as int? ?? 0) + 1;
         if (retries >= 10) {
-          await db.delete('sync_queue', where: 'id = ?', whereArgs: [row['id']]);
+          await db.delete('sync_queue', where: 'id = ?', whereArgs: [id]);
         } else {
           await db.update(
             'sync_queue',
@@ -174,7 +207,7 @@ class OfflineService {
               'last_error': e.toString().substring(0, e.toString().length.clamp(0, 250)),
             },
             where: 'id = ?',
-            whereArgs: [row['id']],
+            whereArgs: [id],
           );
         }
         break; // plus de réseau : on arrête la boucle

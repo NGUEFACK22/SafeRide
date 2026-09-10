@@ -267,7 +267,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (phones.isNotEmpty && sms != null) await WhatsAppService.instance.sendBulk(phones, sms);
       await AlertCounterService.increment();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LanguageService.instance.t('sos_triggered')), backgroundColor: AppTheme.sosRed, duration: Duration(seconds: 4)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(SosService().resultMessage(data, bouton: true)),
+        backgroundColor: AppTheme.sosRed,
+        duration: Duration(seconds: 4),
+      ));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));

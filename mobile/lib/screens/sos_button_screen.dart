@@ -307,38 +307,9 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
 
   /// Message de résultat honnête basé sur les canaux réellement actifs
   /// (alerts_sent du backend) — jamais "SMS envoyés" si l'opérateur SMS
-  /// n'est pas configuré.
-  String _sosResultMessage(Map<String, dynamic> data, {required bool bouton}) {
-    final summary = (data['alerts_sent'] as Map<String, dynamic>?)?['summary']
-        as Map<String, dynamic>?;
-    if (summary == null) {
-      return bouton
-          ? 'Alerte SOS déclenchée et transmise.'
-          : 'Alerte vocale déclenchée et transmise.';
-    }
-
-    final emailSent = (summary['email_sent'] as num?)?.toInt() ?? 0;
-    final smsSent = (summary['sms_sent'] as num?)?.toInt() ?? 0;
-    final waSent = (summary['whatsapp_sent'] as num?)?.toInt() ?? 0;
-    final contacts = (summary['contacts_total'] as num?)?.toInt() ?? 0;
-
-    final canaux = <String>[
-      if (smsSent > 0) 'SMS',
-      if (waSent > 0) 'WhatsApp',
-      if (emailSent > 0) 'email',
-    ];
-
-    if (canaux.isEmpty) {
-      return contacts > 0
-          ? 'Alerte enregistrée — aucun canal de transmission n\'a abouti. '
-              'Vérifiez vos contacts (email requis).'
-          : 'Alerte enregistrée — aucun contact d\'urgence enregistré. '
-              'Ajoutez-en pour être notifié.';
-    }
-
-    final prefix = bouton ? 'Alerte SOS transmise' : 'Alerte vocale transmise';
-    return '$prefix ($canaux joints) • gestionnaire et litige notifiés.';
-  }
+  /// n'est pas configuré. Délégué au service pour cohérence avec l'accueil.
+  String _sosResultMessage(Map<String, dynamic> data, {required bool bouton}) =>
+      _sosService.resultMessage(data, bouton: bouton);
 
   /// Position GPS réelle (haute précision), avec repli sur la dernière connue.
   Future<({double latitude, double longitude})> _position() async {
