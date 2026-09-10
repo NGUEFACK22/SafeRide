@@ -509,6 +509,16 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       }
       final pos = await _autoPosition();
       final data = await _sosService.triggerVocal(_trip!.id, pos.latitude, pos.longitude, keyword, empreinte);
+      if (data['queued'] == true) {
+        if (!mounted) return;
+        setState(() => _voiceStatus = 'SOS vocal enregistré hors-ligne — sera transmis à la reconnexion');
+        await Future<void>.delayed(const Duration(seconds: 5));
+        if (mounted && _trip?.statut == 'EN_COURS') {
+          _voiceMonitoring = false;
+          await _startVoiceMonitoring();
+        }
+        return;
+      }
       // WhatsApp automatique
       try {
         final contacts = data['emergency_contacts'] as List<dynamic>? ?? [];
@@ -728,8 +738,37 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
             style: TextStyle(fontSize: 13, color: AppTheme.textGrey),
           ),
         ),
+        const SizedBox(height: 20),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : () => _cancelByPassenger(trip.id),
+          icon: const Icon(Icons.cancel_outlined),
+          label: const Text('Annuler la demande'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppTheme.sosRed,
+            side: BorderSide(color: AppTheme.sosRed.withValues(alpha: 0.5)),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+        ),
       ],
     );
+  }
+
+  Future<void> _cancelByPassenger(int tripId) async {
+    setState(() => _busy = true);
+    try {
+      await _api.post('/trips/$tripId/cancel', {});
+      _waitingPoll?.cancel();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(LanguageService.instance.t('trip_cancelled_by_passenger'))),
+      );
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   void _startWaitingPoll(int tripId) {
@@ -767,6 +806,16 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
           onPressed: _busy ? null : _confirmEmbarquement,
           icon: const Icon(Icons.check_circle),
           label: Text(LanguageService.instance.t('confirm_boarding')),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : () => _cancelByPassenger(trip.id),
+          icon: const Icon(Icons.cancel_outlined),
+          label: const Text('Annuler la demande'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppTheme.sosRed,
+            side: BorderSide(color: AppTheme.sosRed.withValues(alpha: 0.5)),
+          ),
         ),
       ],
     );

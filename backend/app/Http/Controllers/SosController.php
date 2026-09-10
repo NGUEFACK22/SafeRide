@@ -209,7 +209,7 @@ class SosController extends Controller
 
     public function show(Request $request, int $id): JsonResponse
     {
-        $sos = SosAlert::with('trip', 'passager', 'emergencyNotifications')
+        $sos = SosAlert::with('trip.transporteur', 'passager', 'emergencyNotifications')
             ->findOrFail($id);
 
         return response()->json(['sos' => $sos]);
@@ -348,26 +348,35 @@ class SosController extends Controller
      */
     protected function smsMessage(SosAlert $sos, ?Trip $trip, ?EmergencyContact $contact): string
     {
-        $passager = $sos->passager;
+        $data = $sos->forNotification($trip, $contact?->nom ?? '');
+        $salutation = $data['recipient'] !== ''
+            ? 'Bonjour ' . $data['recipient'] . ','
+            : 'Bonjour,';
 
-        $message = 'URGENT SafeRide : ' . ($passager?->prenom ?? 'un passager') . ' '
-            . ($passager?->nom ?? '') . " a déclenché une alerte SOS.";
+        $lines = [
+            '🚨 ALERTE SOS – SafeRide AI',
+            '',
+            $salutation,
+            '',
+            '⚠️ Une alerte SOS vient d\'être déclenchée sur SafeRide AI.',
+            '',
+            '👤 Passager : ' . $data['passager'],
+            '🚗 Transporteur : ' . $data['transporteur'],
+            '🕐 Heure de l\'alerte : ' . $data['heure'],
+            '',
+            '📍 Départ de la course : ' . $data['departure'],
+            '🏁 Destination prévue : ' . $data['destination'],
+            '📌 Localisation actuelle : ' . $data['current_location'],
+            '',
+            '🗺️ Position GPS : ' . $data['maps_link'],
+            '🆔 Identifiant du trajet : ' . $data['trip_id'],
+            '',
+            'Cette alerte indique qu\'une situation d\'urgence pourrait être en cours. Veuillez intervenir rapidement ou contacter les services d\'urgence si nécessaire.',
+            '',
+            'SafeRide AI – Votre sécurité, notre priorité.',
+        ];
 
-        if ($sos->latitude && $sos->longitude) {
-            $message .= ' Position : https://maps.google.com/?q='
-                . $sos->latitude . ',' . $sos->longitude;
-        }
-
-        $destination = $sos->destination ?? $trip?->destination_address;
-        if ($destination) {
-            $message .= ' Destination : ' . $destination;
-        }
-
-        if ($contact) {
-            $message .= ' — ' . $contact->nom;
-        }
-
-        return $message;
+        return implode(PHP_EOL, $lines);
     }
 
     /**

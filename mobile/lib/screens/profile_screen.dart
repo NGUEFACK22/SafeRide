@@ -241,6 +241,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _resendVerification() async {
+    try {
+      final data = await _api.post('/auth/send-verification', {});
+      final msg = data['message'] as String?;
+      final alreadyVerified = msg != null && msg.toLowerCase().contains('déjà');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(alreadyVerified
+              ? LanguageService.instance.t('email_already_verified')
+              : LanguageService.instance.t('verification_email_sent')),
+          backgroundColor: alreadyVerified ? Colors.orange.shade700 : AppTheme.primaryBlue,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(LanguageService.instance.t('delete_account'), style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.sosRed)),
+        content: Text(LanguageService.instance.t('delete_account_confirm')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(LanguageService.instance.t('cancel'))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.sosRed),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await _api.delete('/auth/account');
+      await AlertCounterService.reset();
+      await AuthService().logout();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(LanguageService.instance.t('account_deleted'))),
+      );
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
+    }
+  }
+
   Future<void> _saveFields() async {
     setState(() => _saving = true);
     try {
@@ -467,6 +520,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _menuTile(Icons.history, LanguageService.instance.t('history_trips_menu'), onTap: () => Navigator.pushNamed(context, '/history')),
           _menuTile(Icons.support_agent, LanguageService.instance.t('support_ai'), onTap: () => Navigator.pushNamed(context, '/ai')),
           _menuTile(Icons.verified_user, LanguageService.instance.t('verify_identity'), onTap: () => Navigator.pushNamed(context, '/identity')),
+          _menuTile(Icons.mark_email_read_outlined, LanguageService.instance.t('resend_verification'), onTap: _resendVerification, color: AppTheme.lightBlueBadge, iconColor: AppTheme.primaryBlue),
+          _menuTile(Icons.delete_outline, LanguageService.instance.t('delete_account'), onTap: _confirmDeleteAccount, color: Color(0xFFFFE9E9), iconColor: AppTheme.sosRed),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: () async { await AuthService().logout(); if (context.mounted) Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false); },

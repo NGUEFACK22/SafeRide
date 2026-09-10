@@ -222,6 +222,15 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
         destination: destination,
       );
 
+      if (data['queued'] == true) {
+        if (!mounted) return;
+        setState(() => _status = 'SOS vocal enregistré hors-ligne — sera transmis à la reconnexion.');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_status)),
+        );
+        return;
+      }
+
       // Envoyer des SOS via WhatsApp aux contacts d'urgence
       await _sendWhatsAppSos(data);
 
@@ -259,6 +268,14 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       }
       final pos = await _position();
       final data = await _sosService.triggerButton(trip?.id, pos.latitude, pos.longitude, destination: destination);
+
+      if (data['queued'] == true) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Alerte SOS enregistrée hors-ligne — sera transmise à la reconnexion.')),
+        );
+        return;
+      }
 
       // Envoyer des SOS via WhatsApp aux contacts d'urgence
       await _sendWhatsAppSos(data);

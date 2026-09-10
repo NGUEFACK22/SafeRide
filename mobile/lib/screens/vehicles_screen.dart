@@ -249,7 +249,8 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                                   subtitle: Text('${v['type']}${v['couleur'] != null ? ' · ${v['couleur']}' : ''} · ${v['statut']}'),
                                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                                     IconButton(icon: Icon(Icons.qr_code_2), tooltip: LanguageService.instance.t('show_qr'), onPressed: () => _showQr(v['id'], v['immatriculation'])),
-                                    IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), tooltip: 'Supprimer (bloqué si seul)', onPressed: () => _deleteVehicle(v['id'])),
+                                    if (_vehicles.length > 1)
+                                      IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), tooltip: 'Supprimer (bloqué si seul)', onPressed: () => _deleteVehicle(v['id'])),
                                   ]),
                                 ),
                               )),

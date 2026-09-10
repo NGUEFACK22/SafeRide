@@ -6,6 +6,7 @@ import 'models/user.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/forgot_password_screen.dart';
 import 'screens/lost_item_screen.dart';
 import 'screens/manager_screen.dart';
 import 'screens/register_screen.dart';
@@ -55,6 +56,7 @@ class SafeRideApp extends StatelessWidget {
         '/': (ctx) => const SplashScreen(),
         '/login': (ctx) => const LoginScreen(),
         '/register': (ctx) => const RegisterScreen(),
+        '/forgot-password': (ctx) => const ForgotPasswordScreen(),
         '/home': (ctx) {
           final user = ModalRoute.of(ctx)?.settings.arguments as User?;
           return HomeScreen(user: user);

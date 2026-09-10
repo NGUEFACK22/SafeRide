@@ -158,6 +158,7 @@ class VoiceBiometricTest extends TestCase
             'user_id' => $user->id,
             'nom' => 'Maman',
             'telephone' => '+237690000000',
+            'email' => 'maman@example.com',
         ]);
 
         $response = $this->postJson('/api/v1/sos', [

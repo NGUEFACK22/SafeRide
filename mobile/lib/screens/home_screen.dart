@@ -254,6 +254,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) throw Exception(LanguageService.instance.t('location_permission_denied'));
       final pos = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
       final data = await SosService().triggerButton(linkable?.id, pos.latitude, pos.longitude, destination: destination);
+      if (data['queued'] == true) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(LanguageService.instance.t('sos_queued')), backgroundColor: AppTheme.sosRed, duration: Duration(seconds: 4)),
+        );
+        return;
+      }
       final sms = data['sms_message'] as String?;
       final contacts = data['emergency_contacts'] as List<dynamic>? ?? [];
       final phones = contacts.map((c) => ((c['whatsapp_telephone'] as String?)?.trim().isNotEmpty == true ? c['whatsapp_telephone'] : c['telephone']) as String?).where((p) => p != null && p.isNotEmpty).cast<String>().toList();
@@ -561,13 +568,13 @@ class _PassagerViewState extends State<_PassagerView> {
 
   @override
   Widget build(BuildContext context) {
-    final name = (widget.user?.prenom as String?) ?? 'Jean';
+    final name = (widget.user?.prenom as String?) ?? '';
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('${LanguageService.instance.t('hello')}, $name', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text(name.isEmpty ? LanguageService.instance.t('hello') : '${LanguageService.instance.t('hello')}, $name', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

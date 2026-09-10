@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../utils/error_helper.dart';
+import '../theme/app_theme.dart';
 
 import '../services/api_service.dart';
 
@@ -76,6 +78,239 @@ class _ManagerScreenState extends State<ManagerScreen> {
         SnackBar(content: Text(friendlyError(e))),
       );
     }
+  }
+
+  /// Charge le détail complet d'une alerte SOS puis ouvre le dialogue de gestion.
+  Future<void> _openSosDetail(int sosId) async {
+    try {
+      final data = await _api.get('/sos/$sosId');
+      if (!mounted) return;
+      final sos = (data['sos'] as Map<String, dynamic>?) ?? {};
+      await _showSosDialog(sos, sosId);
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyError(e))),
+      );
+    }
+  }
+
+  /// Résout l'alerte SOS (RESOLU / FAUSSE_ALERTE / EN_COURS).
+  Future<void> _resolveSos(int sosId, String statut) async {
+    try {
+      await _api.put('/sos/$sosId/resolve', {'statut': statut});
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Alerte SOS marquée : $statut')),
+      );
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyError(e))),
+      );
+    }
+  }
+
+  Future<void> _showSosDialog(Map<String, dynamic> sos, int sosId) async {
+    final statut = (sos['statut'] as String?) ?? 'INCONNU';
+    final lat = (sos['latitude'] as num?)?.toString() ?? '—';
+    final lng = (sos['longitude'] as num?)?.toString() ?? '—';
+    final mapsLink = lat != '—'
+        ? 'https://maps.google.com/?q=$lat,$lng'
+        : null;
+    final passager = (sos['passager'] as Map<String, dynamic>?) ?? {};
+    final trip = (sos['trip'] as Map<String, dynamic>?) ?? {};
+    final transporteur = (trip['transporteur'] as Map<String, dynamic>?) ?? {};
+    final passagerNom =
+        '${passager['prenom'] ?? ''} ${passager['nom'] ?? ''}'.trim();
+    final transporteurNom =
+        '${transporteur['prenom'] ?? ''} ${transporteur['nom'] ?? ''}'.trim();
+
+    final resolved = statut == 'RESOLU' ||
+        statut == 'CLOTE' ||
+        statut == 'FAUSSE_ALERTE';
+
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: [
+          const Icon(Icons.sos, color: AppTheme.sosRed),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text('Alerte SOS',
+                style: TextStyle(fontSize: 18)),
+          ),
+        ]),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _infoRow('Statut', statut),
+              _infoRow('Déclenchement',
+                  (sos['declenchement'] as String?) ?? '—'),
+              _infoRow('Passager', passagerNom.isEmpty ? '—' : passagerNom),
+              _infoRow('Transporteur',
+                  transporteurNom.isEmpty ? '—' : transporteurNom),
+              _infoRow('Trajet #', '${sos['trip_id'] ?? '—'}'),
+              _infoRow('Heure',
+                  (sos['heure_detection'] as String?) ?? '—'),
+              if (mapsLink != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: InkWell(
+                    onTap: () => _openMaps(mapsLink),
+                    child: Text(
+                      '🗺️ Voir la position GPS',
+                      style: const TextStyle(
+                        color: AppTheme.primaryBlue,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          if (!resolved) ...[
+            TextButton(
+              onPressed: () => _resolveSos(sosId, 'RESOLU'),
+              child: const Text('Résoudre'),
+            ),
+            TextButton(
+              onPressed: () => _resolveSos(sosId, 'FAUSSE_ALERTE'),
+              child: const Text('Fausse alerte'),
+            ),
+            TextButton(
+              onPressed: () => _resolveSos(sosId, 'EN_COURS'),
+              child: const Text('En cours'),
+            ),
+          ] else
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Fermer'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(label,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600, color: AppTheme.textGrey)),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openMaps(String link) async {
+    final uri = Uri.parse(link);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {}
+  }
+
+  /// Examine une demande de vérification d'identité (VERIFIE / ECHOUE / A_EXAMINER).
+  Future<void> _openIdentityReview(
+      int verificationId, Map<String, dynamic> dossier) async {
+    if (!mounted) return;
+    await _showIdentityDialog(verificationId, dossier);
+    _load();
+  }
+
+  Future<void> _submitIdentityReview(int verificationId, String statut) async {
+    try {
+      await _api.put('/identity/$verificationId/review', {'statut': statut});
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Vérification d\'identité : $statut')),
+      );
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyError(e))),
+      );
+    }
+  }
+
+  Future<void> _showIdentityDialog(
+      int verificationId, Map<String, dynamic> knownUser) async {
+    final statut = (knownUser['statut'] as String?) ?? '—';
+    final type = (knownUser['type'] as String?) ?? '—';
+    final userId = (knownUser['user_id'] as num?)?.toInt() ?? '—';
+    final alreadyReviewed = (statut == 'VERIFIE' || statut == 'ECHOUE');
+
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(children: [
+          Icon(Icons.verified_user, color: Colors.purple),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text('Demande d\'identité #',
+                style: TextStyle(fontSize: 18)),
+          ),
+        ]),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _infoRow('Utilisateur #', '$userId'),
+              _infoRow('Type', type),
+              _infoRow('Statut', statut),
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'Documents : recto, verso, selfie — vérifiez la concordance avant de valider.',
+                  style: TextStyle(fontSize: 12, color: AppTheme.textGrey),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          if (!alreadyReviewed) ...[
+            TextButton(
+              onPressed: () => _submitIdentityReview(verificationId, 'VERIFIE'),
+              child: const Text('Vérifier'),
+            ),
+            TextButton(
+              onPressed: () => _submitIdentityReview(verificationId, 'ECHOUE'),
+              child: const Text('Échouer'),
+            ),
+            TextButton(
+              onPressed: () => _submitIdentityReview(verificationId, 'A_EXAMINER'),
+              child: const Text('À examiner'),
+            ),
+          ] else
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Fermer'),
+            ),
+        ],
+      ),
+    );
   }
 
   String _typeLabel(String type) {
@@ -209,6 +444,25 @@ class _ManagerScreenState extends State<ManagerScreen> {
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  if (a['dossier_type'] == 'SOS')
+                                    IconButton(
+                                      icon: const Icon(Icons.visibility,
+                                          color: AppTheme.sosRed),
+                                      tooltip: 'Détails de l\'alerte SOS',
+                                      onPressed: () =>
+                                          _openSosDetail(
+                                              (a['dossier_id'] as num?)?.toInt() ?? 0),
+                                    ),
+                                  if (a['dossier_type'] == 'IDENTITE')
+                                    IconButton(
+                                      icon: const Icon(Icons.verified_user,
+                                          color: Colors.purple),
+                                      tooltip: 'Examiner la demande d\'identité',
+                                      onPressed: () => _openIdentityReview(
+                                        (a['dossier_id'] as num?)?.toInt() ?? 0,
+                                        (a['dossier'] as Map<String, dynamic>?) ?? {},
+                                      ),
+                                    ),
                                   if (a['statut'] == 'ATTRIBUE') ...[
                                     IconButton(
                                       icon: const Icon(Icons.play_arrow,

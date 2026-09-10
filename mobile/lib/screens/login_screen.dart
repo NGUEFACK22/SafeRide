@@ -106,9 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(LanguageService.instance.t('contact_support_reset'))),
-                        );
+                        Navigator.of(context).pushNamed('/forgot-password');
                       },
                       child: Text(LanguageService.instance.t('forgot_password'), style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w600, fontSize: 13)),
                     ),

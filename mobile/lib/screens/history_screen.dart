@@ -113,13 +113,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   const SizedBox(height: 10),
                   Text(trip.destinationAddress ?? LanguageService.instance.t('trip_no_destination'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppTheme.textDark), maxLines: 1, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
-                  Row(children: [const Icon(Icons.person_outline, size: 14, color: AppTheme.textGrey), const SizedBox(width: 4), Text(trip.transporteurFullName.isEmpty ? 'Jean Dupont' : trip.transporteurFullName, style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)), const SizedBox(width: 8), Container(width: 4, height: 4, decoration: const BoxDecoration(color: AppTheme.textGrey, shape: BoxShape.circle)), const SizedBox(width: 8), Text(trip.startedAt?.substring(11, 16) ?? '14:30', style: const TextStyle(fontSize: 12, color: AppTheme.textGrey))]),
+                  Row(children: [const Icon(Icons.person_outline, size: 14, color: AppTheme.textGrey), const SizedBox(width: 4), Text(trip.transporteurFullName.isEmpty ? '—' : trip.transporteurFullName, style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)), const SizedBox(width: 8), Container(width: 4, height: 4, decoration: const BoxDecoration(color: AppTheme.textGrey, shape: BoxShape.circle)), const SizedBox(width: 8), Text(trip.startedAt?.substring(11, 16) ?? '—', style: const TextStyle(fontSize: 12, color: AppTheme.textGrey))]),
                   const Divider(height: 20),
                   Row(
                     children: [
-                      Text('${trip.distanceKm?.toStringAsFixed(1) ?? '5.2'} km', style: const TextStyle(fontWeight: FontWeight.w700)),
-                      const SizedBox(width: 12),
-                      Text('${(trip.durationSeconds ?? 720) ~/ 60} min', style: const TextStyle(color: AppTheme.textGrey)),
+                      Text(trip.distanceKm != null && trip.distanceKm! > 0 ? '${trip.distanceKm!.toStringAsFixed(1)} km' : '—'),
+                      if (trip.durationSeconds != null) Text('${(trip.durationSeconds! / 60).round()} min', style: const TextStyle(color: AppTheme.textGrey)),
                       if (trip.ratingsAvg != null && trip.ratingsAvg! > 0) ...[const SizedBox(width: 8), RatingStars(rating: trip.ratingsAvg!, size: 12)],
                       const Spacer(),
                       FilledButton(

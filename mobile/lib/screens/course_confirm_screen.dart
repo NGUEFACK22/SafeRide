@@ -152,19 +152,6 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 ),
               ),
-              const SizedBox(height: 24),
-              OutlinedButton.icon(
-                onPressed: _cancelling ? null : _cancel,
-                icon: _cancelling
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.cancel_outlined),
-                label: const Text('Annuler la demande'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.sosRed,
-                  side: BorderSide(color: AppTheme.sosRed.withValues(alpha: 0.5)),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-              ),
             ],
           ),
         ),

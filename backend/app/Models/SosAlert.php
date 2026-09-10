@@ -47,4 +47,42 @@ class SosAlert extends Model
     {
         return $this->hasMany(SosEmergencyNotification::class);
     }
+
+    /**
+     * Données structurées prêtes pour une notification (email/SMS/WhatsApp).
+     * Utilisé de façon identique par SosAlertMail et SosController.
+     */
+    public function forNotification(?Trip $trip, string $recipientName = ''): array
+    {
+        $passager = $this->passager;
+        $transporteur = $trip?->transporteur;
+
+        $fullName = fn (?User $u): string => $u
+            ? trim($u->prenom . ' ' . $u->nom) ?: '—'
+            : '—';
+
+        $startLat = $trip?->start_latitude;
+        $startLng = $trip?->start_longitude;
+        $departure = ($startLat !== null && $startLat !== '' && $startLng !== null && $startLng !== '')
+            ? $startLat . ', ' . $startLng
+            : '—';
+
+        $destination = $this->destination ?? $trip?->destination_address ?? '—';
+        $hasPos = $this->latitude !== null && $this->longitude !== null
+            && $this->latitude !== '' && $this->longitude !== '';
+
+        return [
+            'recipient' => $recipientName,
+            'passager' => $fullName($passager) !== '—' ? $fullName($passager) : 'Passager SafeRide',
+            'transporteur' => $fullName($transporteur),
+            'heure' => $this->heure_detection?->format('d/m/Y à H:i') ?? '—',
+            'departure' => $departure,
+            'destination' => $destination,
+            'current_location' => $hasPos ? $this->latitude . ', ' . $this->longitude : '—',
+            'maps_link' => $hasPos
+                ? 'https://maps.google.com/?q=' . $this->latitude . ',' . $this->longitude
+                : '—',
+            'trip_id' => $trip?->id !== null ? (string) $trip->id : '—',
+        ];
+    }
 }
