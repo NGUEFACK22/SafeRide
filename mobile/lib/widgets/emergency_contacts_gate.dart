@@ -5,15 +5,16 @@ import '../theme/app_theme.dart';
 import '../utils/error_helper.dart';
 
 /// Vérifie et garantit qu'un utilisateur possède au moins [minimum] contacts
-/// d'urgence avant de pouvoir déclencher un SOS.
+/// d'urgence **avec email valide** avant de pouvoir déclencher un SOS.
 ///
-/// - Si l'utilisateur a déjà assez de contacts → retourne true immédiatement.
-/// - Sinon ouvre un dialogue **non annulable** avec un formulaire permettant
-///   d'enregistrer les contacts manquants (nom + téléphone + relation) ;
-///   chaque contact est sauvegardé via POST /emergency-contacts dès que
-///   le champ téléphone est valide. Le dialogue ne se ferme que lorsque le
-///   quota est atteint (ou si l'utilisateur choisit explicitement d'annuler
-///   le SOS).
+/// L'email est le canal de notification obligatoire (SMS non configuré,
+/// WhatsApp optionnel) : un contact sans email ne serait pas notifié.
+///
+/// - Si l'utilisateur a déjà assez de contacts notifiables → retourne true.
+/// - Sinon ouvre un dialogue **non annulable** avec un formulaire (nom +
+///   téléphone + email requis) ; chaque contact est sauvegardé via
+///   POST /emergency-contacts dès que les champs sont valides. Le dialogue ne
+///   se ferme que lorsque le quota est atteint (ou annulation explicite).
 /// - En cas d'erreur réseau (hors-ligne) : fail-open — un SOS d'urgence ne
 ///   doit jamais être bloqué par une panne de connexion (retourne true).
 Future<bool> ensureEmergencyContacts(
@@ -24,13 +25,22 @@ Future<bool> ensureEmergencyContacts(
   try {
     final data = await ApiService().get('/emergency-contacts');
     final raw = data['contacts'];
+    List<dynamic> list;
     if (raw is List) {
-      count = raw.length;
+      list = raw;
     } else if (raw is Map && raw['data'] is List) {
-      count = (raw['data'] as List).length;
+      list = raw['data'] as List;
     } else {
-      count = 0;
+      list = const [];
     }
+    // Seuls les contacts AVEC email valide comptent : l'email est le canal
+    // de notification actif (Resend). Un contact sans email ne serait
+    // jamais notifié en cas d'alerte.
+    count = list
+        .where((c) =>
+            c is Map<String, dynamic> &&
+            (c['email'] as String?)?.trim().isNotEmpty == true)
+        .length;
   } catch (_) {
     // Hors-ligne / erreur réseau : on ne bloque jamais un SOS.
     return true;
@@ -149,10 +159,10 @@ class _MinContactsDialogState extends State<_MinContactsDialog> {
             children: [
               Text(
                 _quotaReached
-                    ? 'Parfait ! Vos ${widget.minimum} contacts d\'urgence sont enregistrés.\n'
-                        'Ils seront notifiés par SMS, WhatsApp et email en cas d\'alerte.'
+                    ? 'Parfait ! Vos ${widget.minimum} contacts notifiables sont enregistrés.\n'
+                        'Ils recevront l\'alerte SOS par email (et SMS/WhatsApp si configurés).'
                     : 'Pour déclencher un SOS, au moins ${widget.minimum} contacts d\'urgence '
-                        'doivent être enregistrés (ils reçoivent l\'alerte par SMS/WhatsApp/email).\n\n'
+                        'avec un EMAIL sont requis — l\'email est le canal principal de notification.\n\n'
                         'Encore ${_remaining > 0 ? _remaining : 0} contact(s) à ajouter.',
                 style: const TextStyle(fontSize: 13),
               ),
@@ -184,9 +194,10 @@ class _MinContactsDialogState extends State<_MinContactsDialog> {
                   controller: _email,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
-                    labelText: 'Email',
+                    labelText: 'Email (OBLIGATOIRE)',
                     hintText: 'Ex : nom@email.com',
                     prefixIcon: Icon(Icons.mail_outline),
+                    helperText: 'Reçoit l\'alerte SOS par email',
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
