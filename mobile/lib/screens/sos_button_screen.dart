@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/language_service.dart';
+import '../theme/app_theme.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -69,6 +70,11 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       setState(() => _hasActiveTrip = false);
     }
   }
+
+  /// Le trajet affiché est-il réellement EN_COURS (suivi GPS actif) ?
+  /// Un trajet SCANNE / EN_ATTENTE_TRANSPORTEUR est "en préparation" :
+  /// l'alerte partirait sans infos transporteur — on le dit clairement.
+  bool get _tripEnCours => _trip != null && _trip!.statut == 'EN_COURS';
 
   Future<void> _initVoiceprint() async {
     final available = await _voiceprint.ensureLoaded();
@@ -241,10 +247,10 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       final passed = details?['verification_passed'] == true;
       if (!mounted) return;
       setState(() => _status = passed
-          ? 'Alerte vocale vérifiée et transmise + SMS envoyés.'
-          : 'Alerte vocale reçue mais non vérifiée — en vérification.');
+          ? _sosResultMessage(data, bouton: false)
+          : 'Alerte vocale reçue mais non vérifiée — transmise par voie standard, vérification en cours.');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_status)),
+        SnackBar(content: Text(_status), duration: const Duration(seconds: 4)),
       );
     } catch (e) {
       if (!mounted) return;
@@ -285,8 +291,8 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Alerte SOS (bouton) déclenchée et transmise : '
-              'SMS, contacts, gestionnaire et services d\'urgence notifiés.'),
+          content: Text(_sosResultMessage(data, bouton: true)),
+          duration: const Duration(seconds: 4),
         ),
       );
     } catch (e) {
@@ -297,6 +303,41 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  /// Message de résultat honnête basé sur les canaux réellement actifs
+  /// (alerts_sent du backend) — jamais "SMS envoyés" si l'opérateur SMS
+  /// n'est pas configuré.
+  String _sosResultMessage(Map<String, dynamic> data, {required bool bouton}) {
+    final summary = (data['alerts_sent'] as Map<String, dynamic>?)?['summary']
+        as Map<String, dynamic>?;
+    if (summary == null) {
+      return bouton
+          ? 'Alerte SOS déclenchée et transmise.'
+          : 'Alerte vocale déclenchée et transmise.';
+    }
+
+    final emailSent = (summary['email_sent'] as num?)?.toInt() ?? 0;
+    final smsSent = (summary['sms_sent'] as num?)?.toInt() ?? 0;
+    final waSent = (summary['whatsapp_sent'] as num?)?.toInt() ?? 0;
+    final contacts = (summary['contacts_total'] as num?)?.toInt() ?? 0;
+
+    final canaux = <String>[
+      if (smsSent > 0) 'SMS',
+      if (waSent > 0) 'WhatsApp',
+      if (emailSent > 0) 'email',
+    ];
+
+    if (canaux.isEmpty) {
+      return contacts > 0
+          ? 'Alerte enregistrée — aucun canal de transmission n\'a abouti. '
+              'Vérifiez vos contacts (email requis).'
+          : 'Alerte enregistrée — aucun contact d\'urgence enregistré. '
+              'Ajoutez-en pour être notifié.';
+    }
+
+    final prefix = bouton ? 'Alerte SOS transmise' : 'Alerte vocale transmise';
+    return '$prefix ($canaux joints) • gestionnaire et litige notifiés.';
   }
 
   /// Position GPS réelle (haute précision), avec repli sur la dernière connue.
@@ -323,7 +364,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
         backgroundColor: Colors.red.shade700,
         foregroundColor: Colors.white,
         actions: [
-          if (_hasActiveTrip)
+          if (_hasActiveTrip && _tripEnCours)
             TextButton(
               onPressed: () => setState(() => _vocalMode = !_vocalMode),
               child: Text(
@@ -338,9 +379,52 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
           : Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: _vocalMode ? _vocalBody() : _buttonBody(),
+                // Trajet en préparation (SCANNE/EN_ATTENTE) : l'alerte partira
+                // sans infos transporteur — avertissement au lieu du vocal.
+                child: !_tripEnCours
+                    ? _preTripBody()
+                    : _vocalMode
+                        ? _vocalBody()
+                        : _buttonBody(),
               ),
             ),
+    );
+  }
+
+  /// Trajet scanné mais pas encore EN_COURS : le SOS partira hors trajet
+  /// (position seule, sans transporteur) — information claire pour l'utilisateur.
+  Widget _preTripBody() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.hourglass_top, size: 48, color: AppTheme.primaryBlue),
+        const SizedBox(height: 16),
+        Text(
+          'Trajet en préparation (statut : ${_trip?.statut ?? '?'})',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.textDark),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Le trajet n\'est pas encore démarré (destination non confirmée).\n'
+          'Une alerte partirait avec votre position seule, sans les informations du transporteur.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: AppTheme.textGrey),
+        ),
+        const SizedBox(height: 20),
+        FilledButton.icon(
+          onPressed: _loading ? null : _fallbackButton,
+          icon: const Icon(Icons.sos),
+          label: const Text('Déclencher quand même l\'alerte'),
+          style: FilledButton.styleFrom(backgroundColor: Colors.red),
+        ),
+        const SizedBox(height: 12),
+        TextButton.icon(
+          onPressed: () => Navigator.pushReplacementNamed(context, '/trip-active', arguments: _trip),
+          icon: const Icon(Icons.arrow_forward),
+          label: const Text('Reprendre mon trajet'),
+        ),
+      ],
     );
   }
 
@@ -368,9 +452,9 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
             ),
             const SizedBox(height: 16),
             TextButton.icon(
-              onPressed: () => Navigator.pushNamed(context, '/trip-active'),
-              icon: const Icon(Icons.trip_origin),
-              label: Text(LanguageService.instance.t('see_current_trip')),
+              onPressed: () => Navigator.pushNamed(context, '/scan'),
+              icon: const Icon(Icons.qr_code_scanner),
+              label: Text('Scanner un véhicule pour un trajet sécurisé'),
             ),
           ],
         ),

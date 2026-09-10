@@ -143,6 +143,12 @@ class OfflineService {
     if (_online) await _flushQueue();
   }
 
+  /// Rejoue la file d'attente. Distinction cruciale :
+  /// - erreur RÉSEAU (pas de réponse) → on réessaiera plus tard (retry_count++,
+  ///   abandon après 10 tentatives) ;
+  /// - erreur API (4xx/5xx : ex anti-spam 429 SOS, validation 422) →
+  ///   l'opération est définitivement refusée par le serveur : on la retire
+  ///   de la file, sinon elle bloquerait toute la queue indéfiniment.
   Future<void> _flushQueue() async {
     final db = await DatabaseService.database;
     final pending = await db.query('sync_queue', orderBy: 'created_at ASC');
@@ -150,8 +156,28 @@ class OfflineService {
       try {
         await _api.post(row['endpoint'] as String, jsonDecode(row['payload'] as String));
         await db.delete('sync_queue', where: 'id = ?', whereArgs: [row['id']]);
-      } catch (_) {
-        break;
+      } on ApiException {
+        // Le serveur a répondu un refus définitif (ex: SOS déjà transmis
+        // il y a <30s) : rejouer ne changera rien — on purge la ligne pour
+        // ne pas bloquer le reste de la file.
+        await db.delete('sync_queue', where: 'id = ?', whereArgs: [row['id']]);
+      } catch (e) {
+        // Erreur réseau : réessayer plus tard, abandon après 10 tentatives.
+        final retries = (row['retry_count'] as int? ?? 0) + 1;
+        if (retries >= 10) {
+          await db.delete('sync_queue', where: 'id = ?', whereArgs: [row['id']]);
+        } else {
+          await db.update(
+            'sync_queue',
+            {
+              'retry_count': retries,
+              'last_error': e.toString().substring(0, e.toString().length.clamp(0, 250)),
+            },
+            where: 'id = ?',
+            whereArgs: [row['id']],
+          );
+        }
+        break; // plus de réseau : on arrête la boucle
       }
     }
   }
