@@ -28,6 +28,7 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
   final _tripService = TripService();
   bool _loading = false;
   bool _waiting = false;
+  bool _cancelling = false;
   Timer? _statusPoll;
 
   Future<void> _confirm() async {
@@ -52,6 +53,26 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       setState(() => _loading = false);
+    }
+  }
+
+  /// Annulation passager : termine la demande (SCANNE/EN_ATTENTE → ANNULE)
+  /// pour pouvoir scanner un autre véhicule immédiatement.
+  Future<void> _cancel() async {
+    if (_cancelling) return;
+    setState(() => _cancelling = true);
+    _statusPoll?.cancel();
+    try {
+      await _tripService.cancelByPassenger(widget.trip.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Demande annulée. Vous pouvez scanner un autre véhicule.')),
+      );
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _cancelling = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
   }
 
@@ -118,6 +139,32 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
               Text('Demande envoyée à $fullName', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
               const SizedBox(height: 8),
               const Text('Le transporteur doit confirmer qu\'il accepte la course.\nDès son accord, vous pourrez définir votre destination.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppTheme.textGrey)),
+              const SizedBox(height: 24),
+              OutlinedButton.icon(
+                onPressed: _cancelling ? null : _cancel,
+                icon: const Icon(Icons.close, size: 18),
+                label: _cancelling
+                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Annuler la demande'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.sosRed,
+                  side: const BorderSide(color: AppTheme.sosRed),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
+              ),
+              const SizedBox(height: 24),
+              OutlinedButton.icon(
+                onPressed: _cancelling ? null : _cancel,
+                icon: _cancelling
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.cancel_outlined),
+                label: const Text('Annuler la demande'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.sosRed,
+                  side: BorderSide(color: AppTheme.sosRed.withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
             ],
           ),
         ),
@@ -267,9 +314,11 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
             ),
             const SizedBox(height: 10),
             OutlinedButton(
-              onPressed: _loading ? null : () => Navigator.pop(context),
+              onPressed: (_loading || _cancelling) ? null : _cancel,
               style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-              child: const Text('Annuler'),
+              child: _cancelling
+                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Annuler la demande'),
             ),
             const SizedBox(height: 8),
             const Text('Le transporteur sera notifié : "Vous débutez une nouvelle course"', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),

@@ -308,6 +308,41 @@ class TripController extends Controller
     }
 
     /**
+     * Le passager annule sa demande de course avant le départ réel
+     * (SCANNE / EN_ATTENTE_TRANSPORTEUR → ANNULE).
+     *
+     * Sans ceci, un passager ayant scanné puis abandonné reste piégé par le
+     * guard "trajet actif existant" jusqu'à la purge auto (>15 min).
+     */
+    public function cancelByPassenger(Request $request, int $id): JsonResponse
+    {
+        $trip = Trip::where('id', $id)
+            ->where('passager_id', $request->user()->id)
+            ->whereIn('statut', ['SCANNE', 'EN_ATTENTE_TRANSPORTEUR'])
+            ->firstOrFail();
+
+        $wasWaiting = $trip->statut === 'EN_ATTENTE_TRANSPORTEUR';
+
+        $trip->update(['statut' => 'ANNULE', 'end_method' => 'ANNULATION_PASSAGER']);
+
+        // Informer le transporteur uniquement si la demande lui avait été transmise.
+        if ($wasWaiting) {
+            Notification::create([
+                'user_id' => $trip->transporteur_id,
+                'type' => 'TRAJET',
+                'titre' => 'Demande de course annulée',
+                'message' => 'Le passager a annulé sa demande de course.',
+                'push' => false,
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Demande de course annulée. Vous pouvez scanner un autre véhicule.',
+            'trip' => new TripResource($trip->fresh()->load('passager', 'transporteur', 'vehicle')),
+        ]);
+    }
+
+    /**
      * Le transporteur refuse la course (EN_ATTENTE_TRANSPORTEUR → ANNULE).
      */
     public function declineCourse(Request $request, int $id): JsonResponse

@@ -45,6 +45,7 @@ Route::get('auth/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail
         Route::post('trips/{trip}/confirm-embarquement', [TripController::class, 'confirmEmbarquement']);
         Route::post('trips/{trip}/accept-course', [TripController::class, 'acceptCourse']);
         Route::post('trips/{trip}/decline-course', [TripController::class, 'declineCourse']);
+        Route::post('trips/{trip}/cancel', [TripController::class, 'cancelByPassenger']);
         Route::post('trips/{trip}/destination', [TripController::class, 'setDestination']);
         Route::post('trips/{trip}/confirm-destination', [TripController::class, 'confirmDestination']);
         Route::post('trips/{trip}/update-destination', [TripController::class, 'updateDestination']);

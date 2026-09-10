@@ -54,6 +54,13 @@ class TripService {
     return Trip.fromJson(data['trip']);
   }
 
+  /// Le passager annule sa demande (SCANNE/EN_ATTENTE_TRANSPORTEUR → ANNULE).
+  /// Sans trajet démarré : permet de scanner un autre véhicule immédiatement.
+  Future<Trip> cancelByPassenger(int tripId) async {
+    final data = await _api.post('/trips/$tripId/cancel', {});
+    return Trip.fromJson(data['trip']);
+  }
+
   /// Trajet proposé au transporteur, en attente de sa décision (EN_ATTENTE_TRANSPORTEUR).
   Future<Trip?> pendingTrip() async {
     final data = await _api.get('/trips/pending');

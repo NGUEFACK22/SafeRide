@@ -282,4 +282,103 @@ class TripFlowTest extends TestCase
             ->postJson("/api/v1/trips/{$trip3->id}/accept-course");
         $this->assertEquals(422, $refused->status());
     }
+
+    public function test_passenger_can_cancel_waiting_course_and_rescan(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-783-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $this->actingAs($transporteur)->postJson("/api/v1/vehicles/{$vehicle['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
+        // 1. Scan → SCANNE, puis confirmation → EN_ATTENTE_TRANSPORTEUR.
+        $trip = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertCreated()->json('trip');
+
+        $this->postJson("/api/v1/trips/{$trip['id']}/confirm-embarquement")->assertOk();
+
+        // 2. Le passager annule → ANNULE + notification au transporteur.
+        $cancel = $this->postJson("/api/v1/trips/{$trip['id']}/cancel")->assertOk();
+        $this->assertEquals('ANNULE', $cancel->json('trip.statut'));
+        $this->assertEquals('ANNULATION_PASSAGER', $cancel->json('trip.end_method'));
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $transporteur->id,
+            'titre' => 'Demande de course annulée',
+        ]);
+
+        // 3. Il peut immédiatement scanner un autre véhicule (guard libéré).
+        $transporteur2 = $this->user('transporteur2@example.com', '690000012', 'transporteur');
+        $vehicle2 = $this->actingAs($transporteur2)->postJson('/api/v1/vehicles', [
+            'marque' => 'Honda',
+            'modele' => 'Civic',
+            'immatriculation' => 'LT-784-CD',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $this->actingAs($transporteur2)->postJson("/api/v1/vehicles/{$vehicle2['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
+        $rescan = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
+            'token' => $vehicle2['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertCreated();
+
+        $this->assertEquals('SCANNE', $rescan->json('trip.statut'));
+    }
+
+    public function test_cancel_is_rejected_after_course_confirmed(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-785-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $this->actingAs($transporteur)->postJson("/api/v1/vehicles/{$vehicle['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
+        $trip = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertCreated()->json('trip');
+
+        $this->postJson("/api/v1/trips/{$trip['id']}/confirm-embarquement")->assertOk();
+        $this->actingAs($transporteur)
+            ->postJson("/api/v1/trips/{$trip['id']}/accept-course")
+            ->assertOk();
+
+        // CONFIRME : la course est engagée, l'annulation passager est refusée
+        // (il faut passer par la fin de trajet normale).
+        $refused = $this->actingAs($passager)
+            ->postJson("/api/v1/trips/{$trip['id']}/cancel");
+        $refused->assertNotFound();
+    }
 }

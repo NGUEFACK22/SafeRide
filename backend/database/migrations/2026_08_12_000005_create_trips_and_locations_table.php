@@ -34,7 +34,7 @@ return new class extends Migration
                 'TERMINE',
                 'ANNULE',
             ])->default('SCANNE');
-            $table->enum('end_method', ['MANUEL', 'AUTO_10MIN', 'REFUS_TRANSPORTEUR'])->nullable();
+            $table->enum('end_method', ['MANUEL', 'AUTO_10MIN', 'REFUS_TRANSPORTEUR', 'ANNULATION_PASSAGER'])->nullable();
             $table->timestamps();
 
             $table->index(['statut']);
