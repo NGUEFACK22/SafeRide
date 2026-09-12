@@ -44,9 +44,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _fieldsLoading = true;
   bool _saving = false;
 
-  // Animation d'entrée : démarre masqué puis s'affiche au montage (initState).
-  bool _animateEntry = false;
-
   // Voix — empreinte vocale 3 prises
   final _voiceprint = VoiceprintService();
   bool _voiceEnrolled = false;
@@ -66,11 +63,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadVerif();
     _loadStats();
     _loadFields();
-    // Animation d'entrée : déclenchée juste après le premier rendu
-    // (rétablit l'affichage de l'avatar, du nom, du badge et des stats).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _animateEntry = true);
-    });
   }
 
   Future<void> _loadVerif() async {
@@ -369,91 +361,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Avatar + nom + badge — animation d'entrée (scale + fade) ──
+          // ── Avatar + nom + badge ──
           const SizedBox(height: 8),
-          AnimatedScale(
-            scale: _animateEntry ? 1.0 : 0.85,
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeOutBack,
-            child: AnimatedOpacity(
-              opacity: _animateEntry ? 1 : 0,
-              duration: const Duration(milliseconds: 400),
-              child: Center(
-                child: Stack(
-                  alignment: Alignment.bottomRight,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppTheme.lightBlueBorder, width: 2), boxShadow: [BoxShadow(color: AppTheme.primaryBlue.withValues(alpha: 0.15), blurRadius: 12)]),
-                      child: CircleAvatar(radius: 44, backgroundColor: AppTheme.primaryBlue, child: Text(displayName.isNotEmpty ? displayName[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700))),
-                    ),
-                    Container(
-                      width: 24, height: 24,
-                      decoration: BoxDecoration(color: _verifStatut == 'VERIFIE' ? AppTheme.successText : AppTheme.primaryBlue, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
-                      child: Icon(_verifStatut == 'VERIFIE' ? Icons.verified : Icons.person, size: 13, color: Colors.white),
-                    ),
-                  ],
+          Center(
+            child: Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppTheme.lightBlueBorder, width: 2), boxShadow: [BoxShadow(color: AppTheme.primaryBlue.withValues(alpha: 0.15), blurRadius: 12)]),
+                  child: CircleAvatar(radius: 44, backgroundColor: AppTheme.primaryBlue, child: Text(displayName.isNotEmpty ? displayName[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700))),
                 ),
-              ),
+                Container(
+                  width: 24, height: 24,
+                  decoration: BoxDecoration(color: _verifStatut == 'VERIFIE' ? AppTheme.successText : AppTheme.primaryBlue, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+                  child: Icon(_verifStatut == 'VERIFIE' ? Icons.verified : Icons.person, size: 13, color: Colors.white),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 10),
-          AnimatedSlide(
-            offset: _animateEntry ? Offset.zero : const Offset(0, 0.3),
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeOut,
-            child: AnimatedOpacity(opacity: _animateEntry ? 1 : 0, duration: const Duration(milliseconds: 400), child: Center(child: Text(displayName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.textDark)))),
-          ),
+          Center(child: Text(displayName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.textDark))),
           const SizedBox(height: 6),
-          AnimatedOpacity(
-            opacity: _animateEntry ? 1 : 0,
-            duration: const Duration(milliseconds: 600),
-            child: Center(
-              child: _verifLoading
-                  ? const SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _verifStatut == 'VERIFIE' ? AppTheme.successBg : _verifStatut == 'ECHOUE' ? Colors.red.shade50 : Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: _verifStatut == 'VERIFIE' ? AppTheme.successBorder : _verifStatut == 'ECHOUE' ? Colors.red.shade200 : Colors.orange.shade200),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(_verifStatut == 'VERIFIE' ? Icons.verified : _verifStatut == 'ECHOUE' ? Icons.error_outline : Icons.hourglass_empty, size: 12, color: _verifStatut == 'VERIFIE' ? AppTheme.successText : _verifStatut == 'ECHOUE' ? Colors.red : Colors.orange.shade800),
-                        const SizedBox(width: 4),
-                        Text(
-                          _verifStatut == 'VERIFIE' ? 'IDENTITÉ VÉRIFIÉE' : _verifStatut == 'ECHOUE' ? 'VÉRIFICATION ÉCHOUÉE' : _verifStatut == 'A_EXAMINER' ? 'À EXAMINER' : _verifStatut == 'EN_ATTENTE' ? 'EN ATTENTE' : 'NON VÉRIFIÉE',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _verifStatut == 'VERIFIE' ? AppTheme.successText : _verifStatut == 'ECHOUE' ? Colors.red : Colors.orange.shade800),
-                        ),
-                      ]),
+          Center(
+            child: _verifLoading
+                ? const SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                : Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _verifStatut == 'VERIFIE' ? AppTheme.successBg : _verifStatut == 'ECHOUE' ? Colors.red.shade50 : Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _verifStatut == 'VERIFIE' ? AppTheme.successBorder : _verifStatut == 'ECHOUE' ? Colors.red.shade200 : Colors.orange.shade200),
                     ),
-            ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(_verifStatut == 'VERIFIE' ? Icons.verified : _verifStatut == 'ECHOUE' ? Icons.error_outline : Icons.hourglass_empty, size: 12, color: _verifStatut == 'VERIFIE' ? AppTheme.successText : _verifStatut == 'ECHOUE' ? Colors.red : Colors.orange.shade800),
+                      const SizedBox(width: 4),
+                      Text(
+                        _verifStatut == 'VERIFIE' ? 'IDENTITÉ VÉRIFIÉE' : _verifStatut == 'ECHOUE' ? 'VÉRIFICATION ÉCHOUÉE' : _verifStatut == 'A_EXAMINER' ? 'À EXAMINER' : _verifStatut == 'EN_ATTENTE' ? 'EN ATTENTE' : 'NON VÉRIFIÉE',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _verifStatut == 'VERIFIE' ? AppTheme.successText : _verifStatut == 'ECHOUE' ? Colors.red : Colors.orange.shade800),
+                      ),
+                    ]),
+                  ),
           ),
 
-          // ── Stats — animation slide + fade ──
+          // ── Stats ──
           const SizedBox(height: 14),
-          AnimatedOpacity(
-            opacity: _animateEntry ? 1 : 0,
-            duration: const Duration(milliseconds: 700),
-            child: AnimatedSlide(
-              offset: _animateEntry ? Offset.zero : const Offset(0, 0.2),
-              duration: const Duration(milliseconds: 600),
-              curve: Curves.easeOut,
-              child: _statsLoading
-                  ? const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)))
-                  : Row(
-                      children: [
-                        Expanded(child: _statBox(_tripsCount.toString(), 'TRAJETS')),
-                        const SizedBox(width: 8),
-                        Expanded(child: _statBox(_totalKm.toStringAsFixed(0), 'KM TOTAL')),
-                        const SizedBox(width: 8),
-                        Expanded(child: _statBoxBlue(_avgRating.toStringAsFixed(1), 'NOTE')),
-                        const SizedBox(width: 8),
-                        Expanded(child: _statBoxRed(_sosCount.toString(), 'SOS')),
-                      ],
-                    ),
-            ),
-          ),
+          _statsLoading
+              ? const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)))
+              : Row(
+                  children: [
+                    Expanded(child: _statBox(_tripsCount.toString(), 'TRAJETS')),
+                    const SizedBox(width: 8),
+                    Expanded(child: _statBox(_totalKm.toStringAsFixed(0), 'KM TOTAL')),
+                    const SizedBox(width: 8),
+                    Expanded(child: _statBoxBlue(_avgRating.toStringAsFixed(1), 'NOTE')),
+                    const SizedBox(width: 8),
+                    Expanded(child: _statBoxRed(_sosCount.toString(), 'SOS')),
+                  ],
+                ),
 
           // ── Informations personnelles (regroupe contact & sécurité — non divisé) ──
           const SizedBox(height: 20),

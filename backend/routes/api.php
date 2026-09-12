@@ -27,6 +27,10 @@ Route::post('auth/login', [AuthController::class, 'login']);
 Route::post('auth/google', [AuthController::class, 'google']);
 Route::post('auth/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('auth/reset-password', [AuthController::class, 'resetPassword']);
+// Lien contenu dans l'email de réinitialisation (route nommée exigée par ResetPassword).
+Route::get('password/reset/{token}', function (string $token, Illuminate\Http\Request $request) {
+    return response()->json(['token' => $token, 'email' => $request->query('email')]);
+})->name('password.reset');
 Route::get('auth/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail'])->name('verification.verify')->middleware('signed');
 
     // ==== Routes authentifiées ====

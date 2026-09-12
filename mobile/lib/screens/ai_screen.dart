@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import '../utils/error_helper.dart';
 
+import '../services/ai_advice_service.dart';
 import '../services/ai_service.dart';
 
 class AiScreen extends StatefulWidget {
@@ -12,11 +14,14 @@ class AiScreen extends StatefulWidget {
 
 class _AiScreenState extends State<AiScreen> {
   final _ai = AiService();
+  final _advice = AiAdviceService();
   bool _loading = true;
   String? _summary;
   String? _weekly;
   List<dynamic> _insights = [];
   String? _error;
+  TravelAdvice? _travelAdvice;
+  bool _adviceLoading = false;
 
   @override
   void initState() {
@@ -54,11 +59,35 @@ class _AiScreenState extends State<AiScreen> {
       } catch (_) {
         if (mounted) setState(() => _insights = []);
       }
+
+      // Conseil déplacements (historique + météo + bouchons)
+      await _loadTravelAdvice();
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Analyse l'historique des déplacements pour un conseil récapitulatif
+  /// (destinations fréquentes + météo + conseils anti-bouchons).
+  Future<void> _loadTravelAdvice() async {
+    setState(() => _adviceLoading = true);
+    try {
+      final advice = await _advice.analyze();
+      if (!mounted) return;
+      setState(() {
+        _travelAdvice = advice;
+        _adviceLoading = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _travelAdvice = null;
+          _adviceLoading = false;
+        });
+      }
     }
   }
 
@@ -154,9 +183,93 @@ class _AiScreenState extends State<AiScreen> {
                       );
                     }),
                   ],
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Conseil déplacements',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildAdvice(),
                 ],
               ),
             ),
+    );
+  }
+
+  /// Carte "Conseil déplacements" : destinations fréquentes + météo + conseils.
+  Widget _buildAdvice() {
+    if (_adviceLoading) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        ),
+      );
+    }
+    final advice = _travelAdvice;
+    if (advice == null || advice.destinations.isEmpty) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text(
+            'Aucun historique suffisant pour générer un conseil déplacements.',
+            style: TextStyle(color: AppTheme.textGrey),
+          ),
+        ),
+      );
+    }
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final d in advice.destinations) ...[
+              Row(
+                children: [
+                  Icon(d.weather?.icon ?? Icons.place,
+                      size: 20,
+                      color: d.weather == null
+                          ? AppTheme.textGrey
+                          : Colors.orange.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(d.label,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 14)),
+                        Text(
+                          '${d.count} trajet${d.count > 1 ? 's' : ''} • '
+                          '${d.weather?.description ?? 'météo indisponible'} '
+                          '${d.weather?.tempDisplay ?? ''}',
+                          style: const TextStyle(
+                              fontSize: 12, color: AppTheme.textGrey),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 20),
+            ],
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.lightbulb_outline,
+                    size: 16, color: AppTheme.primaryBlue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(advice.recap,
+                      style: const TextStyle(height: 1.4, fontSize: 13)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

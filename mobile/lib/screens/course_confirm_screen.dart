@@ -120,6 +120,7 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
         Navigator.of(
           context,
         ).pushReplacementNamed('/trip-active', arguments: trip);
+        return;
       case 'ANNULE':
         _statusPoll?.cancel();
         if (!_navigatedAway) {
@@ -133,6 +134,7 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
           );
           Navigator.of(context).pop();
         }
+        return;
       default:
         break;
     }
@@ -351,6 +353,16 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
                               color: AppTheme.textGrey,
                             ),
                           ),
+                          if ((t['email'] ?? '').toString().isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              t['email'],
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.textGrey,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 6),
                           Row(
                             children: [

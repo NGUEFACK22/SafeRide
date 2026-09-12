@@ -59,7 +59,7 @@ class RatingController extends Controller
             'user_id' => $ratedId,
             'type' => 'TRAJET',
             'titre' => 'Nouvelle note reçue : '.$data['rating'].'/5',
-            'message' => ($user->prenom.' '.$user->nom).' vous a noté '.$data['rating'].'/5 sur le trajet #'.$trip->id.($data['comment'] ? ' : "'.$data['comment'].'"' : ''),
+            'message' => ($user->prenom.' '.$user->nom).' vous a noté '.$data['rating'].'/5 sur le trajet #'.$trip->id.(($data['comment'] ?? '') ? ' : "'.$data['comment'].'"' : ''),
         ]);
 
         return response()->json([

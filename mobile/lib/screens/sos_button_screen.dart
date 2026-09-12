@@ -10,6 +10,7 @@ import '../services/alert_counter_service.dart';
 import '../services/whatsapp_service.dart';
 import '../services/sos_service.dart';
 import '../services/trip_service.dart';
+import '../utils/safe_dialog.dart';
 import '../services/permission_service.dart';
 import '../services/voiceprint_service.dart';
 import '../services/vosk_service.dart';
@@ -437,9 +438,9 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   /// Retourne null si l'utilisateur annule.
   Future<String?> _askDestination() async {
     final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
+    final result = await showDialogSafe<String>(
+      context,
+      (ctx) => AlertDialog(
         title: Row(children: [const Icon(Icons.add_location_alt, color: Colors.red), SizedBox(width: 8), Text('SOS sans trajet actif')]),
         content: Column(
           mainAxisSize: MainAxisSize.min,

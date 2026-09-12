@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../utils/error_helper.dart';
+import '../utils/safe_dialog.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../models/trip.dart';
 import '../models/user.dart';
+import '../data/douala_places.dart';
 import '../services/alert_counter_service.dart';
 import '../services/api_service.dart';
 import '../services/anomaly_service.dart';
@@ -226,29 +228,54 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // identique à l'écran SOS dédié, le bouton accueil ne doit pas contourner.
     if (!await ensureEmergencyContacts(context)) return;
     if (!mounted) return;
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
+    final trip = await TripService().currentTrip();
+    // Ne lier le trajet au SOS que s'il est réellement EN_COURS :
+    // un trajet SCANNE / EN_ATTENTE_TRANSPORTEUR serait rejeté par le
+    // backend (422 "Aucun trajet actif"). Sans trajet en cours, l'alerte
+    // part avec position + destination saisie (SOS hors trajet).
+    final linkable = (trip != null && trip.statut == 'EN_COURS') ? trip : null;
+    final controller = TextEditingController();
+    // Dialog unique : confirmation + destination facultative (SOS hors trajet).
+    // Un seul showDialog évite d'ouvrir un second dialog pendant la transition
+    // de sortie du premier (assertion _dependents.isEmpty).
+    if (!mounted) return;
+    final result = await showDialogSafe<({bool confirmed, String destination})>(
+      context,
+      (ctx) => AlertDialog(
         title: Row(children: [Icon(Icons.warning, color: AppTheme.sosRed), SizedBox(width: 8), Text(LanguageService.instance.t('sos'))]),
-        content: Text(LanguageService.instance.t('sos_confirm_msg')),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(LanguageService.instance.t('cancel'))), FilledButton(style: FilledButton.styleFrom(backgroundColor: AppTheme.sosRed), onPressed: () => Navigator.pop(ctx, true), child: Text(LanguageService.instance.t('trigger_sos')))],
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(LanguageService.instance.t('sos_confirm_msg')),
+            if (linkable == null) ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  labelText: LanguageService.instance.t('destination_optional'),
+                  hintText: LanguageService.instance.t('destination_hint'),
+                  prefixIcon: const Icon(Icons.place_outlined),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, (confirmed: false, destination: '')), child: Text(LanguageService.instance.t('cancel'))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.sosRed),
+            onPressed: () => Navigator.pop(ctx, (confirmed: true, destination: controller.text.trim())),
+            child: Text(LanguageService.instance.t('trigger_sos')),
+          ),
+        ],
       ),
     );
-    if (confirm != true) return;
+    controller.dispose();
+    if (result == null || !result.confirmed) return;
+    final destination = result.destination;
     try {
-      final trip = await TripService().currentTrip();
-      String? destination;
-      // Ne lier le trajet au SOS que s'il est réellement EN_COURS :
-      // un trajet SCANNE / EN_ATTENTE_TRANSPORTEUR serait rejeté par le
-      // backend (422 "Aucun trajet actif"). Sans trajet en cours, l'alerte
-      // part avec position + destination saisie (SOS hors trajet).
-      final linkable = (trip != null && trip.statut == 'EN_COURS') ? trip : null;
-      if (linkable == null) {
-        // SOS hors trajet : on collecte la destination du passager,
-        // puis la position GPS est envoyée avec l'alerte.
-        // Destination facultative — si annulée, l'alerte part avec la position.
-        destination ??= await _askDestination() ?? '';
-      }
       var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
       if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) throw Exception(LanguageService.instance.t('location_permission_denied'));
@@ -276,46 +303,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
     }
-  }
-
-  /// Boîte de dialogue pour collecter la destination lors d'un SOS hors trajet.
-  /// Retourne null si l'utilisateur annule.
-  Future<String?> _askDestination() async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(children: [Icon(Icons.add_location_alt, color: AppTheme.sosRed), SizedBox(width: 8), Text(LanguageService.instance.t('sos_no_trip_title'))]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(LanguageService.instance.t('sos_no_trip_msg')),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(
-                labelText: LanguageService.instance.t('destination_optional'),
-                hintText: LanguageService.instance.t('destination_hint'),
-                prefixIcon: const Icon(Icons.place_outlined),
-                border: const OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(LanguageService.instance.t('cancel'))),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppTheme.sosRed),
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: Text(LanguageService.instance.t('trigger_sos')),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    return result;
   }
 
   Widget _buildBody() {
@@ -437,7 +424,8 @@ class _LocationPreviewState extends State<_LocationPreview> {
   bool _loading = true;
   bool _locating = false;
 
-  static const LatLng _fallback = LatLng(3.8480, 11.5021); // Yaoundé
+  static const LatLng _fallback =
+      LatLng(DoualaPlaces.centerLatitude, DoualaPlaces.centerLongitude); // Douala (Akwa)
 
   @override
   void initState() {
@@ -539,7 +527,7 @@ class _PassagerViewState extends State<_PassagerView> {
 
   Future<void> _loadWeather() async {
     try {
-      double lat = 3.8480, lng = 11.5021;
+      double lat = DoualaPlaces.centerLatitude, lng = DoualaPlaces.centerLongitude;
       try {
         final permission = await Geolocator.checkPermission();
         if (permission == LocationPermission.denied) {
@@ -900,7 +888,7 @@ class _TransporteurViewState extends State<_TransporteurView> {
 
   Future<void> _loadWeather() async {
     try {
-      double lat = 3.8480, lng = 11.5021;
+      double lat = DoualaPlaces.centerLatitude, lng = DoualaPlaces.centerLongitude;
       try {
         final permission = await Geolocator.checkPermission();
         if (permission == LocationPermission.denied) {

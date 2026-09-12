@@ -9,7 +9,7 @@ class CheckAnomalyTimeouts extends Command
 {
     protected $signature = 'anomaly:check-timeouts';
 
-    protected $description = 'Déclenche les SOS automatiques pour les vérifications d\'anomalies en timeout (> 10 min sans réponse)';
+    protected $description = 'Déclenche les SOS automatiques pour les vérifications d\'anomalies en timeout (> 3 min sans réponse)';
 
     public function handle(): int
     {

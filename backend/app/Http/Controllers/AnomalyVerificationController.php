@@ -18,6 +18,12 @@ use Illuminate\Support\Facades\Mail;
 class AnomalyVerificationController extends Controller
 {
     /**
+     * Délai (min) laissé à chaque partie pour répondre à une vérification
+     * d'anomalie avant déclenchement automatique d'un SOS sur le non-répondant.
+     */
+    public const ANOMALY_RESPONSE_TIMEOUT_MINUTES = 3;
+
+    /**
      * Vérifications en attente pour l'utilisateur connecté.
      */
     public function index(Request $request): JsonResponse
@@ -103,6 +109,7 @@ class AnomalyVerificationController extends Controller
                 'anomaly_type' => $verification->anomaly_type,
                 'anomaly_description' => $verification->description,
                 'auto_triggered' => true,
+                'targeted_user_id' => $user->id,
             ],
         ]);
 
@@ -182,13 +189,15 @@ class AnomalyVerificationController extends Controller
     }
 
     /**
-     * Déclenche les SOS pour les vérifications en timeout (> 10 min sans réponse).
-     * Appelé par la commande schedulée anomaly:check-timeouts.
+     * Déclenche les SOS pour les vérifications en timeout (> 3 min sans
+     * réponse). Chaque vérification cible une seule partie (passager ou
+     * transporteur) : le SOS est donc lancé sur la personne qui n'a pas
+     * répondu. Appelé par la commande schedulée anomaly:check-timeouts.
      */
     public static function processTimeouts(): int
     {
         $timeouts = AnomalyVerification::where('statut', 'EN_ATTENTE')
-            ->where('created_at', '<', now()->subMinutes(10))
+            ->where('created_at', '<', now()->subMinutes(self::ANOMALY_RESPONSE_TIMEOUT_MINUTES))
             ->get();
 
         $count = 0;
@@ -202,6 +211,13 @@ class AnomalyVerificationController extends Controller
 
             $controller = new self();
             $controller->triggerSosFromAnomaly($verification, $user);
+
+            // Marque la vérification comme traitée : évite de re-déclencher
+            // un SOS à chaque exécution de la commande.
+            $verification->update([
+                'statut' => 'ALARME',
+                'responded_at' => now(),
+            ]);
             $count++;
         }
 

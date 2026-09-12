@@ -127,26 +127,26 @@ class RouteService
         $lng = 0;
 
         while ($index < $len) {
-            foreach (['lat', 'lng'] as $coord) {
-                $shift = 0;
-                $result = 0;
-                do {
-                    $b = ord($encoded[$index++]) - 63;
-                    $result |= ($b & 0x1f) << $shift;
-                    $shift += 5;
-                } while ($b >= 0x20);
-
-                $dlat = ($result & 1) ? ~ ($result >> 1) : ($result >> 1);
-                $lat += $dlat;
-
-                if ($coord === 'lng') {
-                    $lng += $dlat;
-                    $points[] = [$lat / 1e5, $lng / 1e5];
-                }
-            }
+            $lat += $this->decodeValue($encoded, $index);
+            $lng += $this->decodeValue($encoded, $index);
+            $points[] = [$lat / 1e5, $lng / 1e5];
         }
 
         return $points;
+    }
+
+    protected function decodeValue(string $encoded, int &$index): int
+    {
+        $shift = 0;
+        $result = 0;
+
+        do {
+            $b = ord($encoded[$index++]) - 63;
+            $result |= ($b & 0x1f) << $shift;
+            $shift += 5;
+        } while ($b >= 0x20);
+
+        return ($result & 1) ? ~ ($result >> 1) : ($result >> 1);
     }
 
     /**

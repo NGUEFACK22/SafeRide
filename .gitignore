@@ -19,6 +19,8 @@ Thumbs.db
 *.apk
 *.hprof
 mobile/android/.kotlin/
+**/.gradle/
+mobile/build_log*.txt
 
 # Flutter mobile
 mobile/build/

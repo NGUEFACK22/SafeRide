@@ -196,6 +196,7 @@ class TripController extends Controller
                     'prenom' => $vehicle->transporteur->prenom,
                     'nom' => $vehicle->transporteur->nom,
                     'telephone' => $vehicle->transporteur->telephone,
+                    'email' => $vehicle->transporteur->email,
                     'photo_url' => $vehicle->transporteur->photo_url,
                     'average_rating' => $vehicle->transporteur->averageRating(),
                     'ratings_count' => $vehicle->transporteur->ratingsCount(),

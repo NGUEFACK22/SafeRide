@@ -8,12 +8,14 @@ import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
+import '../data/douala_places.dart';
 import '../models/trip.dart';
 import '../services/api_service.dart';
 import '../services/trip_service.dart';
 import '../services/offline_service.dart';
 import '../services/background_location_service.dart';
 import '../services/geocoding_service.dart';
+import '../services/osrm_service.dart';
 import '../services/permission_service.dart';
 import '../services/voiceprint_service.dart';
 import '../services/sos_service.dart';
@@ -43,6 +45,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   Trip? _trip;
   bool _loading = true;
   bool _busy = false;
+  bool _isTransporteur = false;
 
   final _destinationController = TextEditingController();
   bool _editingDestination = false;
@@ -50,6 +53,17 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   int _pendingCount = 0;
   Timer? _tracker;
   Timer? _waitingPoll;
+  Timer? _endPoll;
+
+  // Autocomplete destination (liste locale Douala) + carte de tracé
+  final _destinationMapController = MapController();
+  List<DoualaPlace> _placeSuggestions = [];
+  DoualaPlace? _selectedPlace;
+  LatLng? _previewOrigin;
+  List<LatLng> _previewRoute = [];
+  bool _previewRouteLoading = false;
+  Timer? _destinationDebounce;
+  bool _applyingSuggestion = false;
 
   // Surveillance vocale automatique pendant EN_COURS (flux 3-5)
   String? _securityWord;
@@ -68,7 +82,11 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   final _mapController = MapController();
   LatLng? _livePosition;
   List<LatLng> _liveRoute = [];
-  static const LatLng _mapFallback = LatLng(3.8480, 11.5021); // Yaoundé
+  List<LatLng> _plannedRoute = [];
+  static const LatLng _mapFallback = LatLng(
+    DoualaPlaces.centerLatitude,
+    DoualaPlaces.centerLongitude,
+  ); // Douala (Akwa)
 
   @override
   void initState() {
@@ -87,6 +105,8 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   void dispose() {
     _tracker?.cancel();
     _waitingPoll?.cancel();
+    _endPoll?.cancel();
+    _destinationDebounce?.cancel();
     _stopVoiceMonitoring();
     _speech.cancel();
     _destinationController.dispose();
@@ -94,6 +114,11 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   }
 
   Future<void> _load() async {
+    final user = await _api.getUser();
+    if (user != null) {
+      final roles = List<String>.from(user['roles'] ?? []);
+      _isTransporteur = roles.contains('transporteur');
+    }
     if (_trip != null) {
       setState(() => _loading = false);
       _enterState();
@@ -113,9 +138,20 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     }
   }
 
+  /// Décode la polyline OSRM prévue (stockée au setDestination) en points.
+  void _decodePlannedRoute(Trip trip) {
+    final encoded = trip.plannedRoutePolyline;
+    if (encoded == null || encoded.isEmpty) {
+      _plannedRoute = [];
+      return;
+    }
+    _plannedRoute = OsrmService.decodePolyline(encoded);
+  }
+
   /// Déclenche les actions liées à l'état courant (suivi GPS + écoute vocale en EN_COURS).
   void _enterState() {
     if (_trip?.statut == 'EN_COURS') {
+      _decodePlannedRoute(_trip!);
       _waitingPoll?.cancel();
       _startTracking();
       // Foreground Service Android : suivi GPS en arrière-plan
@@ -123,10 +159,48 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       BackgroundLocationService().startTripTracking(_trip!.id);
       _loadWeather();
       _askVoiceConsent();
+      _startEndPoll();
     } else {
       _tracker?.cancel();
+      _endPoll?.cancel();
       _stopVoiceMonitoring();
     }
+  }
+
+  /// Pendant EN_COURS, détecte une clôture automatique (10 min sans action)
+  /// ou une fin déclenchée par l'autre partie : dès que le statut redevient
+  /// TERMINE/ANNULE, on arrête le suivi et on affiche le récapitulatif (P6).
+  void _startEndPoll() {
+    _endPoll?.cancel();
+    if (_trip == null) return;
+    final tripId = _trip!.id;
+    _endPoll = Timer.periodic(const Duration(seconds: 15), (_) async {
+      try {
+        final fresh = await _tripService.tripStatus(tripId);
+        if (!mounted) return;
+        if (fresh.statut == 'TERMINE' || fresh.statut == 'ANNULE') {
+          _endPoll?.cancel();
+          _tracker?.cancel();
+          BackgroundLocationService().stopTripTracking();
+          await _stopVoiceMonitoring();
+          if (!mounted) return;
+          setState(() => _trip = fresh);
+          if (fresh.statut == 'TERMINE') {
+            _showTripSummary(fresh);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Le trajet a été annulé.'),
+                backgroundColor: AppTheme.sosRed,
+              ),
+            );
+            Navigator.of(context).pushReplacementNamed('/home');
+          }
+        }
+      } catch (_) {
+        // Réseau indisponible — on réessaiera au prochain tick.
+      }
+    });
   }
 
   /// Charge la météo pour la position actuelle du trajet.
@@ -242,34 +316,234 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     if (address.isEmpty) return;
     setState(() => _busy = true);
     try {
-      // Géocodage réel de l'adresse (OpenStreetMap Nominatim, gratuit)
-      final coords = await GeocodingService().geocode(address);
-      if (coords == null) {
-        if (!mounted) return;
-        setState(() => _busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Adresse introuvable, veuillez reformuler la destination.'),
-          ),
-        );
-        return;
+      double lat;
+      double lng;
+      // Lieu choisi depuis l'autocomplete Douala : coordonnées déjà connues.
+      if (_selectedPlace != null) {
+        lat = _selectedPlace!.latitude;
+        lng = _selectedPlace!.longitude;
+      } else {
+        // Saisie libre : géocodage réel (OpenStreetMap Nominatim, gratuit)
+        final coords = await GeocodingService().geocode(address);
+        if (coords == null) {
+          if (!mounted) return;
+          setState(() => _busy = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Adresse introuvable, veuillez reformuler la destination.'),
+            ),
+          );
+          return;
+        }
+        lat = coords.latitude;
+        lng = coords.longitude;
       }
       final trip = await _tripService.setDestination(
         _trip!.id,
         address,
-        coords.latitude,
-        coords.longitude,
+        lat,
+        lng,
       );
       if (!mounted) return;
       setState(() {
         _trip = trip;
         _busy = false;
+        _placeSuggestions = [];
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
+  }
+
+  /// Recherche des lieux de Douala à la frappe (liste locale, hors-ligne).
+  void _onDestinationChanged(String value) {
+    if (_applyingSuggestion) return;
+    _destinationDebounce?.cancel();
+    setState(() {
+      _selectedPlace = null;
+      _placeSuggestions = DoualaPlaces.search(value);
+      _previewRoute = [];
+      _previewOrigin = null;
+    });
+  }
+
+  /// Sélection d'un lieu proposé : remplit le champ, trace le circuit
+  /// (OSRM, repli ligne droite) depuis la position GPS vers le lieu.
+  Future<void> _selectPlace(DoualaPlace place) async {
+    _destinationDebounce?.cancel();
+    _applyingSuggestion = true;
+    _destinationController.text = place.name;
+    _applyingSuggestion = false;
+    setState(() {
+      _selectedPlace = place;
+      _placeSuggestions = [];
+      _previewRoute = [];
+      _previewOrigin = null;
+      _previewRouteLoading = true;
+    });
+
+    LatLng? origin;
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 6)),
+      );
+      origin = LatLng(pos.latitude, pos.longitude);
+    } catch (_) {
+      try {
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null) origin = LatLng(last.latitude, last.longitude);
+      } catch (_) {
+        if (_trip?.startLatitude != null && _trip!.startLongitude != null) {
+          origin = LatLng(_trip!.startLatitude!, _trip!.startLongitude!);
+        }
+      }
+    }
+
+    if (!mounted) return;
+    final to = LatLng(place.latitude, place.longitude);
+    final route = await OsrmService.route(origin ?? _mapFallback, to);
+    if (!mounted) return;
+    setState(() {
+      _previewOrigin = origin;
+      _previewRoute = route;
+      _previewRouteLoading = false;
+    });
+    _fitDestination(route, origin);
+  }
+
+  /// Recentre + zoom la carte d'aperçu sur le circuit proposé.
+  void _fitDestination(List<LatLng> route, LatLng? origin) {
+    final points = <LatLng>[
+      ?origin,
+      if (route.isNotEmpty) route.last,
+      ...route,
+    ];
+    if (points.isEmpty) return;
+    try {
+      _destinationMapController.fitCamera(
+        CameraFit.coordinates(coordinates: points, padding: const EdgeInsets.all(60)),
+      );
+    } catch (_) {
+      // caméra pas encore attachée — initialCenter gère le premier affichage
+    }
+  }
+
+  /// Carte embarquée dans l'étape destination : lieu choisi (marqueur) +
+  /// circuit tracé (OSRM, repli ligne droite) depuis la position GPS.
+  ///
+  /// La carte reste montée même quand aucun lieu n'est sélectionné
+  /// (`maintainState: true`) : la démonter à chaque frappe déclencherait un
+  /// re-montage brusque de son InheritedElement et l'assertion
+  /// `_dependents.isEmpty` en debug. On la masque simplement.
+  Widget _destinationPreviewMapCard() {
+    final place = _selectedPlace;
+    final hasPlace = place != null;
+
+    final to = place != null ? LatLng(place.latitude, place.longitude) : null;
+    final origin = _previewOrigin;
+
+    return Visibility(
+      visible: hasPlace,
+      maintainState: true,
+      maintainSize: false,
+      maintainAnimation: true,
+      child: Card(
+        elevation: 2,
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 8, 2),
+              child: Row(
+                children: [
+                  const Icon(Icons.route, size: 16, color: AppTheme.primaryBlue),
+                  const SizedBox(width: 6),
+                  Text(
+                    place != null ? 'Circuit vers ${place.name}' : '',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                  const Spacer(),
+                  if (origin != null && hasPlace)
+                    IconButton(
+                      icon: const Icon(Icons.center_focus_strong, size: 18),
+                      tooltip: 'Voir tout le circuit',
+                      onPressed: () => _fitDestination(_previewRoute, _previewOrigin),
+                    ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 200,
+              child: Stack(
+                children: [
+                  FlutterMap(
+                    mapController: _destinationMapController,
+                    options: MapOptions(
+                      initialCenter: origin ?? to ?? _mapFallback,
+                      initialZoom: 13,
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.tech.saveride',
+                      ),
+                      if (_previewRoute.length >= 2)
+                        PolylineLayer(
+                          polylines: [
+                            Polyline(
+                              points: _previewRoute,
+                              color: Colors.blue,
+                              strokeWidth: 4,
+                            ),
+                          ],
+                        ),
+                      MarkerLayer(
+                        markers: [
+                          if (origin != null)
+                            Marker(
+                              point: origin,
+                              width: 24,
+                              height: 24,
+                              alignment: Alignment.center,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primaryBlue,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 3),
+                                  boxShadow: [BoxShadow(blurRadius: 6, color: Colors.black38)],
+                                ),
+                              ),
+                            ),
+                          if (to != null)
+                            Marker(
+                              point: to,
+                              width: 34,
+                              height: 34,
+                              child: const Icon(Icons.flag, color: Colors.red, size: 30),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  if (_previewRouteLoading)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black26,
+                        child: const Center(
+                          child: CircularProgressIndicator(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _validateDestination(bool confirmed) async {
@@ -330,6 +604,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   /// Publie POST /vehicles/{id}/position au plus toutes les 30 s pendant
   /// un trajet actif — active la vérification de proximité au scan QR.
   void _publishVehiclePositionThrottled(double lat, double lng) {
+    if (!_isTransporteur) return;
     if (_trip?.statut != 'EN_COURS') return;
     if (_trip?.vehicleId == null) return;
 
@@ -699,10 +974,13 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       case 'SCANNE':
         return _embarquementStep(trip);
       case 'EN_ATTENTE_TRANSPORTEUR':
+        if (_isTransporteur) return _transporteurWaitingStep(trip);
         return _waitingTransporteurStep(trip);
       case 'CONFIRME':
+        if (_isTransporteur) return _transporteurWaitingStep(trip);
         return _destinationStep(trip, editing: _editingDestination);
       case 'DESTINATION_PROPOSEE':
+        if (_isTransporteur) return _transporteurWaitingStep(trip);
         return _destinationConfirmStep(trip);
       case 'EN_COURS':
         return _enCoursStep(trip);
@@ -711,10 +989,62 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     }
   }
 
+  /// Le transporteur a accepté la course : il attend que le passager
+  /// définisse/confirme la destination. Poll du statut pour détecter la
+  /// transition CONFIRME → DESTINATION_PROPOSEE → EN_COURS et démarrer
+  /// automatiquement le suivi (T3).
+  Widget _transporteurWaitingStep(Trip trip) {
+    _scheduleWaitingPoll(trip.id);
+    final passager = trip.passager;
+    final passagerName = passager != null
+        ? '${passager['prenom'] ?? ''} ${passager['nom'] ?? ''}'.trim()
+        : 'le passager';
+    final waitingFor = trip.statut == 'CONFIRME'
+        ? 'Le passager définit sa destination…'
+        : 'Le passager confirme la destination…\nDès confirmation, le trajet démarre automatiquement.';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Center(
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: CircularProgressIndicator(color: AppTheme.primaryBlue),
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Center(
+          child: Icon(Icons.hourglass_top, size: 40, color: AppTheme.primaryBlue),
+        ),
+        const SizedBox(height: 12),
+        Center(
+          child: Text(
+            'Course de $passagerName',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.textDark,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Center(
+          child: Text(
+            waitingFor,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, color: AppTheme.textGrey),
+          ),
+        ),
+      ],
+    );
+  }
+
   /// Le passager attend que le transporteur accepte la course.
   /// Poll du statut toutes les 3 s jusqu'à CONFIRME (→ destination) ou ANNULE.
   Widget _waitingTransporteurStep(Trip trip) {
-    _startWaitingPoll(trip.id);
+    _scheduleWaitingPoll(trip.id);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -771,6 +1101,18 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     }
   }
 
+  /// Démarre le poll du statut seulement APRÈS la frame du build courant.
+  /// Lancer un `Timer.periodic` pendant `build` (où ces widgets sont
+  /// construits) peut faire tomber un tick pendant la transition de route
+  /// → `_dependents.isEmpty`. Le post-frame garantit un élément stable.
+  void _scheduleWaitingPoll(int tripId) {
+    if (_waitingPoll?.isActive ?? false) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _startWaitingPoll(tripId);
+    });
+  }
+
   void _startWaitingPoll(int tripId) {
     if (_waitingPoll?.isActive ?? false) return;
     _waitingPoll = Timer.periodic(const Duration(seconds: 3), (_) async {
@@ -822,38 +1164,73 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   }
 
   Widget _destinationStep(Trip trip, {bool editing = false}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Card(
-          child: ListTile(
-            leading: const Icon(Icons.directions_car),
-            title: Text('Véhicule de ${trip.transporteurFullName}'),
-            subtitle: const Text('Embarquement confirmé'),
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.directions_car),
+              title: Text('Véhicule de ${trip.transporteurFullName}'),
+              subtitle: const Text('Embarquement confirmé'),
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          LanguageService.instance.t('enter_destination'),
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _destinationController,
-          decoration: InputDecoration(
-            border: const OutlineInputBorder(),
-            hintText: 'Ex : Place de la Nation, Yaoundé',
-            prefixIcon: const Icon(Icons.place_outlined),
-            labelText: editing ? 'Nouvelle destination' : null,
+          const SizedBox(height: 16),
+          Text(
+            LanguageService.instance.t('enter_destination'),
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
-        ),
-        const SizedBox(height: 12),
-        FilledButton.icon(
-          onPressed: _busy ? null : _confirmDestination,
-          icon: const Icon(Icons.check),
-          label: Text(LanguageService.instance.t('propose_destination')),
-        ),
-      ],
+          const SizedBox(height: 8),
+          TextField(
+            controller: _destinationController,
+            onChanged: _onDestinationChanged,
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              hintText: 'Ex : Marché Central, Douala',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _selectedPlace != null
+                  ? IconButton(
+                      icon: const Icon(Icons.check_circle, color: Colors.green),
+                      tooltip: 'Destination sélectionnée',
+                      onPressed: () {},
+                    )
+                  : null,
+              labelText: editing ? 'Nouvelle destination' : null,
+            ),
+          ),
+          if (_placeSuggestions.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Card(
+              elevation: 1,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _placeSuggestions.length,
+                  itemBuilder: (context, index) {
+                    final place = _placeSuggestions[index];
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.place_outlined, color: AppTheme.primaryBlue),
+                      title: Text(place.name, style: const TextStyle(fontSize: 14)),
+                      subtitle: Text(place.category, style: const TextStyle(fontSize: 11)),
+                      onTap: () => _selectPlace(place),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          _destinationPreviewMapCard(),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _busy ? null : _confirmDestination,
+            icon: const Icon(Icons.check),
+            label: Text(LanguageService.instance.t('propose_destination')),
+          ),
+        ],
+      ),
     );
   }
 
@@ -946,6 +1323,17 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
                             points: _liveRoute,
                             color: Colors.blue,
                             strokeWidth: 4,
+                          ),
+                        ],
+                      ),
+                    if (_plannedRoute.length >= 2)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: _plannedRoute,
+                            color: Colors.orange,
+                            strokeWidth: 2,
+                            pattern: StrokePattern.dashed(segments: const [8.0, 6.0]),
                           ),
                         ],
                       ),

@@ -51,7 +51,7 @@ class ApiService {
     final data = _decode(response);
 
     if (response.statusCode >= 400) {
-      throw ApiException(_messageFrom(data, response.statusCode), response.statusCode);
+      throw ApiException(_messageFrom(data, response.statusCode), response.statusCode, data);
     }
 
     return data;
@@ -68,7 +68,7 @@ class ApiService {
     final data = _decode(response);
 
     if (response.statusCode >= 400) {
-      throw ApiException(_messageFrom(data, response.statusCode), response.statusCode);
+      throw ApiException(_messageFrom(data, response.statusCode), response.statusCode, data);
     }
 
     return data;
@@ -104,7 +104,7 @@ class ApiService {
     final data = _decode(response);
 
     if (response.statusCode >= 400) {
-      throw ApiException(_messageFrom(data, response.statusCode), response.statusCode);
+      throw ApiException(_messageFrom(data, response.statusCode), response.statusCode, data);
     }
 
     return data;
@@ -161,7 +161,7 @@ class ApiService {
     final data = _decode(response);
 
     if (response.statusCode >= 400) {
-      throw ApiException(_messageFrom(data, response.statusCode), response.statusCode);
+      throw ApiException(_messageFrom(data, response.statusCode), response.statusCode, data);
     }
 
     return data;
@@ -188,8 +188,9 @@ class ApiService {
 class ApiException implements Exception {
   final String message;
   final int statusCode;
+  final Map<String, dynamic>? data;
 
-  ApiException(this.message, this.statusCode);
+  ApiException(this.message, this.statusCode, [this.data]);
 
   @override
   String toString() => message;

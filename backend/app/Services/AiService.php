@@ -12,6 +12,7 @@ use App\Models\SosAlert;
 use App\Models\Trip;
 use App\Models\TripLocation;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -484,25 +485,35 @@ class AiService
     /**
      * Vérifie en temps réel les anomalies d'un trajet actif à chaque
      * nouvelle position GPS. Crée un enregistrement AnomalyVerification
-     * + notification push pour chaque anomalie détectée.
-     * L'utilisateur peut confirmer "normal" ou signaler un problème.
-     * Sans réponse en 10 min → SOS automatique.
+     * + notification push pour chaque anomalie détectée, et ce pour
+     * CHAQUE partie du trajet (passager ET transporteur). Les deux
+     * peuvent confirmer "normal" ou signaler un problème.
+     * Sans réponse en 3 min → SOS automatique sur le non-répondant.
      */
     public function checkTripAnomalies(Trip $trip): array
     {
         $detected = [];
-        $userId = $trip->passager_id;
+
+        // Les deux parties sont averties et facturées d'une réponse
+        // indépendante : passager et transporteur (affecté dès le scan).
+        $respondentIds = collect([$trip->passager_id, $trip->transporteur_id])
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
         // 1) Vitesse excessive
         $lastLocation = $trip->locations()->orderByDesc('captured_at')->first();
         if ($lastLocation && $lastLocation->vitesse_km_h && $lastLocation->vitesse_km_h > 120) {
-            $detected[] = $this->createVerification(
-                $trip, $userId,
-                'SPEED',
-                "Vitesse excessive détectée : {$lastLocation->vitesse_km_h} km/h "
-                    . 'à ' . $lastLocation->captured_at->format('H:i') . '.',
-                'ELEVEE'
-            );
+            foreach ($respondentIds as $userId) {
+                $detected[] = $this->createVerification(
+                    $trip, $userId,
+                    'SPEED',
+                    "Vitesse excessive détectée : {$lastLocation->vitesse_km_h} km/h "
+                        . 'à ' . $lastLocation->captured_at->format('H:i') . '.',
+                    'ELEVEE'
+                );
+            }
         }
 
         // 2) Arrêt prolongé (> 5 min à vitesse < 2 km/h)
@@ -522,26 +533,30 @@ class AiService
 
             if ($firstSlow) {
                 $durationMin = now()->diffInMinutes($firstSlow);
-                $detected[] = $this->createVerification(
-                    $trip, $userId,
-                    'STOP',
-                    "Arrêt prolongé : {$durationMin} min sans mouvement "
-                        . "({$slowCount} points GPS < 2 km/h).",
-                    'MOYENNE'
-                );
+                foreach ($respondentIds as $userId) {
+                    $detected[] = $this->createVerification(
+                        $trip, $userId,
+                        'STOP',
+                        "Arrêt prolongé : {$durationMin} min sans mouvement "
+                            . "({$slowCount} points GPS < 2 km/h).",
+                        'MOYENNE'
+                    );
+                }
             }
         }
 
         // 3) Perte de signal GPS (> 10 min sans mise à jour)
         $lastLocTime = $trip->locations()->max('captured_at');
-        if ($lastLocTime && $lastLocTime->diffInMinutes(now()) >= 10) {
-            $detected[] = $this->createVerification(
-                $trip, $userId,
-                'MOVEMENT_LOSS',
-                "Perte de signal GPS : plus de position depuis "
-                    . $lastLocTime->diffInMinutes(now()) . " min.",
-                'ELEVEE'
-            );
+        if ($lastLocTime && Carbon::parse($lastLocTime)->diffInMinutes(now()) >= 10) {
+            foreach ($respondentIds as $userId) {
+                $detected[] = $this->createVerification(
+                    $trip, $userId,
+                    'MOVEMENT_LOSS',
+                    "Perte de signal GPS : plus de position depuis "
+                        . Carbon::parse($lastLocTime)->diffInMinutes(now()) . " min.",
+                    'ELEVEE'
+                );
+            }
         }
 
         // 4) Déviation d'itinéraire (polyline comparison)
@@ -560,13 +575,15 @@ class AiService
                 }
 
                 if ($minDist > 1.0) {
-                    $detected[] = $this->createVerification(
-                        $trip, $userId,
-                        'DETOUR',
-                        "Déviation d'itinéraire : " . round($minDist, 2)
-                            . " km du tracé prévu (seuil: 1 km).",
-                        'ELEVEE'
-                    );
+                    foreach ($respondentIds as $userId) {
+                        $detected[] = $this->createVerification(
+                            $trip, $userId,
+                            'DETOUR',
+                            "Déviation d'itinéraire : " . round($minDist, 2)
+                                . " km du tracé prévu (seuil: 1 km).",
+                            'ELEVEE'
+                        );
+                    }
                 }
             }
         }
@@ -577,7 +594,8 @@ class AiService
     /**
      * Crée un enregistrement de vérification d'anomalie + notification.
      * Ne crée pas de doublon si une vérification EN_ATTENTE du même type
-     * existe déjà pour ce trajet.
+     * existe déjà pour ce trajet ET ce utilisateur (chaque partie répond
+     * de façon indépendante).
      */
     protected function createVerification(
         Trip $trip,
@@ -587,6 +605,7 @@ class AiService
         string $gravite,
     ): AnomalyVerification {
         $existing = AnomalyVerification::where('trip_id', $trip->id)
+            ->where('user_id', $userId)
             ->where('anomaly_type', $type)
             ->where('statut', 'EN_ATTENTE')
             ->first();

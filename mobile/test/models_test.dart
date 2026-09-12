@@ -1,8 +1,25 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:saferide_mobile/models/trip.dart';
 import 'package:saferide_mobile/models/user.dart';
+import 'package:saferide_mobile/services/osrm_service.dart';
 
 void main() {
+  group('OsrmService.decodePolyline', () {
+    test('décode une polyline Google encodée', () {
+      // Exemple canonique de la doc Google (encoders) :
+      // `_p~iF~ps|U` → (38.5, -120.2)
+      const encoded = '_p~iF~ps|U';
+      final points = OsrmService.decodePolyline(encoded);
+      expect(points.length, 1);
+      expect(points.first.latitude, closeTo(38.5, 0.0001));
+      expect(points.first.longitude, closeTo(-120.2, 0.0001));
+    });
+
+    test('gère une chaîne vide sans erreur', () {
+      expect(OsrmService.decodePolyline(''), isEmpty);
+    });
+  });
+
   group('Trip.fromJson', () {
     test('parse tous les champs du trajet', () {
       final trip = Trip.fromJson({

@@ -55,13 +55,24 @@ class TripFlowTest extends TestCase
         ])->assertOk();
 
         // 2. Le passager scanne le QR → SCANNE.
-        $start = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
+        $startResponse = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
             'token' => $vehicle['qr_codes'][0]['token'],
             'latitude' => 3.8480,
             'longitude' => 11.5021,
-        ])->assertCreated()->json('trip');
+        ])->assertCreated();
+        $start = $startResponse->json('trip');
 
         $this->assertEquals('SCANNE', $start['statut']);
+
+        // 2b. Le transporteur est exposé avec ses informations complètes :
+        // nom, email, téléphone, nombre de courses et avis des passagers.
+        $exposedTransporteur = $startResponse->json('transporteur');
+        $this->assertNotNull($exposedTransporteur);
+        $this->assertEquals('Test', $exposedTransporteur['nom']);
+        $this->assertEquals('transporteur@example.com', $exposedTransporteur['email']);
+        $this->assertEquals('690000010', $exposedTransporteur['telephone']);
+        $this->assertArrayHasKey('trips_count', $exposedTransporteur);
+        $this->assertIsArray($exposedTransporteur['reviews']);
 
         // 3. Le passager accepte de démarrer → EN_ATTENTE_TRANSPORTEUR.
         $confirm = $this->postJson("/api/v1/trips/{$start['id']}/confirm-embarquement")

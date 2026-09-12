@@ -97,15 +97,17 @@ class TripService {
     return Trip.fromJson(data['trip']);
   }
 
-  Future<List<Trip>> history() async {
+  Future<List<Trip>> history({int page = 1}) async {
     try {
-      final data = await _api.get('/trips/history');
+      final data = await _api.get('/trips/history?page=$page');
       final items = data['trips']['data'] as List<dynamic>? ?? [];
-      // Cache offline (I.31g)
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('cached_history', jsonEncode(items));
-      } catch (_) {}
+      // Cache offline (I.31g) — sauvegardé uniquement pour la première page
+      if (page == 1) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('cached_history', jsonEncode(items));
+        } catch (_) {}
+      }
       return items.map((e) => Trip.fromJson(e as Map<String, dynamic>)).toList();
     } catch (_) {
       // Hors-ligne : charger cache

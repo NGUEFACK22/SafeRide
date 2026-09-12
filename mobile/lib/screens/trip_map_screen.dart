@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../models/trip.dart';
+import '../data/douala_places.dart';
 import '../services/trip_service.dart';
 import 'rating_screen.dart';
 
@@ -32,7 +33,10 @@ class _TripMapScreenState extends State<TripMapScreen> {
   LatLng? _userLocation;
   bool _locating = false;
 
-  static const LatLng _fallbackCenter = LatLng(3.8480, 11.5021); // Yaoundé
+  static const LatLng _fallbackCenter = LatLng(
+    DoualaPlaces.centerLatitude,
+    DoualaPlaces.centerLongitude,
+  ); // Douala (Akwa)
 
   @override
   void initState() {

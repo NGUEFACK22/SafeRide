@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../models/trip.dart';
+import '../data/douala_places.dart';
 import '../services/api_service.dart';
 import '../services/permission_service.dart';
 import '../theme/app_theme.dart';
@@ -159,7 +160,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
     }
     setState(() => _loading = true);
     try {
-      double lat = 3.8480, lng = 11.5021;
+      double lat = DoualaPlaces.centerLatitude, lng = DoualaPlaces.centerLongitude;
       if (!mounted) return;
       final locationOk = await PermissionService.location(context);
       if (!locationOk) {
@@ -169,16 +170,28 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
         return;
       }
       try {
-        final pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 8)),
-        );
-        lat = pos.latitude;
-        lng = pos.longitude;
+        try {
+          final pos = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 8)),
+          );
+          lat = pos.latitude;
+          lng = pos.longitude;
+        } catch (_) {
+          // GPS sans fix : on tente la dernière position connue avant de
+          // tomber sur le fallback de test — préserve la vérification de
+          // proximité (±50m) quand le véhicule a lui un fix récent.
+          try {
+            final last = await Geolocator.getLastKnownPosition();
+            if (last != null) {
+              lat = last.latitude;
+              lng = last.longitude;
+            }
+          } catch (_) {
+            // Aucune position connue : on garde le fallback de test.
+          }
+        }
       } catch (_) {
-        // GPS indisponible (intérieur, aucun fix) : on garde la position par
-        // défaut de test pour ne pas bloquer le démarrage. Le backend valide
-        // ensuite la proximité si le véhicule a une position fraîche.
-        if (!mounted) return;
+        // Permission refusée entre-temps : on garde la position par défaut.
       }
       final data = await _api.post('/trips/start', {
         'token': code.trim(),
@@ -186,19 +199,6 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
         'longitude': lng,
       });
       if (!mounted) return;
-      // Le backend refuse le scan car un trajet actif existe déjà :
-      // on rouvre ce trajet au lieu de créer un doublon.
-      if (data['active_trip'] == true && data['trip'] != null) {
-        final existing = Trip.fromJson(data['trip'] as Map<String, dynamic>);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Vous avez déjà un trajet en cours — reprise du trajet.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        Navigator.of(context).pushReplacementNamed('/trip-active', arguments: existing);
-        return;
-      }
       final trip = Trip.fromJson(data['trip'] as Map<String, dynamic>);
       final transporteur = (data['transporteur'] as Map<String, dynamic>?) ?? {};
       final vehicle = (data['vehicle'] as Map<String, dynamic>?) ?? {};
@@ -209,6 +209,22 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       );
     } catch (e) {
       if (!mounted) return;
+      // Reprise d'un trajet réellement actif : le backend renvoie 422 avec
+      // le trajet dans le body — on rouvre cet écran à la place d'un scanner.
+      if (e is ApiException && e.statusCode == 422 && e.data != null) {
+        final d = e.data!;
+        if (d['active_trip'] == true && d['trip'] is Map<String, dynamic>) {
+          final existing = Trip.fromJson(d['trip'] as Map<String, dynamic>);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Vous avez déjà un trajet en cours — reprise du trajet.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          Navigator.of(context).pushReplacementNamed('/trip-active', arguments: existing);
+          return;
+        }
+      }
       final msg = _mapError(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(msg), backgroundColor: Colors.red),
