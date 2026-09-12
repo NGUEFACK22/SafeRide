@@ -471,6 +471,11 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
         ],
       ),
     );
+    // La dispose ne doit PAS être synchrone : le TextField écoute encore le
+    // controller pendant l'animation de sortie du dialog (assertion
+    // `_dependents.isEmpty`). On attend la fin de la transition avant de
+    // libérer la ressource.
+    await Future<void>.delayed(const Duration(milliseconds: 400));
     controller.dispose();
     return result;
   }

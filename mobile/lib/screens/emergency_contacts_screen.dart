@@ -143,12 +143,12 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(children: [const Icon(Icons.phone, size: 14, color: AppTheme.primaryBlue), const SizedBox(width: 4), Text(contact['telephone'] ?? '')]),
+                                  Row(children: [const Icon(Icons.phone, size: 14, color: AppTheme.primaryBlue), const SizedBox(width: 4), Expanded(child: Text(contact['telephone'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis))]),
                                   if (contact['whatsapp_telephone'] != null)
-                                    Row(children: [const Icon(Icons.message, size: 14, color: Color(0xFF25D366)), const SizedBox(width: 4), Text('WhatsApp: ${contact['whatsapp_telephone']}')]),
+                                    Row(children: [const Icon(Icons.message, size: 14, color: Color(0xFF25D366)), const SizedBox(width: 4), Expanded(child: Text('WhatsApp: ${contact['whatsapp_telephone']}', maxLines: 1, overflow: TextOverflow.ellipsis))]),
                                   if (contact['relation'] != null)
-                                    Text('Relation : ${contact['relation']}'),
-                                  Row(children: [const Icon(Icons.email, size: 14, color: AppTheme.primaryBlue), const SizedBox(width: 4), Text(contact['email'] ?? '')]),
+                                    Text('Relation : ${contact['relation']}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  Row(children: [const Icon(Icons.email, size: 14, color: AppTheme.primaryBlue), const SizedBox(width: 4), Expanded(child: Text(contact['email'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis))]),
                                 ],
                               ),
                               trailing: Row(

@@ -272,6 +272,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       ),
     );
+    // La libération est différée : le TextField de destination écoute encore
+    // le controller pendant l'animation de sortie du dialog. Un dispose()
+    // synchrone déclencherait l'assertion ChangeNotifier `_dependents.isEmpty`
+    // (framework.dart) → écran rouge à la première saisie SOS hors trajet.
+    await Future<void>.delayed(const Duration(milliseconds: 400));
     controller.dispose();
     if (result == null || !result.confirmed) return;
     final destination = result.destination;
@@ -945,7 +950,7 @@ class _TransporteurViewState extends State<_TransporteurView> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade200)),
-              child: Row(children: [SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 10), Text('Chargement de la météo…', style: TextStyle(fontSize: 13, color: AppTheme.textGrey))]),
+              child: Row(children: [SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 10), Expanded(child: Text('Chargement de la météo…', maxLines: 1, overflow: TextOverflow.ellipsis))]),
             )
           else if (_weather != null)
             Container(
