@@ -362,8 +362,8 @@ class DoualaPlaces {
     DoualaPlace(
       name: 'Gare ferroviaire Bessengue',
       category: 'Gare',
-      latitude: 4.0435,
-      longitude: 9.6990,
+      latitude: 4.0539,
+      longitude: 9.7117,
     ),
     DoualaPlace(
       name: 'Gare routière de la Liberté',
@@ -462,8 +462,8 @@ class DoualaPlaces {
     DoualaPlace(
       name: 'Rond-point Deido',
       category: 'Lieu d\'intérêt',
-      latitude: 4.0710,
-      longitude: 9.7100,
+      latitude: 4.0642,
+      longitude: 9.7069,
     ),
     DoualaPlace(
       name: 'Rond-point Bonamoussadi',
