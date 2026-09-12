@@ -26,7 +26,7 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
   final _api = ApiService();
   String? _verifStatut;
   bool _verifLoading = true;
@@ -36,6 +36,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _statsLoading = true;
   int _sosCount = 0;
   bool _serverStatsLoaded = false;
+
+  // Animation d'apparition progressive des sections du profil.
+  late final AnimationController _entry;
+  final Duration _entryDuration = const Duration(milliseconds: 850);
 
   // Champs éditables inline
   final _emailController = TextEditingController();
@@ -59,6 +63,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _entry = AnimationController(vsync: this, duration: _entryDuration);
+    _entry.forward();
     _user = widget.user;
     _loadVerif();
     _loadStats();
@@ -343,10 +349,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
+    _entry.dispose();
     _emailController.dispose();
     _telephoneController.dispose();
     _motSecuriteController.dispose();
     super.dispose();
+  }
+
+  /// Apparition décalée d'une section : fondu + léger glissement vers le haut.
+  Widget _phase(int index, Widget child) {
+    final curve = CurvedAnimation(
+      parent: _entry,
+      curve: Interval(index * 0.08, 0.55 + index * 0.08, curve: Curves.easeOutCubic),
+    );
+    return FadeTransition(
+      opacity: curve,
+      child: SlideTransition(
+        position: Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(curve),
+        child: child,
+      ),
+    );
   }
 
   @override
@@ -356,12 +378,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final displayName = _user != null
         ? '${_user!.prenom} ${_user!.nom}'.trim()
         : '—';
-    final content = SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
+
+    // ── 5 sections, apparition staggered (avatar → stats → perso → voix → menu)
+    final sections = <Widget>[
+      // ── 0. Avatar + nom + badge ──
+      Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Avatar + nom + badge ──
           const SizedBox(height: 8),
           Center(
             child: Stack(
@@ -403,8 +426,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ]),
                   ),
           ),
+        ],
+      ),
 
-          // ── Stats ──
+      // ── 1. Stats ──
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           const SizedBox(height: 14),
           _statsLoading
               ? const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)))
@@ -419,8 +447,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Expanded(child: _statBoxRed(_sosCount.toString(), 'SOS')),
                   ],
                 ),
+        ],
+      ),
 
-          // ── Informations personnelles (regroupe contact & sécurité — non divisé) ──
+      // ── 2. Informations personnelles ──
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           const SizedBox(height: 20),
           Text(LanguageService.instance.t('personal_info'), style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 6),
@@ -455,8 +488,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ],
+        ],
+      ),
 
-          // ── Empreinte vocale — reconnaissance vocale guidée ──
+      // ── 3. Empreinte vocale — reconnaissance vocale guidée ──
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           const SizedBox(height: 20),
           Text(LanguageService.instance.t('voice_recognition'), style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 6),
@@ -514,8 +552,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
           ),
+        ],
+      ),
 
-          // ── Menu actions ──
+      // ── 4. Menu actions ──
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           const SizedBox(height: 20),
           _menuTile(Icons.shield_outlined, LanguageService.instance.t('emergency_contacts'), onTap: () => Navigator.pushNamed(context, '/emergency-contacts'), color: Color(0xFFFFE9E9), iconColor: AppTheme.sosRed),
           _menuTile(Icons.history, LanguageService.instance.t('history_trips_menu'), onTap: () => Navigator.pushNamed(context, '/history')),
@@ -530,6 +573,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: const Icon(Icons.logout),
             label: Text(LanguageService.instance.t('logout')),
           ),
+        ],
+      ),
+    ];
+
+    final content = SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < sections.length; i++) _phase(i, sections[i]),
         ],
       ),
     );
