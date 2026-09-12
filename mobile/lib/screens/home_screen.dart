@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../utils/error_helper.dart';
@@ -63,16 +63,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       PushService.instance.addRefreshListener(_refreshUnread);
       PushService.instance.addRefreshListener(_checkPendingRequest);
       _startPendingPoll();
-      // Rafraîchir le user depuis le serveur (source de vérité) : le rôle
-      // en cache peut être obsolète (rôle transporteur attribué après le
-      // login, connexion Google, etc.). Si le rôle change (ex : devient
-      // transporteur), on démarre le polling de demandes de course.
+      // RafraÃ®chir le user depuis le serveur (source de vÃ©ritÃ©) : le rÃ´le
+      // en cache peut Ãªtre obsolÃ¨te (rÃ´le transporteur attribuÃ© aprÃ¨s le
+      // login, connexion Google, etc.). Si le rÃ´le change (ex : devient
+      // transporteur), on dÃ©marre le polling de demandes de course.
       _refreshUserFromServer();
     }
   }
 
-  /// Recharge le profil serveur (rôles à jour) et démarre le polling
-  /// transporteur si le rôle vient d'être détecté.
+  /// Recharge le profil serveur (rÃ´les Ã  jour) et dÃ©marre le polling
+  /// transporteur si le rÃ´le vient d'Ãªtre dÃ©tectÃ©.
   Future<void> _refreshUserFromServer() async {
     try {
       final data = await _api.get('/auth/profile');
@@ -81,7 +81,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       setState(() => _user = user);
       if (!wasTransporteur && _isTransporteur) {
-        // Le rôle est arrivé après le boot : démarrer le polling maintenant.
+        // Le rÃ´le est arrivÃ© aprÃ¨s le boot : dÃ©marrer le polling maintenant.
         _startPendingPoll();
       }
     } catch (_) {
@@ -100,33 +100,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && _isTransporteur) {
-      // Au retour au premier plan : vérifie immédiatement une demande en attente
-      // (sinon la fenêtre n'apparaît jamais si l'app était en arrière-plan).
+      // Au retour au premier plan : vÃ©rifie immÃ©diatement une demande en attente
+      // (sinon la fenÃªtre n'apparaÃ®t jamais si l'app Ã©tait en arriÃ¨re-plan).
       _checkPendingRequest();
     }
   }
 
   void _startPendingPoll() {
     if (!_isTransporteur) return;
-    // Idempotent : un seul timer de polling, même après refresh du rôle.
+    // Idempotent : un seul timer de polling, mÃªme aprÃ¨s refresh du rÃ´le.
     if (_pendingPoll?.isActive ?? false) return;
     _pendingPoll = Timer.periodic(const Duration(seconds: 3), (_) => _checkPendingRequest());
     _checkPendingRequest();
   }
 
   /// Interroge le backend : un passager attend l'accord du transporteur
-  /// (statut EN_ATTENTE_TRANSPORTEUR). Si oui → fenêtre Accepter/Refuser.
+  /// (statut EN_ATTENTE_TRANSPORTEUR). Si oui â†’ fenÃªtre Accepter/Refuser.
   Future<void> _checkPendingRequest() async {
     if (_requestDialogOpen || !mounted) return;
     try {
       final trip = await TripService().pendingTrip();
       if (!mounted || trip == null) return;
-      // Nouveau trajet (id différent) → on affiche la fenêtre.
+      // Nouveau trajet (id diffÃ©rent) â†’ on affiche la fenÃªtre.
       if (trip.id == _handledRequestId) return;
       _handledRequestId = trip.id;
       _showAcceptRequestDialog(trip);
     } catch (_) {
-      // route/ réseau : on ré-essaiera au prochain tick
+      // route/ rÃ©seau : on rÃ©-essaiera au prochain tick
     }
   }
 
@@ -145,9 +145,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Text('Nouvelle course'),
         ]),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('$name souhaite débuter une course avec vous.', style: const TextStyle(fontSize: 14)),
+          Text('$name souhaite dÃ©buter une course avec vous.', style: const TextStyle(fontSize: 14)),
           const SizedBox(height: 4),
-          if (trip.vehicle != null) Text('${trip.vehicle?['marque']} ${trip.vehicle?['modele']} • ${trip.vehicle?['immatriculation']}', style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+          if (trip.vehicle != null) Text('${trip.vehicle?['marque']} ${trip.vehicle?['modele']} â€¢ ${trip.vehicle?['immatriculation']}', style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)),
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Refuser', style: TextStyle(color: AppTheme.sosRed))),
@@ -169,13 +169,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       try {
         await TripService().declineCourse(trip.id);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Course refusée')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Course refusÃ©e')));
       } catch (_) {}
     }
   }
 
-  /// Vérifie les anomalies détectées par l'IA en temps réel et demande
-  /// confirmation à l'utilisateur si une vérification est en attente.
+  /// VÃ©rifie les anomalies dÃ©tectÃ©es par l'IA en temps rÃ©el et demande
+  /// confirmation Ã  l'utilisateur si une vÃ©rification est en attente.
   Future<void> _checkAnomalies() async {
     if (_checkingAnomalies) return;
     _checkingAnomalies = true;
@@ -183,13 +183,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final verifications = await AnomalyService().getPending();
       if (!mounted || verifications.isEmpty) return;
 
-      // Affiche les vérifications en attente une à une.
+      // Affiche les vÃ©rifications en attente une Ã  une.
       for (final v in verifications) {
         if (!mounted) return;
         await showAnomalyDialog(context, v);
       }
     } catch (_) {
-      // silent — non bloquant
+      // silent â€” non bloquant
     } finally {
       _checkingAnomalies = false;
     }
@@ -224,19 +224,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _triggerManualSos() async {
     if (_isGuest) { _requireAuth(); return; }
-    // Gate : au moins 2 contacts d'urgence (formulaire intégré si manque) —
-    // identique à l'écran SOS dédié, le bouton accueil ne doit pas contourner.
+    // Gate : au moins 2 contacts d'urgence (formulaire intÃ©grÃ© si manque) â€”
+    // identique Ã  l'Ã©cran SOS dÃ©diÃ©, le bouton accueil ne doit pas contourner.
     if (!await ensureEmergencyContacts(context)) return;
     if (!mounted) return;
     final trip = await TripService().currentTrip();
-    // Ne lier le trajet au SOS que s'il est réellement EN_COURS :
-    // un trajet SCANNE / EN_ATTENTE_TRANSPORTEUR serait rejeté par le
+    // Ne lier le trajet au SOS que s'il est rÃ©ellement EN_COURS :
+    // un trajet SCANNE / EN_ATTENTE_TRANSPORTEUR serait rejetÃ© par le
     // backend (422 "Aucun trajet actif"). Sans trajet en cours, l'alerte
     // part avec position + destination saisie (SOS hors trajet).
     final linkable = (trip != null && trip.statut == 'EN_COURS') ? trip : null;
     final controller = TextEditingController();
     // Dialog unique : confirmation + destination facultative (SOS hors trajet).
-    // Un seul showDialog évite d'ouvrir un second dialog pendant la transition
+    // Un seul showDialog Ã©vite d'ouvrir un second dialog pendant la transition
     // de sortie du premier (assertion _dependents.isEmpty).
     if (!mounted) return;
     final result = await showDialogSafe<({bool confirmed, String destination})>(
@@ -249,6 +249,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             Text(LanguageService.instance.t('sos_confirm_msg')),
             if (linkable == null) ...[
               const SizedBox(height: 16),
+              // SÃ©lection rapide de destination (quartiers/marchÃ©s de Douala)
+              // au lieu de la saisie libre : un tap remplit le champ.
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final place in DoualaPlaces.all.take(12))
+                    ActionChip(
+                      avatar: const Icon(Icons.place_outlined, size: 16),
+                      label: Text(place.name),
+                      onPressed: () => controller.text = place.name,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
               TextField(
                 controller: controller,
                 textCapitalization: TextCapitalization.sentences,
@@ -272,10 +287,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       ),
     );
-    // La libération est différée : le TextField de destination écoute encore
+    // La libÃ©ration est diffÃ©rÃ©e : le TextField de destination Ã©coute encore
     // le controller pendant l'animation de sortie du dialog. Un dispose()
-    // synchrone déclencherait l'assertion ChangeNotifier `_dependents.isEmpty`
-    // (framework.dart) → écran rouge à la première saisie SOS hors trajet.
+    // synchrone dÃ©clencherait l'assertion ChangeNotifier `_dependents.isEmpty`
+    // (framework.dart) â†’ Ã©cran rouge Ã  la premiÃ¨re saisie SOS hors trajet.
     await Future<void>.delayed(const Duration(milliseconds: 400));
     controller.dispose();
     if (result == null || !result.confirmed) return;
@@ -321,7 +336,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_selectedIndex == 2) return const _LocationPreview();
     if (_selectedIndex == 3) return ProfileScreen(user: _user, embedded: true);
 
-    // Home (0) -> role view — disposition similaire passager/transporteur
+    // Home (0) -> role view â€” disposition similaire passager/transporteur
     if (_user!.hasRole('admin')) return const _AdminView();
     if (_user!.hasRole('transporteur')) return _TransporteurView(user: _user);
     if (_user!.hasRole('gestionnaire')) return const _GestionnaireView();
@@ -426,6 +441,7 @@ class _LocationPreview extends StatefulWidget {
 class _LocationPreviewState extends State<_LocationPreview> {
   final _mapController = MapController();
   LatLng? _userLocation;
+  StreamSubscription<Position>? _userTrackSub;
   bool _loading = true;
   bool _locating = false;
 
@@ -469,6 +485,17 @@ class _LocationPreviewState extends State<_LocationPreview> {
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
+    // Suivi temps rÃ©el : le marqueur utilisateur doit suivre vos dÃ©placements
+    // au lieu d'Ãªtre figÃ© sur une capture unique (position "respectÃ©e").
+    _userTrackSub ??= Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5, // ne rÃ©-Ã©met que si on bouge d'au moins 5 m
+      ),
+    ).listen((pos) {
+      if (!mounted) return;
+      setState(() => _userLocation = LatLng(pos.latitude, pos.longitude));
+    });
   }
 
   Future<void> _centerOnUser() async {
@@ -583,7 +610,7 @@ class _PassagerViewState extends State<_PassagerView> {
             ]),
           ),
           const SizedBox(height: 10),
-          // Carte météo
+          // Carte mÃ©tÃ©o
           if (_weatherLoading)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -596,7 +623,7 @@ class _PassagerViewState extends State<_PassagerView> {
                 children: [
                   SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                   SizedBox(width: 10),
-                  Text('Chargement de la météo…', style: TextStyle(fontSize: 13, color: AppTheme.textGrey)),
+                  Text('Chargement de la mÃ©tÃ©oâ€¦', style: TextStyle(fontSize: 13, color: AppTheme.textGrey)),
                 ],
               ),
             )
@@ -627,7 +654,7 @@ class _PassagerViewState extends State<_PassagerView> {
                           children: [
                             Text(_weather!.tempDisplay, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
                             if (_weather!.feelsLike != null)
-                              Text(' (ressenti ${_weather!.feelsLike!.round()}°)', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+                              Text(' (ressenti ${_weather!.feelsLike!.round()}Â°)', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey)),
                           ],
                         ),
                         Text(_weather!.description, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
@@ -724,7 +751,7 @@ class _PassagerViewState extends State<_PassagerView> {
             ),
           ),
           const SizedBox(height: 18),
-          // Section ordonnée : Mes services en grille 2x2
+          // Section ordonnÃ©e : Mes services en grille 2x2
           Text(LanguageService.instance.t('services'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 10),
           Row(
@@ -805,9 +832,9 @@ class _TransporteurViewState extends State<_TransporteurView> {
     super.dispose();
   }
 
-  /// Poll la demande de course en attente — la carte reste visible en
+  /// Poll la demande de course en attente â€” la carte reste visible en
   /// continu (pas seulement le dialogue automatique du HomeScreen) tant
-  /// que le passager attend la réponse du transporteur.
+  /// que le passager attend la rÃ©ponse du transporteur.
   void _pollPending() {
     _pendingPoll = Timer.periodic(const Duration(seconds: 4), (_) async {
       if (_handling) return;
@@ -834,7 +861,7 @@ class _TransporteurViewState extends State<_TransporteurView> {
         await TripService().declineCourse(_pendingTrip!.id);
         if (!mounted) return;
         setState(() { _pendingTrip = null; _handling = false; });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Course refusée')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Course refusÃ©e')));
       }
     } catch (e) {
       if (!mounted) return;
@@ -862,14 +889,14 @@ class _TransporteurViewState extends State<_TransporteurView> {
             Container(width: 38, height: 38, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, shape: BoxShape.circle), child: const Icon(Icons.notifications_active, color: AppTheme.primaryBlue, size: 20)),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Nouvelle course demandée', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
-              const Text('Le passager attend votre réponse', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+              Text('Nouvelle course demandÃ©e', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+              const Text('Le passager attend votre rÃ©ponse', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
             ])),
           ]),
           const SizedBox(height: 12),
           Text(name.isEmpty ? 'Un passager' : name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           if (trip.vehicle != null)
-            Text('${trip.vehicle?['marque']} ${trip.vehicle?['modele']} • ${trip.vehicle?['immatriculation']}', style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+            Text('${trip.vehicle?['marque']} ${trip.vehicle?['modele']} â€¢ ${trip.vehicle?['immatriculation']}', style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)),
           const SizedBox(height: 12),
           Row(children: [
             Expanded(child: OutlinedButton.icon(
@@ -950,7 +977,7 @@ class _TransporteurViewState extends State<_TransporteurView> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade200)),
-              child: Row(children: [SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 10), Expanded(child: Text('Chargement de la météo…', maxLines: 1, overflow: TextOverflow.ellipsis))]),
+              child: Row(children: [SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 10), Expanded(child: Text('Chargement de la mÃ©tÃ©oâ€¦', maxLines: 1, overflow: TextOverflow.ellipsis))]),
             )
           else if (_weather != null)
             Container(
@@ -966,7 +993,7 @@ class _TransporteurViewState extends State<_TransporteurView> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [Text(_weather!.tempDisplay, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textDark)), if (_weather!.feelsLike != null) Text(' (ressenti ${_weather!.feelsLike!.round()}°)', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))]),
+                      Row(children: [Text(_weather!.tempDisplay, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textDark)), if (_weather!.feelsLike != null) Text(' (ressenti ${_weather!.feelsLike!.round()}Â°)', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))]),
                       Text(_weather!.description, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
                     ]),
                   ),
@@ -1016,8 +1043,8 @@ class _TransporteurViewState extends State<_TransporteurView> {
   }
 }
 
-/// QR Code du transporteur affiché sur le Home à la place de l'espace SCAN passager
-/// Règle : un seul véhicule autorisé — affiche directement le QR du véhicule unique
+/// QR Code du transporteur affichÃ© sur le Home Ã  la place de l'espace SCAN passager
+/// RÃ¨gle : un seul vÃ©hicule autorisÃ© â€” affiche directement le QR du vÃ©hicule unique
 class _TransporteurQrCard extends StatefulWidget {
   const _TransporteurQrCard();
 
@@ -1040,7 +1067,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadQr();
-    // Le polling démarre TOUJOURS, même si le premier chargement échoue :
+    // Le polling dÃ©marre TOUJOURS, mÃªme si le premier chargement Ã©choue :
     // _checkRefresh se ressynchronise automatiquement au tick suivant.
     _startPolling();
   }
@@ -1055,8 +1082,8 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Au retour au premier plan : le QR peut avoir été consommé pendant
-      // l'arrière-plan (scan par le passager) — re-synchronisation immédiate.
+      // Au retour au premier plan : le QR peut avoir Ã©tÃ© consommÃ© pendant
+      // l'arriÃ¨re-plan (scan par le passager) â€” re-synchronisation immÃ©diate.
       _checkRefresh();
     }
   }
@@ -1068,7 +1095,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
 
   Future<void> _checkRefresh() async {
     if (!mounted) return;
-    // Pas encore de token (échec initial) → on recharge complètement le QR.
+    // Pas encore de token (Ã©chec initial) â†’ on recharge complÃ¨tement le QR.
     if (_vehicleId == null || _token == null) {
       _loadQr();
       return;
@@ -1087,8 +1114,8 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
         }
       }
     } catch (_) {
-      // Erreur réseau/401 : après 5 échecs consécutifs (≈15 s), on recharge
-      // entièrement le QR (ré-authentification + nouvelle lecture) au lieu
+      // Erreur rÃ©seau/401 : aprÃ¨s 5 Ã©checs consÃ©cutifs (â‰ˆ15 s), on recharge
+      // entiÃ¨rement le QR (rÃ©-authentification + nouvelle lecture) au lieu
       // d'abandonner silencieusement.
       _refreshFailures++;
       if (_refreshFailures >= 5) {
@@ -1111,10 +1138,10 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
       final data = await _api.get('/vehicles');
       final vehicles = data['vehicles'] as List<dynamic>? ?? [];
       if (vehicles.isEmpty) {
-        if (mounted) setState(() { _loading = false; _error = 'Aucun véhicule'; });
+        if (mounted) setState(() { _loading = false; _error = 'Aucun vÃ©hicule'; });
         return;
       }
-      // Un seul véhicule autorisé — prendre le premier
+      // Un seul vÃ©hicule autorisÃ© â€” prendre le premier
       final v = vehicles.first as Map<String, dynamic>;
       final immat = v['immatriculation'] as String? ?? '';
       final vehicleId = v['id'] as int;
@@ -1162,9 +1189,9 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
                 child: const Icon(Icons.qr_code_2, color: Colors.white, size: 28),
               ),
               const SizedBox(height: 14),
-              Text(_error == 'Aucun véhicule' ? LanguageService.instance.t('no_vehicle') : LanguageService.instance.t('qr_unavailable'), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              Text(_error == 'Aucun vÃ©hicule' ? LanguageService.instance.t('no_vehicle') : LanguageService.instance.t('qr_unavailable'), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
               const SizedBox(height: 6),
-              Text(_error == 'Aucun véhicule' ? LanguageService.instance.t('add_vehicle_hint') : 'Erreur: $_error', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
+              Text(_error == 'Aucun vÃ©hicule' ? LanguageService.instance.t('add_vehicle_hint') : 'Erreur: $_error', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
               const SizedBox(height: 12),
               FilledButton.icon(onPressed: () => Navigator.pushNamed(context, '/vehicles'), icon: Icon(Icons.add), label: Text(LanguageService.instance.t('add_vehicle'))),
             ],
@@ -1239,20 +1266,20 @@ class _GuestView extends StatelessWidget {
           const SizedBox(height: 6),
           Text(LanguageService.instance.t('guest_consult_text'), style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
           const SizedBox(height: 14),
-          // Aperçu carte
+          // AperÃ§u carte
           Container(
             height: 140,
             decoration: BoxDecoration(color: const Color(0xFFEAF0FF), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.lightBlueBorder)),
             child: Stack(children: [Center(child: Icon(Icons.map, size: 48, color: AppTheme.primaryBlue)), Positioned(top: 8, right: 8, child: Container(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)), child: Text(LanguageService.instance.t('yaounde_map'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700))))]),
           ),
           const SizedBox(height: 14),
-          // Scanner verrouillé
+          // Scanner verrouillÃ©
           GestureDetector(
             onTap: onAction,
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(color: AppTheme.cardBlack, borderRadius: BorderRadius.circular(20)),
-              child: Column(children: [Container(width: 64, height: 64, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.15))), child: Icon(Icons.qr_code_scanner, color: Colors.white, size: 28)), SizedBox(height: 12), Text(LanguageService.instance.t('scan_qr'), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)), SizedBox(height: 6), Text(LanguageService.instance.t('guest_locked'), textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)), SizedBox(height: 8), Container(padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.lock, size: 12, color: Colors.white), SizedBox(width: 4), Text('Invité', style: TextStyle(color: Colors.white, fontSize: 11))]))]),
+              child: Column(children: [Container(width: 64, height: 64, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.15))), child: Icon(Icons.qr_code_scanner, color: Colors.white, size: 28)), SizedBox(height: 12), Text(LanguageService.instance.t('scan_qr'), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)), SizedBox(height: 6), Text(LanguageService.instance.t('guest_locked'), textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)), SizedBox(height: 8), Container(padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.lock, size: 12, color: Colors.white), SizedBox(width: 4), Text('InvitÃ©', style: TextStyle(color: Colors.white, fontSize: 11))]))]),
             ),
           ),
           const SizedBox(height: 14),
@@ -1284,7 +1311,7 @@ class _GuestView extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
-        child: Row(children: [Container(width: 38, height: 38, decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)), child: Icon(icon, size: 20, color: Colors.grey)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)), const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.lock, size: 10, color: Colors.grey), SizedBox(width: 3), Text('Invité', style: TextStyle(fontSize: 10, color: Colors.grey))]))]), Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])), const Icon(Icons.chevron_right, size: 16, color: Colors.grey)]),
+        child: Row(children: [Container(width: 38, height: 38, decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)), child: Icon(icon, size: 20, color: Colors.grey)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)), const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.lock, size: 10, color: Colors.grey), SizedBox(width: 3), Text('InvitÃ©', style: TextStyle(fontSize: 10, color: Colors.grey))]))]), Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])), const Icon(Icons.chevron_right, size: 16, color: Colors.grey)]),
       ),
     );
   }
@@ -1300,7 +1327,7 @@ class _GuestBlockedCard extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.lock, size: 48, color: Colors.grey.shade400), const SizedBox(height: 12), Text('$label — mode invité', style: const TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 6), const Text('Inscrivez-vous pour accéder à cette section', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.textGrey, fontSize: 12)), const SizedBox(height: 16), FilledButton.icon(onPressed: () => Navigator.pushNamed(context, '/register'), icon: const Icon(Icons.person_add), label: const Text('S\'inscrire')), TextButton(onPressed: () => Navigator.pushNamed(context, '/login'), child: const Text('Se connecter'))]),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.lock, size: 48, color: Colors.grey.shade400), const SizedBox(height: 12), Text('$label â€” mode invitÃ©', style: const TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 6), const Text('Inscrivez-vous pour accÃ©der Ã  cette section', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.textGrey, fontSize: 12)), const SizedBox(height: 16), FilledButton.icon(onPressed: () => Navigator.pushNamed(context, '/register'), icon: const Icon(Icons.person_add), label: const Text('S\'inscrire')), TextButton(onPressed: () => Navigator.pushNamed(context, '/login'), child: const Text('Se connecter'))]),
       ),
     );
   }
@@ -1320,7 +1347,7 @@ class _GestionnaireView extends StatelessWidget {
             child: ListTile(
               leading: const Icon(Icons.folder_open, size: 32),
               title: const Text('Mes dossiers'),
-              subtitle: const Text('Litiges, objets perdus, SOS, identités'),
+              subtitle: const Text('Litiges, objets perdus, SOS, identitÃ©s'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.pushNamed(context, '/manager'),
             ),
