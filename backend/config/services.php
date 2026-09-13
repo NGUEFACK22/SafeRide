@@ -22,6 +22,14 @@ return [
         'key' => env('RESEND_API_KEY'),
     ],
 
+    'brevo' => [
+        // Clé API Brevo REST (xkeysib-...), utilisée par le transport HTTP
+        // sans SDK BrevoHttpTransport (MAIL_MAILER=brevo-http -> API HTTPS
+        // port 443, jamais bloqué par Render, contrairement aux ports SMTP
+        // 587/465 qui timeout tous au niveau TCP).
+        'key' => env('BREVO_API_KEY'),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
