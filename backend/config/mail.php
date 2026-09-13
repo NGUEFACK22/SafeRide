@@ -71,6 +71,13 @@ return [
             'transport' => 'resend-http',
         ],
 
+        // Transport Brevo HTTP - vous n'avez trouvé ni SMTP ni Resend, donc
+        // voici le canal PARFAIT pour Render : API HTTPS port 443 (jamais
+        // bloqué), clé API Brevo (pas de SMTP, pas de domaine exigé).
+        'brevo-http' => [
+            'transport' => 'brevo-http',
+        ],
+
         'sendmail' => [
             'transport' => 'sendmail',
             'path' => env('MAIL_SENDMAIL_PATH', '/usr/sbin/sendmail -bs -i'),

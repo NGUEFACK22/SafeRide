@@ -164,3 +164,16 @@ Route::get('auth/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail
             ->middleware(['role:admin']);
     });
 });
+// Diagnostic prod : affiche l'IP publique SORTANTE du serveur (Render).
+// Seule utilisation : savoir quelle IP autoriser dans Brevo (Sécurité →
+// Adresses IP autorisées). Appel HTTP via Guzzle (port 443, jamais bloqué).
+Route::get('/diag/ip', function () {
+    try {
+        $client = new \GuzzleHttp\Client(['timeout' => 15, 'connect_timeout' => 8]);
+        $ip = trim((string) $client->get('https://ipify.org')->getBody());
+
+        return response()->json(['ip' => $ip, 'source' => 'ipify.org', 'heure_render' => now()->toIso8601String()]);
+    } catch (\Throwable $e) {
+        return response()->json(['ip' => null, 'error' => $e->getMessage()], 502);
+    }
+})->middleware('throttle:5,1');

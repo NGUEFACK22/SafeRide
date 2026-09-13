@@ -31,6 +31,15 @@ class AppServiceProvider extends ServiceProvider
                 );
             });
 
+            // Transport Brevo (ex-Sendinblue) sans SDK : MAIL_MAILER=brevo-http
+            // + BREVO_API_KEY. Même philosophie HTTPS (443, jamais bloqué par
+            // Render) que resend-http — voir BrevoHttpTransport.
+            $manager->extend('brevo-http', function (array $config) {
+                return new BrevoHttpTransport(
+                    $config['key'] ?? config('services.brevo.key'),
+                );
+            });
+
             return $manager;
         });
     }
