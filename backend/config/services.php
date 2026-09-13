@@ -65,6 +65,15 @@ return [
         'android_client_id' => env('GOOGLE_ANDROID_CLIENT_ID'),
     ],
 
+    'brevo' => [
+        // Clé API MAÎTRE Brevo (xkeysib-…, API v3) — utilisée par le transport
+        // "brevo-http" (BrevoHttpTransport) qui parle HTTPS:443 directement à
+        // api.brevo.com : JAMAIS filtré par Render (contrairement aux ports
+        // SMTP 587/465, timeout TCP systématiques observés en production).
+        // Bureau Brevo -> SMTP & API -> Clés API -> générer (xkeysib-…).
+        'key' => env('BREVO_API_KEY'),
+    ],
+
     'infobip' => [
         'base_url' => env('INFOBIP_BASE_URL', 'https://api.infobip.com'),
         'api_key' => env('INFOBIP_API_KEY'),
