@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Mail\Transport\BrevoHttpTransport;
 use App\Mail\Transport\ResendHttpTransport;
 use App\Models\ManagerAssignment;
 use App\Models\SosAlert;
