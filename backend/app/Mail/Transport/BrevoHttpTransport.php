@@ -133,7 +133,10 @@ class BrevoHttpTransport extends AbstractTransport
     {
         return array_map(fn (Address $a) => [
             'email' => $a->getAddress(),
-            'name' => $a->getName(),
+            // Brevo exige un `name` NON vide dans chaque `to` (erreur 400
+            // "name is missing in to" sinon). Laravel le laisse vide quand le
+            // contact de secours n'a pas de nom affiché -> on met un défaut.
+            'name' => $a->getName() ?: 'Contact Secours SafeRide',
         ], $addresses);
     }
 
