@@ -125,7 +125,10 @@ return [
 
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-        'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
+        // Render interdit les espaces nus dans les valeurs .env -> on stocke
+        // "SafeRide_AI" et on re-affiche "SafeRide AI" ici (adaptation code,
+        // pas de la valeur) : str_replace('_', ' ', ...)
+        'name' => str_replace('_', ' ', env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel'))),
     ],
 
 ];
