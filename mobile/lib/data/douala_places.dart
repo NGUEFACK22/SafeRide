@@ -1,10 +1,10 @@
 /// Liste locale des destinations possibles (autocomplete hors-ligne).
 ///
-/// Villes couvertes : DOUALA (74+) et YAOUNDÉ (40+) — quartiers, marchés,
-/// hôpitaux, universités, gares, port/aéroport, lieux d'intérêt. Les
-/// coordonnées sont approximatives (centre du lieu) — elles sont utilisées
-/// pour tracer le circuit sur la carte et sont envoyées au backend comme
-/// destination.
+/// Ville couverte : DOUALA (130+) — quartiers, marchés, hôpitaux, écoles,
+/// universités, entreprises, administrations, carrefours et avenues,
+/// gares, port/aéroport, hôtels, lieux d'intérêt. Les coordonnées sont
+/// approximatives (centre du lieu) — elles sont utilisées pour tracer le
+/// circuit sur la carte et sont envoyées au backend comme destination.
 class DoualaPlace {
   final String name;
   final String category;
@@ -481,63 +481,353 @@ class DoualaPlaces {
       longitude: 9.7460,
     ),
 
-    // ── YAOUNDÉ — Quartiers ─────────────────────────────────────
-    DoualaPlace(name: 'Centre-ville (Obidjam)', category: 'Quartier', latitude: 3.8666, longitude: 11.5173, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Bastos', category: 'Quartier', latitude: 3.8803, longitude: 11.5270, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Nsam', category: 'Quartier', latitude: 3.8889, longitude: 11.5175, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Mvan', category: 'Quartier', latitude: 3.9008, longitude: 11.5236, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Etoug-Ebe', category: 'Quartier', latitude: 3.9206, longitude: 11.5253, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Melen', category: 'Quartier', latitude: 3.9167, longitude: 11.5333, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Odza', category: 'Quartier', latitude: 3.9067, longitude: 11.5397, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Biya', category: 'Quartier', latitude: 3.9075, longitude: 11.5322, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Essos', category: 'Quartier', latitude: 3.9167, longitude: 11.5667, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Nkonbessou', category: 'Quartier', latitude: 3.9333, longitude: 11.5667, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Mokolo', category: 'Quartier', latitude: 3.9367, longitude: 11.5433, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Ngousso', category: 'Quartier', latitude: 3.9667, longitude: 11.5333, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Nkolbisson', category: 'Quartier', latitude: 3.9000, longitude: 11.4833, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Obobaba', category: 'Quartier', latitude: 3.8500, longitude: 11.4833, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Silia', category: 'Quartier', latitude: 3.8517, longitude: 11.4972, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Mendong', category: 'Quartier', latitude: 3.8575, longitude: 11.5028, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Emana', category: 'Quartier', latitude: 3.8133, longitude: 11.5000, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Nyom', category: 'Quartier', latitude: 3.7167, longitude: 11.5333, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Akom II', category: 'Quartier', latitude: 3.8333, longitude: 11.5333, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Nkolondom', category: 'Quartier', latitude: 3.8833, longitude: 11.4917, ville: 'Yaoundé'),
-    // ── YAOUNDÉ — Marchés ───────────────────────────────────────
-    DoualaPlace(name: 'Marché du Centre (Versach)', category: 'Marché', latitude: 3.8722, longitude: 11.5169, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Marché Mokolo', category: 'Marché', latitude: 3.9000, longitude: 11.5433, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Marché Mvan', category: 'Marché', latitude: 3.8992, longitude: 11.5244, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Marché Nsam', category: 'Marché', latitude: 3.8875, longitude: 11.5194, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Marché Etoug-Ebe', category: 'Marché', latitude: 3.9233, longitude: 11.5247, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Marché Biyem-Assi', category: 'Marché', latitude: 3.8850, longitude: 11.5400, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Marché Nkolbisson', category: 'Marché', latitude: 3.9011, longitude: 11.4850, ville: 'Yaoundé'),
-    // ── YAOUNDÉ — Hôpitaux / Santé ──────────────────────────────
-    DoualaPlace(name: 'Hôpital Central', category: 'Hôpital', latitude: 3.8731, longitude: 11.5153, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Hôpital Général (Yaoundé)', category: 'Hôpital', latitude: 3.8583, longitude: 11.5000, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Cardio-Logic Centre', category: 'Hôpital', latitude: 3.8833, longitude: 11.5333, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Hôpital de Mvog-Febé', category: 'Hôpital', latitude: 3.8867, longitude: 11.5311, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Fondation Chantal Biya', category: 'Hôpital', latitude: 3.8583, longitude: 11.5000, ville: 'Yaoundé'),
-    // ── YAOUNDÉ — Universités / Écoles ──────────────────────────
-    DoualaPlace(name: 'Université de Yaoundé I (Soa)', category: 'Université', latitude: 3.8667, longitude: 11.5000, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Université de Yaoundé II (Soa)', category: 'Université', latitude: 3.8583, longitude: 11.4833, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Institut des Relations du Commerce Extérieur (IRIC)', category: 'École', latitude: 3.8767, longitude: 11.5333, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Collège Vogbét', category: 'École', latitude: 3.9100, longitude: 11.5200, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Lycée Général Leclerc (Yaoundé)', category: 'École', latitude: 3.8739, longitude: 11.5108, ville: 'Yaoundé'),
-    // ── YAOUNDÉ — Gares / Transport ─────────────────────────────
-    DoualaPlace(name: 'Gare routière (Mvan)', category: 'Gare', latitude: 3.8983, longitude: 11.5272, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Gare routière Nkolbisson', category: 'Gare', latitude: 3.9017, longitude: 11.4844, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Gare ferroviaire d\'Essos', category: 'Gare', latitude: 3.9167, longitude: 11.5500, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Aéroport International de Yaoundé-Nsimalen', category: 'Aéroport', latitude: 3.7225, longitude: 11.5544, ville: 'Yaoundé'),
-    // ── YAOUNDÉ — Lieux d'intérêt ───────────────────────────────
-    DoualaPlace(name: 'Palais des Congrès', category: 'Lieu d\'intérêt', latitude: 3.8867, longitude: 11.5233, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Tour de la Réunification (Obidjam)', category: 'Lieu d\'intérêt', latitude: 3.8667, longitude: 11.5167, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Stade Ahmadou Ahidjo', category: 'Sport', latitude: 3.8633, longitude: 11.5067, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Place de la Bastille (Bastos)', category: 'Lieu d\'intérêt', latitude: 3.8808, longitude: 11.5264, ville: 'Yaoundé'),
-    DoualaPlace(name: 'Parc Zoologique et Botanique (Mvog-Mbi)', category: 'Loisirs', latitude: 3.8917, longitude: 11.5472, ville: 'Yaoundé'),
+    // ── Quartiers & cités (extension) ───────────────────────────
+    DoualaPlace(
+      name: 'New-Bell',
+      category: 'Quartier',
+      latitude: 4.0530,
+      longitude: 9.6990,
+    ),
+    DoualaPlace(
+      name: 'Bonassama',
+      category: 'Quartier',
+      latitude: 4.0585,
+      longitude: 9.6595,
+    ),
+    DoualaPlace(
+      name: 'Nkoldop',
+      category: 'Quartier',
+      latitude: 4.0610,
+      longitude: 9.7160,
+    ),
+    DoualaPlace(
+      name: 'Logbassa',
+      category: 'Quartier',
+      latitude: 4.0930,
+      longitude: 9.7450,
+    ),
+    DoualaPlace(
+      name: 'Ndogbatanga',
+      category: 'Quartier',
+      latitude: 4.0690,
+      longitude: 9.7010,
+    ),
+    DoualaPlace(
+      name: 'Cité SIC',
+      category: 'Quartier',
+      latitude: 4.0755,
+      longitude: 9.7160,
+    ),
+    DoualaPlace(
+      name: 'Bépanda Siro',
+      category: 'Quartier',
+      latitude: 4.0785,
+      longitude: 9.7145,
+    ),
+    DoualaPlace(
+      name: 'PK 12',
+      category: 'Quartier',
+      latitude: 4.0950,
+      longitude: 9.7450,
+    ),
+
+    // ── Carrefours & avenues ────────────────────────────────────
+    DoualaPlace(
+      name: 'Carrefour Ndokoti',
+      category: 'Carrefour',
+      latitude: 4.0823,
+      longitude: 9.7205,
+    ),
+    DoualaPlace(
+      name: 'Carrefour Bilingue',
+      category: 'Carrefour',
+      latitude: 4.0915,
+      longitude: 9.7235,
+    ),
+    DoualaPlace(
+      name: 'Carrefour Logpom',
+      category: 'Carrefour',
+      latitude: 4.1000,
+      longitude: 9.7340,
+    ),
+    DoualaPlace(
+      name: 'Carrefour Bépanda',
+      category: 'Carrefour',
+      latitude: 4.0772,
+      longitude: 9.7130,
+    ),
+    DoualaPlace(
+      name: 'Avenue Charles de Gaulle',
+      category: 'Avenue',
+      latitude: 4.0650,
+      longitude: 9.7065,
+    ),
+    DoualaPlace(
+      name: 'Boulevard de la Liberté',
+      category: 'Avenue',
+      latitude: 4.0830,
+      longitude: 9.7220,
+    ),
+
+    // ── Entreprises & industrie ─────────────────────────────────
+    DoualaPlace(
+      name: 'MTN Cameroun',
+      category: 'Entreprise',
+      latitude: 4.0678,
+      longitude: 9.7055,
+    ),
+    DoualaPlace(
+      name: 'Orange Cameroun',
+      category: 'Entreprise',
+      latitude: 4.0662,
+      longitude: 9.7075,
+    ),
+    DoualaPlace(
+      name: 'Nestlé Cameroun',
+      category: 'Entreprise',
+      latitude: 4.0692,
+      longitude: 9.7028,
+    ),
+    DoualaPlace(
+      name: 'Guinness Cameroun (Colosac)',
+      category: 'Entreprise',
+      latitude: 4.0702,
+      longitude: 9.7015,
+    ),
+    DoualaPlace(
+      name: 'SABC - Brasseries du Cameroun',
+      category: 'Entreprise',
+      latitude: 4.0688,
+      longitude: 9.7042,
+    ),
+    DoualaPlace(
+      name: 'Socada',
+      category: 'Entreprise',
+      latitude: 4.0397,
+      longitude: 9.6918,
+    ),
+    DoualaPlace(
+      name: 'SIC CotonCO',
+      category: 'Entreprise',
+      latitude: 4.0758,
+      longitude: 9.7152,
+    ),
+    DoualaPlace(
+      name: 'Bollore Africa Logistics',
+      category: 'Entreprise',
+      latitude: 4.0115,
+      longitude: 9.7095,
+    ),
+    DoualaPlace(
+      name: 'CAMWATER',
+      category: 'Entreprise',
+      latitude: 4.0782,
+      longitude: 9.7095,
+    ),
+    DoualaPlace(
+      name: 'CAMPOWER',
+      category: 'Entreprise',
+      latitude: 4.0805,
+      longitude: 9.7182,
+    ),
+    DoualaPlace(
+      name: 'Zone Industrielle de Bassa',
+      category: 'Entreprise',
+      latitude: 4.0715,
+      longitude: 9.6990,
+    ),
+
+    // ── Banques & assurances ────────────────────────────────────
+    DoualaPlace(
+      name: 'Société Générale Cameroun',
+      category: 'Banque',
+      latitude: 4.0392,
+      longitude: 9.6908,
+    ),
+    DoualaPlace(
+      name: 'Afriland First Bank',
+      category: 'Banque',
+      latitude: 4.0390,
+      longitude: 9.6912,
+    ),
+    DoualaPlace(
+      name: 'ABC',
+      category: 'Banque',
+      latitude: 4.0388,
+      longitude: 9.6905,
+    ),
+    DoualaPlace(
+      name: 'BICEC',
+      category: 'Banque',
+      latitude: 4.0402,
+      longitude: 9.6915,
+    ),
+
+    // ── Administrations & établissements publics ────────────────
+    DoualaPlace(
+      name: 'Hôtel de Ville de Douala',
+      category: 'Administration',
+      latitude: 4.0393,
+      longitude: 9.6910,
+    ),
+    DoualaPlace(
+      name: 'Communauté Urbaine de Douala',
+      category: 'Administration',
+      latitude: 4.0380,
+      longitude: 9.6930,
+    ),
+    DoualaPlace(
+      name: 'Préfecture du Wouri',
+      category: 'Administration',
+      latitude: 4.0408,
+      longitude: 9.6898,
+    ),
+    DoualaPlace(
+      name: 'Conseil Régional du Littoral',
+      category: 'Administration',
+      latitude: 4.0412,
+      longitude: 9.6895,
+    ),
+    DoualaPlace(
+      name: 'Palais de Justice de Bonanjo',
+      category: 'Administration',
+      latitude: 4.0400,
+      longitude: 9.6890,
+    ),
+    DoualaPlace(
+      name: 'Impôts - Direction Régionale du Wouri',
+      category: 'Administration',
+      latitude: 4.0405,
+      longitude: 9.6935,
+    ),
+    DoualaPlace(
+      name: 'Chambre de Commerce du Wouri',
+      category: 'Administration',
+      latitude: 4.0407,
+      longitude: 9.6922,
+    ),
+    DoualaPlace(
+      name: 'CRTV Littoral',
+      category: 'Administration',
+      latitude: 4.0635,
+      longitude: 9.7075,
+    ),
+    DoualaPlace(
+      name: 'Poste Centrale de Douala',
+      category: 'Administration',
+      latitude: 4.0440,
+      longitude: 9.6935,
+    ),
+    DoualaPlace(
+      name: 'CNPS',
+      category: 'Administration',
+      latitude: 4.0415,
+      longitude: 9.6935,
+    ),
+
+    // ── Hôpitaux & cliniques (extension) ────────────────────────
+    DoualaPlace(
+      name: 'Polyclinique de Bonapriso',
+      category: 'Hôpital',
+      latitude: 4.0345,
+      longitude: 9.6975,
+    ),
+    DoualaPlace(
+      name: 'Hôpital Militaire de Douala',
+      category: 'Hôpital',
+      latitude: 4.0712,
+      longitude: 9.7055,
+    ),
+
+    // ── Écoles & instituts (extension) ──────────────────────────
+    DoualaPlace(
+      name: 'Lycée de Bonabéri',
+      category: 'École',
+      latitude: 4.0605,
+      longitude: 9.6640,
+    ),
+    DoualaPlace(
+      name: 'ENSET de Douala',
+      category: 'École',
+      latitude: 4.0795,
+      longitude: 9.7185,
+    ),
+
+    // ── Marchés (extension) ─────────────────────────────────────
+    DoualaPlace(
+      name: 'Marché Ndogpassi',
+      category: 'Marché',
+      latitude: 4.0683,
+      longitude: 9.7048,
+    ),
+    DoualaPlace(
+      name: 'Grand Marché de Ndoro',
+      category: 'Marché',
+      latitude: 4.0790,
+      longitude: 9.7190,
+    ),
+    DoualaPlace(
+      name: 'Marché de Makepe',
+      category: 'Marché',
+      latitude: 4.0668,
+      longitude: 9.7385,
+    ),
+    DoualaPlace(
+      name: 'Marché de Logbessou',
+      category: 'Marché',
+      latitude: 4.1025,
+      longitude: 9.7520,
+    ),
+    DoualaPlace(
+      name: 'Marché de Bonamoussadi',
+      category: 'Marché',
+      latitude: 4.0845,
+      longitude: 9.7240,
+    ),
+    DoualaPlace(
+      name: 'Marché de New-Bell',
+      category: 'Marché',
+      latitude: 4.0520,
+      longitude: 9.7000,
+    ),
+
+    // ── Infrastructures & repères ───────────────────────────────
+    DoualaPlace(
+      name: 'Pont sur le Wouri',
+      category: 'Lieu d\'intérêt',
+      latitude: 4.0615,
+      longitude: 9.6760,
+    ),
+    DoualaPlace(
+      name: 'Grande Mosquée de Bonabéri',
+      category: 'Lieu d\'intérêt',
+      latitude: 4.0597,
+      longitude: 9.6650,
+    ),
+    DoualaPlace(
+      name: 'Palais des Congrès d\'Akwa',
+      category: 'Lieu d\'intérêt',
+      latitude: 4.0425,
+      longitude: 9.7015,
+    ),
+    DoualaPlace(
+      name: 'Hôtel Ibis Douala',
+      category: 'Hôtel',
+      latitude: 4.0448,
+      longitude: 9.7005,
+    ),
+    DoualaPlace(
+      name: 'Stade Omnisports de Japoma',
+      category: 'Sport',
+      latitude: 4.0105,
+      longitude: 9.7270,
+    ),
+
   ];
 
 
   /// Normalise pour la recherche : minuscules + accents retirés
-  /// (« Yaounde » trouve « Yaoundé », « Deido » trouve « Déido »…).
+  /// (« Deido » trouve « Déido », « independance » trouve « Indépendance »…).
   static String fold(String s) {
     const map = {
       'á': 'a', 'à': 'a', 'â': 'a', 'ä': 'a', 'é': 'e', 'è': 'e', 'ê': 'e',

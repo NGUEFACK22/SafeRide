@@ -463,7 +463,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(
                 labelText: 'Destination (facultative)',
-                hintText: 'Ex : Bonamoussadi, Yaoundé',
+                hintText: 'Ex : Bonamoussadi, Akwa',
                 prefixIcon: Icon(Icons.place_outlined),
                 border: OutlineInputBorder(),
               ),
