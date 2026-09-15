@@ -1213,7 +1213,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
                       dense: true,
                       leading: const Icon(Icons.place_outlined, color: AppTheme.primaryBlue),
                       title: Text(place.name, style: const TextStyle(fontSize: 14)),
-                      subtitle: Text(place.category, style: const TextStyle(fontSize: 11)),
+                      subtitle: Text('${place.category} • ${place.ville}', style: const TextStyle(fontSize: 11)),
                       onTap: () => _selectPlace(place),
                     );
                   },

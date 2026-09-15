@@ -1,20 +1,23 @@
-/// Liste locale des destinations possibles à Douala (autocomplete hors-ligne).
+/// Liste locale des destinations possibles (autocomplete hors-ligne).
 ///
-/// Catégories: quartiers, marchés, hôpitaux, universités, gares, port/aéroport,
-/// lieux d'intérêt. Les coordonnées sont approximatives (centre du lieu) —
-/// elles sont utilisées pour tracer le circuit sur la carte et sont envoyées
-/// au backend comme destination.
+/// Villes couvertes : DOUALA (74+) et YAOUNDÉ (40+) — quartiers, marchés,
+/// hôpitaux, universités, gares, port/aéroport, lieux d'intérêt. Les
+/// coordonnées sont approximatives (centre du lieu) — elles sont utilisées
+/// pour tracer le circuit sur la carte et sont envoyées au backend comme
+/// destination.
 class DoualaPlace {
   final String name;
   final String category;
   final double latitude;
   final double longitude;
+  final String ville;
 
   const DoualaPlace({
     required this.name,
     required this.category,
     required this.latitude,
     required this.longitude,
+    this.ville = 'Douala',
   });
 }
 
@@ -477,17 +480,84 @@ class DoualaPlaces {
       latitude: 4.0750,
       longitude: 9.7460,
     ),
+
+    // ── YAOUNDÉ — Quartiers ─────────────────────────────────────
+    DoualaPlace(name: 'Centre-ville (Obidjam)', category: 'Quartier', latitude: 3.8666, longitude: 11.5173, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Bastos', category: 'Quartier', latitude: 3.8803, longitude: 11.5270, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Nsam', category: 'Quartier', latitude: 3.8889, longitude: 11.5175, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Mvan', category: 'Quartier', latitude: 3.9008, longitude: 11.5236, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Etoug-Ebe', category: 'Quartier', latitude: 3.9206, longitude: 11.5253, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Melen', category: 'Quartier', latitude: 3.9167, longitude: 11.5333, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Odza', category: 'Quartier', latitude: 3.9067, longitude: 11.5397, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Biya', category: 'Quartier', latitude: 3.9075, longitude: 11.5322, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Essos', category: 'Quartier', latitude: 3.9167, longitude: 11.5667, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Nkonbessou', category: 'Quartier', latitude: 3.9333, longitude: 11.5667, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Mokolo', category: 'Quartier', latitude: 3.9367, longitude: 11.5433, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Ngousso', category: 'Quartier', latitude: 3.9667, longitude: 11.5333, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Nkolbisson', category: 'Quartier', latitude: 3.9000, longitude: 11.4833, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Obobaba', category: 'Quartier', latitude: 3.8500, longitude: 11.4833, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Silia', category: 'Quartier', latitude: 3.8517, longitude: 11.4972, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Mendong', category: 'Quartier', latitude: 3.8575, longitude: 11.5028, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Emana', category: 'Quartier', latitude: 3.8133, longitude: 11.5000, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Nyom', category: 'Quartier', latitude: 3.7167, longitude: 11.5333, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Akom II', category: 'Quartier', latitude: 3.8333, longitude: 11.5333, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Nkolondom', category: 'Quartier', latitude: 3.8833, longitude: 11.4917, ville: 'Yaoundé'),
+    // ── YAOUNDÉ — Marchés ───────────────────────────────────────
+    DoualaPlace(name: 'Marché du Centre (Versach)', category: 'Marché', latitude: 3.8722, longitude: 11.5169, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Marché Mokolo', category: 'Marché', latitude: 3.9000, longitude: 11.5433, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Marché Mvan', category: 'Marché', latitude: 3.8992, longitude: 11.5244, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Marché Nsam', category: 'Marché', latitude: 3.8875, longitude: 11.5194, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Marché Etoug-Ebe', category: 'Marché', latitude: 3.9233, longitude: 11.5247, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Marché Biyem-Assi', category: 'Marché', latitude: 3.8850, longitude: 11.5400, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Marché Nkolbisson', category: 'Marché', latitude: 3.9011, longitude: 11.4850, ville: 'Yaoundé'),
+    // ── YAOUNDÉ — Hôpitaux / Santé ──────────────────────────────
+    DoualaPlace(name: 'Hôpital Central', category: 'Hôpital', latitude: 3.8731, longitude: 11.5153, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Hôpital Général (Yaoundé)', category: 'Hôpital', latitude: 3.8583, longitude: 11.5000, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Cardio-Logic Centre', category: 'Hôpital', latitude: 3.8833, longitude: 11.5333, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Hôpital de Mvog-Febé', category: 'Hôpital', latitude: 3.8867, longitude: 11.5311, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Fondation Chantal Biya', category: 'Hôpital', latitude: 3.8583, longitude: 11.5000, ville: 'Yaoundé'),
+    // ── YAOUNDÉ — Universités / Écoles ──────────────────────────
+    DoualaPlace(name: 'Université de Yaoundé I (Soa)', category: 'Université', latitude: 3.8667, longitude: 11.5000, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Université de Yaoundé II (Soa)', category: 'Université', latitude: 3.8583, longitude: 11.4833, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Institut des Relations du Commerce Extérieur (IRIC)', category: 'École', latitude: 3.8767, longitude: 11.5333, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Collège Vogbét', category: 'École', latitude: 3.9100, longitude: 11.5200, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Lycée Général Leclerc (Yaoundé)', category: 'École', latitude: 3.8739, longitude: 11.5108, ville: 'Yaoundé'),
+    // ── YAOUNDÉ — Gares / Transport ─────────────────────────────
+    DoualaPlace(name: 'Gare routière (Mvan)', category: 'Gare', latitude: 3.8983, longitude: 11.5272, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Gare routière Nkolbisson', category: 'Gare', latitude: 3.9017, longitude: 11.4844, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Gare ferroviaire d\'Essos', category: 'Gare', latitude: 3.9167, longitude: 11.5500, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Aéroport International de Yaoundé-Nsimalen', category: 'Aéroport', latitude: 3.7225, longitude: 11.5544, ville: 'Yaoundé'),
+    // ── YAOUNDÉ — Lieux d'intérêt ───────────────────────────────
+    DoualaPlace(name: 'Palais des Congrès', category: 'Lieu d\'intérêt', latitude: 3.8867, longitude: 11.5233, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Tour de la Réunification (Obidjam)', category: 'Lieu d\'intérêt', latitude: 3.8667, longitude: 11.5167, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Stade Ahmadou Ahidjo', category: 'Sport', latitude: 3.8633, longitude: 11.5067, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Place de la Bastille (Bastos)', category: 'Lieu d\'intérêt', latitude: 3.8808, longitude: 11.5264, ville: 'Yaoundé'),
+    DoualaPlace(name: 'Parc Zoologique et Botanique (Mvog-Mbi)', category: 'Loisirs', latitude: 3.8917, longitude: 11.5472, ville: 'Yaoundé'),
   ];
 
-  /// Recherche insensible à la casse/accents légers sur le nom ET la catégorie.
+
+  /// Normalise pour la recherche : minuscules + accents retirés
+  /// (« Yaounde » trouve « Yaoundé », « Deido » trouve « Déido »…).
+  static String fold(String s) {
+    const map = {
+      'á': 'a', 'à': 'a', 'â': 'a', 'ä': 'a', 'é': 'e', 'è': 'e', 'ê': 'e',
+      'ë': 'e', 'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i', 'ó': 'o', 'ò': 'o',
+      'ô': 'o', 'ö': 'o', 'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u', 'ç': 'c', 'ñ': 'n',
+    };
+    var out = s.toLowerCase();
+    map.forEach((from, to) => out = out.replaceAll(from, to));
+    return out;
+  }
+
+  /// Recherche insensible à la casse/accents sur le nom, la catégorie et la ville.
   static List<DoualaPlace> search(String query, {int limit = 8}) {
-    final q = query.trim().toLowerCase();
+    final q = fold(query.trim());
     if (q.isEmpty) return [];
     final results = <DoualaPlace>[];
     for (final place in all) {
-      final name = place.name.toLowerCase();
-      final category = place.category.toLowerCase();
-      if (name.contains(q) || category.contains(q)) {
+      if (fold(place.name).contains(q) ||
+          fold(place.category).contains(q) ||
+          fold(place.ville).contains(q)) {
         results.add(place);
         if (results.length >= limit) break;
       }

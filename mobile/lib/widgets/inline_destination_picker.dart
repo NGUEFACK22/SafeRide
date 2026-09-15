@@ -34,10 +34,12 @@ class _InlineDestinationPickerState extends State<InlineDestinationPicker> {
     ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
   List<DoualaPlace> get _filtered {
-    final q = _query.trim().toLowerCase();
+    final q = DoualaPlaces.fold(_query.trim());
     if (q.isEmpty) return _sorted;
     return _sorted
-        .where((p) => p.name.toLowerCase().contains(q) || p.category.toLowerCase().contains(q))
+        .where((p) => DoualaPlaces.fold(p.name).contains(q) ||
+            DoualaPlaces.fold(p.category).contains(q) ||
+            DoualaPlaces.fold(p.ville).contains(q))
         .toList();
   }
 
@@ -115,7 +117,7 @@ class _InlineDestinationPickerState extends State<InlineDestinationPicker> {
                         child: const Icon(Icons.place_outlined, size: 16, color: AppTheme.primaryBlue),
                       ),
                       title: Text(place.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
-                      subtitle: Text(place.category, style: const TextStyle(fontSize: 10, color: AppTheme.textGrey)),
+                      subtitle: Text('${place.category} • ${place.ville}', style: const TextStyle(fontSize: 10, color: AppTheme.textGrey)),
                       onTap: () => widget.onSelected(place.name),
                     );
                   },
