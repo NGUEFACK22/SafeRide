@@ -13,6 +13,7 @@ use App\Models\Trip;
 use App\Models\TripLocation;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -784,6 +785,255 @@ class AiService
         $lines = ["Bilan {$role} (utilisateur #{$user->id}) :"];
         foreach ($d as $k => $v) {
             $lines[] = "- $k : $v";
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * PRÉDICTION — analyse de l'historique de l'utilisateur pour anticiper :
+     *  1. ses zones fréquentes (cluster des points de départ/d'arrivée) ;
+     *  2. le climat actuel et prévu (pluie) sur ces zones (Open-Meteo) ;
+     *  3. les créneaux à bouchons — fusion des pics observés dans SES trajets
+     *     (densité horaire + durées) et des pics structurels (heure de pointe) ;
+     *  4. des conseils concrets pour les éviter.
+     * Narrative enrichie par le LLM si disponible, repli déterministe sinon.
+     * Renvoie ['report' => AiReport, 'prediction' => array structuré pour l'UI].
+     */
+    public function predict(User $user): array
+    {
+        $data = $this->predictionData($user);
+        $prediction = $this->buildPrediction($data);
+
+        $system = "Tu es l'assistant IA prédictif de SafeRide (trajets partagés au Cameroun). "
+            . "À partir des données fournies (zones fréquentes de l'utilisateur, climat Open-Meteo, "
+            . "densité horaire de ses trajets, pics de bouchons calculés), rédige en français un "
+            . "briefing concret de 5 à 8 lignes : climat à attendre sur ses zones, heures exactes à "
+            . "éviter, et 2-3 conseils actionnables pour les contourner. Pas de généralités, only "
+            . "des recommandations basées sur les données. Termine par une phrase d'encouragement.";
+
+        $prompt = "Données de prédiction pour {$user->prenom} {$user->nom} :\n"
+            . json_encode($prediction, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+        $contenu = $this->complete($system, $prompt)
+            ?? $this->fallbackPrediction($prediction);
+
+        $report = AiReport::create([
+            'type' => 'PREDICTION',
+            'contenu' => $contenu,
+            'user_id' => $user->id,
+            'generateur' => $this->isEnabled() ? 'IA_SafeRide' : 'REGLE',
+        ]);
+
+        return ['report' => $report, 'prediction' => $prediction];
+    }
+
+    /**
+     * Agrège l'historique de l'utilisateur : ses 3 zones les plus fréquentes
+     * (cluster grille ~1,1 km via arrondi 2 décimales), la densité horaire de
+     * ses départs, et la durée moyenne par tranche horaire.
+     */
+    protected function predictionData(User $user): array
+    {
+        $role = $user->roles()->first()?->slug ?? 'passager';
+        $trajets = $role === 'transporteur'
+            ? $user->tripsAsTransporteur()->where('statut', 'TERMINE')->get()
+            : $user->tripsAsPassager()->where('statut', 'TERMINE')->get();
+
+        // 1. Clusters de zones de départ (arrondi 0.01° ≈ 1,1 km).
+        $clusters = [];
+        foreach ($trajets as $t) {
+            if ($t->start_latitude === null || $t->start_longitude === null) {
+                continue;
+            }
+            $key = round((float) $t->start_latitude, 2) . ',' . round((float) $t->start_longitude, 2);
+            $clusters[$key]['count'] = ($clusters[$key]['count'] ?? 0) + 1;
+            $clusters[$key]['lat'] = $clusters[$key]['lat'] ?? (float) $t->start_latitude;
+            $clusters[$key]['lng'] = $clusters[$key]['lng'] ?? (float) $t->start_longitude;
+            if ($t->destination_address && empty($clusters[$key]['label'])) {
+                $clusters[$key]['label'] = $t->destination_address;
+            }
+            $clusters[$key]['hours'][(int) ($t->started_at?->hour ?? -1)] =
+                ($clusters[$key]['hours'][(int) ($t->started_at?->hour ?? -1)] ?? 0) + 1;
+        }
+        arsort($clusters);
+        $topZones = array_slice($clusters, 0, 3, true);
+
+        // 2. Densité horaire globale + durée moyenne par heure (pics observés).
+        $densite = array_fill(0, 24, 0);
+        $dureesParHeure = [];
+        foreach ($trajets as $t) {
+            $h = (int) ($t->started_at?->hour ?? -1);
+            if ($h < 0) {
+                continue;
+            }
+            $densite[$h]++;
+            if ($t->duration_seconds) {
+                $dureesParHeure[$h][] = $t->duration_seconds / 60;
+            }
+        }
+        $dureeMoyenneParHeure = [];
+        foreach ($dureesParHeure as $h => $vals) {
+            $dureeMoyenneParHeure[$h] = round(array_sum($vals) / count($vals));
+        }
+
+        // 3. Climat sur les zones fréquentes (Open-Meteo, gratuit, sans clé).
+        $climats = [];
+        foreach ($topZones as $key => $z) {
+            $climats[$key] = $this->fetchWeather((float) $z['lat'], (float) $z['lng']);
+        }
+
+        return [
+            'role' => $role,
+            'nb_trajets_analyses' => $trajets->count(),
+            'zones' => $topZones,
+            'densite_horaire' => $densite,
+            'duree_moyenne_par_heure' => $dureeMoyenneParHeure,
+            'climats' => $climats,
+        ];
+    }
+
+    /**
+     * Transforme les données brutes en prédictions prêtes pour l'UI :
+     * pics de bouchons (observés + structurels Cameroun), climat, conseils.
+     */
+    protected function buildPrediction(array $data): array
+    {
+        // Pics structurels heure de pointe (Douala/Yaoundé) : matin 7-9, soir 17-19.
+        $structurels = [7, 8, 17, 18];
+        $densite = $data['densite_horaire'];
+
+        // Pics observés : heures où l'utilisateur part le PLUS souvent.
+        arsort($densite);
+        $observ = array_slice(array_keys($densite), 0, 2, true);
+
+        // Fusion des deux sources (structurels + habitudes propres), bornée 5h-22h.
+        $creneaux = $structurels;
+        foreach ($observ as $h) {
+            if (! in_array($h, $creneaux, true) && $h >= 5 && $h <= 22) {
+                $creneaux[] = $h;
+            }
+        }
+        sort($creneaux);
+
+        // Heures « fluides » : 3 h hors pics avec de l'activité observée (sinon milieu de journée).
+        $fluides = [];
+        for ($h = 5; $h <= 22 && count($fluides) < 3; $h++) {
+            if (! in_array($h, $creneaux, true)) {
+                $fluides[] = $h;
+            }
+        }
+
+        $climats = [];
+        foreach ($data['climats'] as $key => $c) {
+            if (! $c) {
+                continue;
+            }
+            $climats[] = [
+                'zone' => $key,
+                'temperature_c' => $c['temperature_2m'] ?? null,
+                'ressenti_c' => $c['apparent_temperature'] ?? null,
+                'pluie_prob' => $c['precipitation_probability'] ?? null,
+                'code_wmo' => $c['weather_code'] ?? null,
+                'description' => $this->weatherFr((int) ($c['weather_code'] ?? 0)),
+                'vent_km_h' => $c['wind_speed_10m'] ?? null,
+            ];
+        }
+
+        $conseils = $this->buildAdvice($creneaux, $fluides, $climats);
+
+        return [
+            'genere_le' => now()->format('d/m/Y H:i'),
+            'nb_trajets_analyses' => $data['nb_trajets_analyses'],
+            'heures_bouchons' => array_map(fn ($h) => sprintf('%02dh00', $h), $creneaux),
+            'heures_fluides' => array_map(fn ($h) => sprintf('%02dh00', $h), $fluides),
+            'zones_frequentes' => array_map(fn ($k, $z) => [
+                'libelle' => $z['label'] ? $k : ('Zone ' . $k),
+                'trajets' => $z['count'],
+            ], array_keys($data['zones']), $data['zones']),
+            'climats' => $climats,
+            'conseils' => $conseils,
+        ];
+    }
+
+    /**
+     * Conseils concrets dérivés des pics + climat (pluie = itinéraires et
+     * horaires modifiés, les chaussées glissantes rallongent les trajets).
+     */
+    protected function buildAdvice(array $pics, array $fluides, array $climats): array
+    {
+        $advice = [];
+        if ($pics && $fluides) {
+            $advice[] = 'Évitez de partir entre ' . implode(', ', array_map(fn ($h) => sprintf('%02dh', $h), $pics))
+                . ' — privilégiez ' . implode(' ou ', array_map(fn ($h) => sprintf('%02dh', $h), array_slice($fluides, 0, 2))) . '.';
+        }
+        $pluvieux = array_filter($climats, fn ($c) => ($c['pluie_prob'] ?? 0) >= 50);
+        if ($pluvieux) {
+            $advice[] = 'Pluie attendue (' . max(array_column($pluvieux, 'pluie_prob')) . '%) : partez 20 min plus tôt, les chaussées glissantes ralentissent le trafic.';
+        } else {
+            $advice[] = 'Pas de pluie prévue : conditions de circulation normales sur vos zones.';
+        }
+        $advice[] = 'Activez le partage de trajet et le QR vérifié : SafeRide surveille l\'itinéraire en temps réel.';
+
+        return $advice;
+    }
+
+    /**
+     * Récupère la météo Open-Meteo (gratuit, sans clé) pour une position.
+     * 6 min de cache par 0.01° pour ne pas harceler l'API.
+     */
+    protected function fetchWeather(float $lat, float $lng): ?array
+    {
+        $key = 'openmeteo:' . round($lat, 2) . ':' . round($lng, 2);
+
+        return Cache::remember($key, 360, function () use ($lat, $lng) {
+            try {
+                $response = Http::timeout(6)->get('https://api.open-meteo.com/v1/forecast', [
+                    'latitude' => $lat,
+                    'longitude' => $lng,
+                    'current' => 'temperature_2m,apparent_temperature,precipitation_probability,weather_code,wind_speed_10m',
+                    'timezone' => 'Africa/Douala',
+                ]);
+
+                return $response->successful() ? ($response->json('current') ?: null) : null;
+            } catch (\Throwable $e) {
+                return null;
+            }
+        });
+    }
+
+    /** Libellé météo FR d'un code WMO (aligné sur le mobile WeatherService). */
+    protected function weatherFr(int $code): string
+    {
+        return match (true) {
+            $code === 0 => 'Ciel dégagé',
+            $code <= 2 => 'Partiellement nuageux',
+            $code === 3 => 'Couvert',
+            $code <= 48 => 'Brouillard',
+            $code <= 57 => 'Bruine',
+            $code <= 67 => 'Pluie',
+            $code <= 77 => 'Neige',
+            $code <= 82 => 'Averses',
+            $code <= 99 => 'Orages',
+            default => 'Variable',
+        };
+    }
+
+    protected function fallbackPrediction(array $p): string
+    {
+        $lines = ["Prédiction SafeRide (gérée par règles, {$p['genere_le']}) :"];
+        if ($p['zones_frequentes']) {
+            $zones = implode(', ', array_map(fn ($z) => $z['libelle'] . ' (' . $z['trajets'] . ' trajets)', $p['zones_frequentes']));
+            $lines[] = "- Vos zones fréquentes : $zones.";
+        }
+        $lines[] = '- Heures à bouchons probables : ' . (implode(', ', $p['heures_bouchons']) ?: '—') . '.';
+        $lines[] = '- Créneaux fluides : ' . (implode(', ', $p['heures_fluides']) ?: '—') . '.';
+        foreach ($p['climats'] as $c) {
+            $pluie = $c['pluie_prob'] !== null ? ", pluie {$c['pluie_prob']}%" : '';
+            $lines[] = "- Climat zone {$c['zone']} : {$c['description']}, " . ($c['temperature_c'] ?? '—') . "°C{$pluie}.";
+        }
+        foreach ($p['conseils'] as $conseil) {
+            $lines[] = "- 💡 $conseil";
         }
 
         return implode("\n", $lines);

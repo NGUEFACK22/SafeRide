@@ -15,6 +15,13 @@ class AiService {
     return await _api.get('/ai/weekly$suffix');
   }
 
+  /// PRÉDICTION : climat + heures à bouchons + conseils calculés depuis
+  /// l'historique de trajets de l'utilisateur.
+  Future<Map<String, dynamic>> prediction({bool refresh = false}) async {
+    final suffix = refresh ? '?refresh=1' : '';
+    return await _api.get('/ai/prediction$suffix');
+  }
+
   /// Résumé d'un trajet donné (propriétaire ou transporteur).
   Future<Map<String, dynamic>> tripSummary(int tripId) async {
     return await _api.get('/ai/trips/$tripId');

@@ -96,6 +96,7 @@ Route::get('auth/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail
         // Assistant IA (résumés + stats par rôle)
         Route::get('ai/summary', [AiController::class, 'summary']);
         Route::get('ai/weekly', [AiController::class, 'weekly']);
+        Route::get('ai/prediction', [AiController::class, 'prediction']);
         Route::get('ai/trips/{trip}', [AiController::class, 'tripSummary']);
         Route::get('ai/anomalies', [AiController::class, 'anomalies'])
             ->middleware(['role:gestionnaire,admin']);

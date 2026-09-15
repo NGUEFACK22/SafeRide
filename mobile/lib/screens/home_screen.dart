@@ -731,14 +731,14 @@ class _PassagerViewState extends State<_PassagerView> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: GestureDetector(
-                    onTap: () => Navigator.pushNamed(context, '/ai'),
+                    onTap: () => Navigator.pushNamed(context, '/prediction'),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                       decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)),
                        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Icon(Icons.support_agent, size: 18, color: AppTheme.textDark),
+                        Icon(Icons.insights, size: 18, color: AppTheme.textDark),
                         SizedBox(width: 6),
-                        FittedBox(child: Text(LanguageService.instance.t('assistance'), style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))),
+                        FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))),
                       ]),
                     ),
                   ),
@@ -1008,7 +1008,7 @@ class _TransporteurViewState extends State<_TransporteurView> {
             child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/sos-button'), child: Container(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed, borderRadius: BorderRadius.circular(14)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), FittedBox(child: Text(LanguageService.instance.t('sos'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
               const SizedBox(width: 12),
-              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/ai'), child: Container(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 18, color: AppTheme.textDark), SizedBox(width: 6), FittedBox(child: Text(LanguageService.instance.t('assistance'), style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
+              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/prediction'), child: Container(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.insights, size: 18, color: AppTheme.textDark), SizedBox(width: 6), FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
             ]),
           ),
           const SizedBox(height: 18),
@@ -1279,7 +1279,7 @@ class _GuestView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Row(children: [Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade300)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 16, color: AppTheme.textGrey), SizedBox(width: 6), Text(LanguageService.instance.t('assistance'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: AppTheme.textGrey)]))))]),
+          Row(children: [Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade300)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.insights, size: 16, color: AppTheme.textGrey), SizedBox(width: 6), Text(LanguageService.instance.t('prediction'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: AppTheme.textGrey)]))))]),
           const SizedBox(height: 18),
           Text(LanguageService.instance.t('services_preview'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 10),

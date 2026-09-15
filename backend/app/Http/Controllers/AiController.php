@@ -137,4 +137,28 @@ class AiController extends Controller
 
         return response()->json($payload);
     }
+
+    /**
+     * PRÉDICTION : climat + heures à bouchons + conseils, calculés depuis
+     * l'historique de l'utilisateur. 1 h de cache (?refresh=1 pour forcer).
+     */
+    public function prediction(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $refresh = $request->query('refresh') === '1';
+        $cacheKey = "ai:prediction:{$user->id}";
+
+        if (! $refresh && Cache::has($cacheKey)) {
+            return response()->json(Cache::get($cacheKey));
+        }
+
+        $result = $this->ai->predict($user);
+        $payload = [
+            'report' => $result['report'],
+            'prediction' => $result['prediction'],
+        ];
+        Cache::put($cacheKey, $payload, now()->addHour());
+
+        return response()->json($payload);
+    }
 }
