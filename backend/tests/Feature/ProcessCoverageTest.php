@@ -423,7 +423,7 @@ class ProcessCoverageTest extends TestCase
 
         $trip = Trip::where('passager_id', $passager->id)->first();
         $this->assertSame('ANNULE', $trip->statut);
-        $this->assertSame('AUTO_10MIN', $trip->end_method);
+        $this->assertSame('AUTO_PURGE', $trip->end_method);
     }
 
     // ===================== Assistant IA =====================

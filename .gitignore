@@ -28,3 +28,6 @@ mobile/.dart_tool/
 mobile/android/.gradle/
 mobile/ios/Pods/
 mobile/.flutter-plugins-dependencies
+
+# Scripts de travail temporaires (éditions Python one-shot)
+mobile/python_edit_cleanup/

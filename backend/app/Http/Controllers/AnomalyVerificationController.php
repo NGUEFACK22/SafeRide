@@ -21,7 +21,7 @@ class AnomalyVerificationController extends Controller
      * Délai (min) laissé à chaque partie pour répondre à une vérification
      * d'anomalie avant déclenchement automatique d'un SOS sur le non-répondant.
      */
-    public const ANOMALY_RESPONSE_TIMEOUT_MINUTES = 3;
+    public const ANOMALY_RESPONSE_TIMEOUT_MINUTES = 5;
 
     /**
      * Vérifications en attente pour l'utilisateur connecté.
@@ -189,7 +189,7 @@ class AnomalyVerificationController extends Controller
     }
 
     /**
-     * Déclenche les SOS pour les vérifications en timeout (> 3 min sans
+     * Déclenche les SOS pour les vérifications en timeout (> 5 min sans
      * réponse). Chaque vérification cible une seule partie (passager ou
      * transporteur) : le SOS est donc lancé sur la personne qui n'a pas
      * répondu. Appelé par la commande schedulée anomaly:check-timeouts.

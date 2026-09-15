@@ -22,6 +22,7 @@ import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/anomaly_verification_dialog.dart';
 import '../widgets/emergency_contacts_gate.dart';
+import '../widgets/inline_destination_picker.dart';
 import 'profile_screen.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -251,17 +252,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               const SizedBox(height: 16),
               // SÃ©lection rapide de destination (quartiers/marchÃ©s de Douala)
               // au lieu de la saisie libre : un tap remplit le champ.
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final place in DoualaPlaces.all.take(12))
-                    ActionChip(
-                      avatar: const Icon(Icons.place_outlined, size: 16),
-                      label: Text(place.name),
-                      onPressed: () => controller.text = place.name,
-                    ),
-                ],
+              // Tous les quartiers et établissements de Douala, triés par ordre
+              // alphabétique, avec un champ de recherche intégré : un tap
+              // remplit le champ de destination.
+              InlineDestinationPicker(
+                initiallyFilled: controller.text,
+                onSelected: (name) => controller.text = name,
               ),
               const SizedBox(height: 8),
               TextField(
@@ -1283,7 +1279,7 @@ class _GuestView extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Row(children: [Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(14)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), Text('SOS URGENCE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: Colors.white)])))), SizedBox(width: 10), Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade300)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 16, color: AppTheme.textGrey), SizedBox(width: 6), Text(LanguageService.instance.t('assistance'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: AppTheme.textGrey)]))))]),
+          Row(children: [Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade300)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.support_agent, size: 16, color: AppTheme.textGrey), SizedBox(width: 6), Text(LanguageService.instance.t('assistance'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: AppTheme.textGrey)]))))]),
           const SizedBox(height: 18),
           Text(LanguageService.instance.t('services_preview'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 10),

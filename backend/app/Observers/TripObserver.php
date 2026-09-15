@@ -40,7 +40,8 @@ class TripObserver
         }
 
         $map = [
-            'SCANNE|CONFIRME' => ['confirm_embarquement', []],
+            'SCANNE|EN_ATTENTE_TRANSPORTEUR' => ['confirm_embarquement', []],
+            'EN_ATTENTE_TRANSPORTEUR|CONFIRME' => ['course_acceptee', []],
             'CONFIRME|DESTINATION_PROPOSEE' => ['destination_proposee', [
                 'destination_address' => $trip->destination_address,
             ]],
@@ -53,6 +54,10 @@ class TripObserver
                 'duration_seconds' => $trip->duration_seconds,
                 'end_method' => $trip->end_method,
             ]],
+            'SCANNE|ANNULE' => ['trip_cancel', []],
+            'EN_ATTENTE_TRANSPORTEUR|ANNULE' => ['trip_cancel', []],
+            'CONFIRME|ANNULE' => ['trip_cancel', []],
+            'DESTINATION_PROPOSEE|ANNULE' => ['trip_cancel', []],
             'EN_COURS|ANNULE' => ['trip_cancel', []],
         ];
 

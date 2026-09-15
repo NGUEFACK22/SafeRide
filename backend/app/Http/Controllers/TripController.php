@@ -10,6 +10,7 @@ use App\Models\Vehicle;
 use App\Models\User;
 use App\Models\Notification;
 use App\Http\Resources\TripResource;
+use App\Services\QrTokenService;
 use App\Services\RouteService;
 use App\Services\AiService;
 use Illuminate\Http\JsonResponse;
@@ -157,7 +158,7 @@ class TripController extends Controller
                 // Régénérer un nouveau QR code pour le véhicule
                 // (même format signé que VehicleController pour cohérence QR affiché)
                 $vehicle->qrCodes()->create([
-                    'token' => app(VehicleController::class)->signedTokenFor($vehicle),
+                    'token' => app(QrTokenService::class)->generate($vehicle),
                     'actif' => true,
                 ]);
 
@@ -453,7 +454,7 @@ class TripController extends Controller
     /**
      * Confirmation de la destination par le passager
      * Passe le statut de DESTINATION_PROPOSEE → DESTINATION_CONFIRMEE
-     * Puis démarre réellement le trajet (EN_COURS)
+     * (trace d'audit) puis démarre réellement le trajet (→ EN_COURS).
      */
     public function confirmDestination(Request $request, int $id): JsonResponse
     {
@@ -474,6 +475,11 @@ class TripController extends Controller
             ]);
         }
 
+        // Transition en deux temps pour que le TripObserver audite
+        // DESTINATION_PROPOSEE → DESTINATION_CONFIRMEE (destination_confirmee)
+        // puis DESTINATION_CONFIRMEE → EN_COURS (trip_start). Sans cette
+        // étape intermédiaire, aucun journal d'audit du démarrage n'est écrit.
+        $trip->update(['statut' => 'DESTINATION_CONFIRMEE']);
         $trip->update([
             'statut' => 'EN_COURS',
         ]);
@@ -563,6 +569,16 @@ class TripController extends Controller
     {
         $trip = $this->ownActiveTrip($request, $id);
 
+        // La clôture manuelle n'a de sens que pour un trajet réellement
+        // démarré : avant EN_COURS, on passe par l'annulation (cancel) ou la
+        // purge auto. Sinon TERMINE serait posé sans itinéraire, avec une
+        // déviation aberrante (distance vers les coordonnées nulles).
+        if ($trip->statut !== 'EN_COURS') {
+            return response()->json([
+                'message' => 'Impossible de terminer un trajet qui n\'a pas démarré. Annulez la demande de course à la place.',
+            ], 422);
+        }
+
         $finished = $this->finalizeTrip($trip, 'MANUEL');
 
         return response()->json([
@@ -631,7 +647,8 @@ class TripController extends Controller
 
     public function autoEndInactive(): JsonResponse
     {
-        // Fin automatique des trajets dont la destination est atteinte depuis plus de 10 minutes
+        // Fin automatique des trajets EN_COURS dont la dernière position GPS
+        // remonte à plus de 10 minutes (passager arrivé et parti sans clore).
         $deadline = now()->subMinutes(10);
         $count = 0;
 
@@ -639,11 +656,8 @@ class TripController extends Controller
             ->whereNotNull('destination_latitude')
             ->get()
             ->each(function (Trip $trip) use ($deadline, &$count) {
-                $arrivedAt = $trip->locations()
-                    ->orderByDesc('captured_at')
-                    ->value('captured_at');
-
-                // Point de référence : dernière position enregistrée avant le délai
+                // Point de référence : dernière position enregistrée, à
+                // défaut l'heure de démarrage du trajet.
                 $lastActivity = $trip->locations()
                     ->orderByDesc('captured_at')
                     ->value('captured_at') ?? $trip->started_at;
@@ -663,7 +677,7 @@ class TripController extends Controller
             ->get();
 
         foreach ($orphans as $orphan) {
-            $orphan->update(['statut' => 'ANNULE', 'end_method' => 'AUTO_10MIN']);
+            $orphan->update(['statut' => 'ANNULE', 'end_method' => 'AUTO_PURGE']);
             Notification::create([
                 'user_id' => $orphan->passager_id,
                 'type' => 'TRAJET',
@@ -787,6 +801,12 @@ class TripController extends Controller
 
     protected function computeDeviation(Trip $trip): float
     {
+        // Pas de destination prévue → pas de déviation calculable
+        // (sinon la distance serait mesurée vers les coordonnées nulles).
+        if ($trip->destination_latitude === null || $trip->destination_longitude === null) {
+            return 0;
+        }
+
         // Écart entre le point final réel et la destination prévue
         $last = $trip->locations()->orderByDesc('captured_at')->first();
         if (! $last) {
@@ -860,8 +880,28 @@ class TripController extends Controller
 
     protected function resolveQr(string $token): ?QrCode
     {
-        // Simplifié : tout token présent en base et actif est accepté
-        // (évite les 500 "An unexpected error occurred" dus aux anciens QR signés vs hex)
-        return QrCode::where('token', $token)->first();
+        // Vérification cryptographique du QR : le token doit être un payload
+        // signé HMAC valide (app.key), non expiré, et son contenu doit
+        // correspondre au véhicule en base (anti-clonage/édition du QR).
+        $data = app(QrTokenService::class)->verify($token);
+
+        if ($data === null) {
+            return null;
+        }
+
+        $qr = QrCode::where('token', $token)->first();
+
+        if (! $qr) {
+            return null;
+        }
+
+        // Cohérence payload ↔ enregistrement (véhicule émetteur).
+        if ((int) ($data['vid'] ?? 0) !== $qr->vehicle_id) {
+            \Log::warning('QR token valide mais vid incohérent', ['qr_id' => $qr->id, 'payload_vid' => $data['vid'] ?? null]);
+
+            return null;
+        }
+
+        return $qr;
     }
 }

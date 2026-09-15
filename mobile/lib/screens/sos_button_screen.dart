@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/language_service.dart';
 import '../theme/app_theme.dart';
 import 'package:geolocator/geolocator.dart';
@@ -10,7 +10,7 @@ import '../services/alert_counter_service.dart';
 import '../services/whatsapp_service.dart';
 import '../services/sos_service.dart';
 import '../services/trip_service.dart';
-import '../data/douala_places.dart';
+import '../widgets/inline_destination_picker.dart';
 import '../utils/safe_dialog.dart';
 import '../services/permission_service.dart';
 import '../services/voiceprint_service.dart';
@@ -449,19 +449,12 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
             const Text('Aucun trajet actif. L\'alerte sera envoyée avec votre position '
                 'et vos informations aux contacts d\'urgence, au gestionnaire et aux services.'),
             const SizedBox(height: 16),
-            // Sélection rapide de destination (lieux stockés de Douala)
-            // au lieu de la saisie libre : un tap remplit le champ.
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final place in DoualaPlaces.all.take(12))
-                  ActionChip(
-                    avatar: const Icon(Icons.place_outlined, size: 16),
-                    label: Text(place.name),
-                    onPressed: () => controller.text = place.name,
-                  ),
-              ],
+            // Tous les quartiers et établissements de Douala, triés par
+            // ordre alphabétique, avec un champ de recherche intégré : un
+            // tap remplit le champ de destination.
+            InlineDestinationPicker(
+              initiallyFilled: controller.text,
+              onSelected: (name) => controller.text = name,
             ),
             const SizedBox(height: 8),
             TextField(

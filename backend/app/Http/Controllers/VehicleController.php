@@ -4,10 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Vehicle;
 use App\Models\QrCode;
-use App\Models\User;
+use App\Services\QrTokenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class VehicleController extends Controller
 {
@@ -192,27 +191,12 @@ class VehicleController extends Controller
      */
     public function signedTokenFor(Vehicle $vehicle): string
     {
-        return $this->generateSignedToken($vehicle);
+        return app(QrTokenService::class)->generate($vehicle);
     }
 
     protected function generateSignedToken(Vehicle $vehicle): string
     {
-        $transporteur = $vehicle->relationLoaded('transporteur') ? $vehicle->transporteur : User::find($vehicle->transporteur_id);
-
-        $payload = json_encode([
-            'vid' => $vehicle->id,
-            'immatriculation' => $vehicle->immatriculation,
-            'transporteur_id' => $vehicle->transporteur_id,
-            'transporteur_nom' => $transporteur?->nom ?? '',
-            'transporteur_prenom' => $transporteur?->prenom ?? '',
-            'transporteur_fullname' => trim(($transporteur?->prenom ?? '') . ' ' . ($transporteur?->nom ?? '')),
-            'n' => Str::random(12),
-            'exp' => now()->addMonths(3)->timestamp,
-        ]);
-
-        $signature = hash_hmac('sha256', $payload, config('app.key'));
-
-        return base64_encode($payload . '.' . $signature);
+        return app(QrTokenService::class)->generate($vehicle);
     }
 
     protected function qrPayload(QrCode $qr): array

@@ -71,7 +71,7 @@ class DemoSeeder extends Seeder
             ]);
             QrCode::create([
                 'vehicle_id' => $vehicle->id,
-                'token' => bin2hex(random_bytes(16)),
+                'token' => app(\App\Services\QrTokenService::class)->generate($vehicle),
                 'actif' => true,
             ]);
         }

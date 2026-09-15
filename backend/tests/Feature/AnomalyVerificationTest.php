@@ -159,11 +159,12 @@ class AnomalyVerificationTest extends TestCase
         ]);
     }
 
-    public function test_three_min_timeout_triggers_sos_on_unresponded_party(): void
+    public function test_five_min_timeout_triggers_sos_on_unresponded_party(): void
     {
         [$trip, $passager, $transporteur] = $this->ongoingTrip();
 
-        // Vérification du transporteur créée il y a 4 min, jamais répondue.
+        // Vérification du transporteur créée il y a 6 min, jamais répondue
+        // (timeout de réponse : 5 min).
         $verif = new AnomalyVerification;
         $verif->trip_id = $trip->id;
         $verif->user_id = $transporteur->id;
@@ -171,7 +172,7 @@ class AnomalyVerificationTest extends TestCase
         $verif->description = 'Déviation non confirmée.';
         $verif->gravite = 'ELEVEE';
         $verif->statut = 'EN_ATTENTE';
-        $verif->created_at = now()->subMinutes(4);
+        $verif->created_at = now()->subMinutes(6);
         $verif->save();
 
         $count = AnomalyVerificationController::processTimeouts();

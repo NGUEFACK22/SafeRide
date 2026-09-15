@@ -488,7 +488,7 @@ class AiService
      * + notification push pour chaque anomalie détectée, et ce pour
      * CHAQUE partie du trajet (passager ET transporteur). Les deux
      * peuvent confirmer "normal" ou signaler un problème.
-     * Sans réponse en 3 min → SOS automatique sur le non-répondant.
+     * Sans réponse en 5 min → SOS automatique sur le non-répondant.
      */
     public function checkTripAnomalies(Trip $trip): array
     {
@@ -545,15 +545,17 @@ class AiService
             }
         }
 
-        // 3) Perte de signal GPS (> 10 min sans mise à jour)
+        // 3) Perte de signal GPS (> seuil sans mise à jour) — repli sur
+        // started_at si aucune position n'a jamais été reçue.
         $lastLocTime = $trip->locations()->max('captured_at');
-        if ($lastLocTime && Carbon::parse($lastLocTime)->diffInMinutes(now()) >= 10) {
+        $gpsReference = $lastLocTime ? Carbon::parse($lastLocTime) : $trip->started_at;
+        if ($gpsReference && $gpsReference->diffInMinutes(now()) >= self::MOVEMENT_LOSS_MINUTES) {
             foreach ($respondentIds as $userId) {
                 $detected[] = $this->createVerification(
                     $trip, $userId,
                     'MOVEMENT_LOSS',
                     "Perte de signal GPS : plus de position depuis "
-                        . Carbon::parse($lastLocTime)->diffInMinutes(now()) . " min.",
+                        . $gpsReference->diffInMinutes(now()) . " min.",
                     'ELEVEE'
                 );
             }
@@ -631,6 +633,71 @@ class AiService
         ]);
 
         return $verification;
+    }
+
+    /**
+     * Seuil de perte de signal GPS (min) : au-delà sans aucune position,
+     * une vérification interactive MOVEMENT_LOSS est créée pour les deux
+     * parties (non-réponse → SOS automatique après timeout).
+     */
+    public const MOVEMENT_LOSS_MINUTES = 10;
+
+    /**
+     * Watchdog planifié (à appeler chaque minute) : détecte la perte de
+     * signal GPS côté SERVEUR. La détection "normale" de checkTripAnomalies()
+     * ne vit que dans POST /trips/{trip}/locations — or un téléphone éteint,
+     * à plat ou confisqué ne poste plus rien : sans ce watchdog, le cas le
+     * plus critique (plus de GPS du tout) ne serait JAMAIS vérifié.
+     *
+     * createVerification() déduplique (même trajet, utilisateur, type et
+     * statut EN_ATTENTE) : appeler cette commande en boucle ne crée pas de
+     * doublons, et le timeout de non-réponse (anomaly:check-timeouts) prend
+     * ensuite le relais pour le SOS automatique.
+     */
+    public function checkStaleTrips(): int
+    {
+        $created = 0;
+
+        // Un trajet EN_COURS est suspect dès qu'aucune position n'est arrivée
+        // depuis MOVEMENT_LOSS_MINUTES (référence : dernière position, à
+        // défaut l'heure de départ si le GPS n'a jamais accroché).
+        Trip::where('statut', 'EN_COURS')
+            ->where('started_at', '<', now()->subMinutes(self::MOVEMENT_LOSS_MINUTES))
+            ->chunkById(50, function ($trips) use (&$created) {
+                foreach ($trips as $trip) {
+                    $lastLocTime = $trip->locations()->max('captured_at');
+                    $reference = $lastLocTime ? Carbon::parse($lastLocTime) : $trip->started_at;
+
+                    if (! $reference || $reference->diffInMinutes(now()) < self::MOVEMENT_LOSS_MINUTES) {
+                        continue;
+                    }
+
+                    $minutes = $reference->diffInMinutes(now());
+                    $respondentIds = collect([$trip->passager_id, $trip->transporteur_id])
+                        ->filter()->unique()->values()->all();
+
+                    foreach ($respondentIds as $userId) {
+                        $before = AnomalyVerification::where('trip_id', $trip->id)
+                            ->where('user_id', $userId)
+                            ->where('anomaly_type', 'MOVEMENT_LOSS')
+                            ->where('statut', 'EN_ATTENTE')
+                            ->exists();
+
+                        $this->createVerification(
+                            $trip, $userId,
+                            'MOVEMENT_LOSS',
+                            "Perte de signal GPS : plus de position depuis {$minutes} min.",
+                            'ELEVEE'
+                        );
+
+                        if (! $before) {
+                            $created++;
+                        }
+                    }
+                }
+            });
+
+        return $created;
     }
 
     protected function tripData(Trip $trip): array
