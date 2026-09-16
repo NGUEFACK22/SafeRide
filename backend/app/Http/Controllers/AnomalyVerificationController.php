@@ -20,8 +20,20 @@ class AnomalyVerificationController extends Controller
     /**
      * Délai (min) laissé à chaque partie pour répondre à une vérification
      * d'anomalie avant déclenchement automatique d'un SOS sur le non-répondant.
+     * S'applique aux anomalies directes (SPEED, MOVEMENT_LOSS).
      */
     public const ANOMALY_RESPONSE_TIMEOUT_MINUTES = 5;
+
+    /**
+     * Détour / arrêt prolongé : escalade en deux temps sur le PASSAGER —
+     * aucune réponse 10 min après la fenêtre ET situation toujours en cours
+     * => 2e notification (rappel, « notre préoccupation ») ; toujours aucune
+     * réponse 10 min après le rappel => SOS automatique. Si la situation se
+     * règle entre-temps (trajet revenu sur l'itinéraire / véhicule reparti),
+     * la vérification se clôture sans SOS.
+     */
+    public const WELLBEING_FIRST_DEADLINE_MINUTES = 10;
+    public const WELLBEING_ESCALATION_MINUTES = 10;
 
     /**
      * Vérifications en attente pour l'utilisateur connecté.
@@ -189,13 +201,18 @@ class AnomalyVerificationController extends Controller
     }
 
     /**
-     * Déclenche les SOS pour les vérifications en timeout (> 5 min sans
-     * réponse). Chaque vérification cible une seule partie (passager ou
-     * transporteur) : le SOS est donc lancé sur la personne qui n'a pas
-     * répondu. Appelé par la commande schedulée anomaly:check-timeouts.
+     * Watchdog planifié (anomaly:check-timeouts, chaque minute) :
+     * - SPEED / MOVEMENT_LOSS : SOS automatique après 5 min sans réponse.
+     * - DETOUR / STOP (bien-être passager) : escalade en deux temps —
+     *   1re fenêtre sans réponse depuis 10 min ET situation toujours en cours
+     *   => rappel (2e notification) ; 10 min après le rappel, toujours aucune
+     *   réponse => SOS automatique. Si la situation s'est réglée (retour sur
+     *   l'itinéraire / véhicule reparti), la vérification se clôture sans SOS.
      */
     public static function processTimeouts(): int
     {
+        $ai = app(AiService::class);
+
         $timeouts = AnomalyVerification::where('statut', 'EN_ATTENTE')
             ->where('created_at', '<', now()->subMinutes(self::ANOMALY_RESPONSE_TIMEOUT_MINUTES))
             ->get();
@@ -207,6 +224,46 @@ class AnomalyVerificationController extends Controller
             if (! $user) {
                 $verification->update(['statut' => 'ALARME']);
                 continue;
+            }
+
+            $wellbeing = in_array($verification->anomaly_type, ['DETOUR', 'STOP'], true);
+
+            if ($wellbeing) {
+                // La cause de la notification a-t-elle disparu depuis ?
+                if (! $ai->situationOngoing($verification)) {
+                    $verification->update(['statut' => 'CONFIRMEE', 'responded_at' => now()]);
+
+                    Notification::create([
+                        'user_id' => $user->id,
+                        'type' => 'ANOMALIE_VERIFICATION',
+                        'titre' => 'Situation régularisée',
+                        'message' => 'La situation surveillée s\'est normalisée : aucune alerte envoyée.',
+                    ]);
+
+                    continue;
+                }
+
+                if ($verification->rappel_at === null) {
+                    // 1er délai écoulé -> 2e notification (rappel), pas encore de SOS.
+                    if ($verification->created_at->lte(now()->subMinutes(self::WELLBEING_FIRST_DEADLINE_MINUTES))) {
+                        $verification->update(['rappel_at' => now()]);
+
+                        Notification::create([
+                            'user_id' => $user->id,
+                            'type' => 'ANOMALIE_VERIFICATION',
+                            'titre' => 'SafeRide s\'inquiète — répondez',
+                            'message' => $verification->description . ' Sans réponse de votre part dans 10 minutes, '
+                                . 'une alerte SOS sera envoyée automatiquement à vos contacts.',
+                        ]);
+                    }
+
+                    continue;
+                }
+
+                // Rappel envoyé depuis ≥ 10 min et toujours sans réponse -> SOS.
+                if ($verification->rappel_at->gt(now()->subMinutes(self::WELLBEING_ESCALATION_MINUTES))) {
+                    continue;
+                }
             }
 
             $controller = new self();

@@ -84,7 +84,7 @@ class AnomalyVerificationTest extends TestCase
         return [$trip, $passager, $transporteur];
     }
 
-    public function test_route_deviation_notifies_both_parties(): void
+    public function test_route_deviation_notifies_passenger_after_persistence(): void
     {
         [$trip, $passager, $transporteur] = $this->ongoingTrip();
 
@@ -96,7 +96,25 @@ class AnomalyVerificationTest extends TestCase
         ]);
         $trip->save();
 
-        // Position GPS très éloignée du tracé (> 1 km) : déviation détectée.
+        // Écart immédiat seul : PAS de notification (le transporteur peut
+        // revenir sur l'itinéraire dans le délai de 5 min).
+        $this->actingAs($passager)->postJson("/api/v1/trips/{$trip->id}/locations", [
+            'latitude' => 4.2000,
+            'longitude' => 12.0000,
+            'vitesse_km_h' => 40,
+            'captured_at' => now()->toIso8601String(),
+        ])->assertCreated();
+        $this->assertDatabaseCount('anomaly_verifications', 0);
+
+        // Point hors tracé vieilli de 6 min : la déviation PERSISTE (> 5 min)
+        // => le passager est notifié (le transporteur n'est pas revenu sur
+        // l'itinéraire).
+        $this->actingAs($passager)->postJson("/api/v1/trips/{$trip->id}/locations", [
+            'latitude' => 4.2000,
+            'longitude' => 12.0000,
+            'vitesse_km_h' => 40,
+            'captured_at' => now()->subMinutes(6)->toIso8601String(),
+        ])->assertCreated();
         $this->actingAs($passager)->postJson("/api/v1/trips/{$trip->id}/locations", [
             'latitude' => 4.2000,
             'longitude' => 12.0000,
@@ -104,56 +122,51 @@ class AnomalyVerificationTest extends TestCase
             'captured_at' => now()->toIso8601String(),
         ])->assertCreated();
 
-        // Une vérification DETOUR par partie (passager + transporteur).
-        $this->assertDatabaseCount('anomaly_verifications', 2);
+        // Une seule vérification DETOUR : celle du PASSAGER (c'est lui qu'on
+        // interroge sur le non-respect de l'itinéraire).
+        $this->assertDatabaseCount('anomaly_verifications', 1);
         $this->assertDatabaseHas('anomaly_verifications', [
             'trip_id' => $trip->id,
             'user_id' => $passager->id,
-            'anomaly_type' => 'DETOUR',
-            'statut' => 'EN_ATTENTE',
-        ]);
-        $this->assertDatabaseHas('anomaly_verifications', [
-            'trip_id' => $trip->id,
-            'user_id' => $transporteur->id,
             'anomaly_type' => 'DETOUR',
             'statut' => 'EN_ATTENTE',
         ]);
 
-        // Notification push envoyée aux DEUX parties.
+        // Notification push envoyée au passager.
         $this->assertDatabaseHas('notifications', [
             'user_id' => $passager->id,
-            'type' => 'ANOMALIE_VERIFICATION',
-        ]);
-        $this->assertDatabaseHas('notifications', [
-            'user_id' => $transporteur->id,
             'type' => 'ANOMALIE_VERIFICATION',
         ]);
     }
 
-    public function test_prolonged_stop_notifies_both_parties(): void
+    public function test_prolonged_stop_notifies_passenger(): void
     {
         [$trip, $passager, $transporteur] = $this->ongoingTrip();
 
-        // 5 positions à vitesse quasi nulle (< 2 km/h) sur 6 minutes.
-        for ($i = 0; $i < 5; $i++) {
-            $this->actingAs($passager)->postJson("/api/v1/trips/{$trip->id}/locations", [
+        // 5 positions à vitesse quasi nulle (< 2 km/h) étalées sur 11 min :
+        // l'arrêt dure ≥ 10 min => le passager est interrogé (« tout va
+        // bien ? »), pas le transporteur. Les 4 anciennes sont créées en base
+        // (sans passer par POST /locations, qui déclencherait une fausse
+        // perte de signal), la dernière fraîche via l'API.
+        foreach ([11, 9, 7, 5] as $ago) {
+            $trip->locations()->create([
                 'latitude' => 3.8480,
                 'longitude' => 11.5021,
                 'vitesse_km_h' => 0,
-                'captured_at' => now()->subMinutes(6 - $i)->toIso8601String(),
-            ])->assertCreated();
+                'captured_at' => now()->subMinutes($ago),
+            ]);
         }
+        $this->actingAs($passager)->postJson("/api/v1/trips/{$trip->id}/locations", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+            'vitesse_km_h' => 0,
+            'captured_at' => now()->toIso8601String(),
+        ])->assertCreated();
 
-        $this->assertDatabaseCount('anomaly_verifications', 2);
+        $this->assertDatabaseCount('anomaly_verifications', 1);
         $this->assertDatabaseHas('anomaly_verifications', [
             'trip_id' => $trip->id,
             'user_id' => $passager->id,
-            'anomaly_type' => 'STOP',
-            'statut' => 'EN_ATTENTE',
-        ]);
-        $this->assertDatabaseHas('anomaly_verifications', [
-            'trip_id' => $trip->id,
-            'user_id' => $transporteur->id,
             'anomaly_type' => 'STOP',
             'statut' => 'EN_ATTENTE',
         ]);
@@ -164,12 +177,12 @@ class AnomalyVerificationTest extends TestCase
         [$trip, $passager, $transporteur] = $this->ongoingTrip();
 
         // Vérification du transporteur créée il y a 6 min, jamais répondue
-        // (timeout de réponse : 5 min).
+        // (timeout de réponse : 5 min). SPEED : pas d'escalade bien-être.
         $verif = new AnomalyVerification;
         $verif->trip_id = $trip->id;
         $verif->user_id = $transporteur->id;
-        $verif->anomaly_type = 'DETOUR';
-        $verif->description = 'Déviation non confirmée.';
+        $verif->anomaly_type = 'SPEED';
+        $verif->description = 'Vitesse excessive non confirmée.';
         $verif->gravite = 'ELEVEE';
         $verif->statut = 'EN_ATTENTE';
         $verif->created_at = now()->subMinutes(6);
@@ -193,6 +206,110 @@ class AnomalyVerificationTest extends TestCase
         ]);
 
         $this->assertSame(0, AnomalyVerificationController::processTimeouts());
+    }
+
+    /** Détour EN_ATTENTE depuis $minutes, sans réponse, pour l'escalade. */
+    private function wellbeingDetour(Trip $trip, User $passager, int $minutes): AnomalyVerification
+    {
+        $verif = AnomalyVerification::create([
+            'trip_id' => $trip->id,
+            'user_id' => $passager->id,
+            'anomaly_type' => 'DETOUR',
+            'description' => 'Déviation d\'itinéraire constante.',
+            'gravite' => 'ELEVEE',
+            'statut' => 'EN_ATTENTE',
+        ]);
+        // created_at est géré par les timestamps : on force l'ancienneté.
+        $verif->created_at = now()->subMinutes($minutes);
+        $verif->save();
+
+        return $verif;
+    }
+
+    public function test_detour_no_rappel_before_10_min(): void
+    {
+        [$trip, $passager] = $this->ongoingTrip();
+        $verif = $this->wellbeingDetour($trip, $passager, 6);
+
+        $count = AnomalyVerificationController::processTimeouts();
+
+        // Entre 5 et 10 min sans réponse : ni SOS, ni rappel.
+        $this->assertSame(0, $count);
+        $this->assertSame('EN_ATTENTE', $verif->fresh()->statut);
+        $this->assertNull($verif->fresh()->rappel_at);
+    }
+
+    public function test_detour_rappel_after_10_min_and_sos_after_20(): void
+    {
+        [$trip, $passager] = $this->ongoingTrip();
+
+        // Tracé prévu + position GPS hors tracé => la situation « n'est pas
+        // réglée », l'escalade peut jouer.
+        $routeService = app(RouteService::class);
+        $trip->planned_route_polyline = $routeService->encodePolyline([
+            [3.8480, 11.5021],
+            [3.8700, 11.5210],
+        ]);
+        $trip->save();
+        $trip->locations()->create([
+            'latitude' => 4.2000,
+            'longitude' => 12.0000,
+            'vitesse_km_h' => 40,
+            'captured_at' => now(),
+        ]);
+
+        $verif = $this->wellbeingDetour($trip, $passager, 11);
+
+        // 11 min sans réponse -> 2e notification (rappel), PAS de SOS.
+        $this->assertSame(0, AnomalyVerificationController::processTimeouts());
+        $verif->refresh();
+        $this->assertSame('EN_ATTENTE', $verif->statut);
+        $this->assertNotNull($verif->rappel_at);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $passager->id,
+            'type' => 'ANOMALIE_VERIFICATION',
+        ]);
+
+        // Rappel il y a 5 min : on attend encore les 10 min du 2e délai.
+        $verif->update(['rappel_at' => now()->subMinutes(5)]);
+        $this->assertSame(0, AnomalyVerificationController::processTimeouts());
+        $this->assertDatabaseCount('sos_alerts', 0);
+
+        // Rappel depuis 11 min + toujours muet => SOS automatique.
+        $verif->update(['rappel_at' => now()->subMinutes(11)]);
+        $this->assertSame(1, AnomalyVerificationController::processTimeouts());
+        $this->assertDatabaseHas('sos_alerts', [
+            'trip_id' => $trip->id,
+            'passager_id' => $passager->id,
+            'statut' => 'DECLENCHE',
+        ]);
+        $this->assertSame('ALARME', $verif->fresh()->statut);
+    }
+
+    public function test_detour_clot_sans_sos_si_itineraire_retrouve(): void
+    {
+        [$trip, $passager] = $this->ongoingTrip();
+
+        $routeService = app(RouteService::class);
+        $trip->planned_route_polyline = $routeService->encodePolyline([
+            [3.8480, 11.5021],
+            [3.8700, 11.5210],
+        ]);
+        $trip->save();
+        // Le véhicule est REVENU près du tracé (à ~100 m d'un sommet de la
+        // polyline) : la situation est réglée.
+        $trip->locations()->create([
+            'latitude' => 3.8485,
+            'longitude' => 11.5025,
+            'vitesse_km_h' => 45,
+            'captured_at' => now(),
+        ]);
+
+        $verif = $this->wellbeingDetour($trip, $passager, 11);
+
+        $this->assertSame(0, AnomalyVerificationController::processTimeouts());
+        $this->assertSame('CONFIRMEE', $verif->fresh()->statut);
+        $this->assertDatabaseCount('sos_alerts', 0);
     }
 
     public function test_respond_normal_is_independent_per_party(): void
@@ -271,15 +388,23 @@ class AnomalyVerificationTest extends TestCase
     {
         [$trip, $passager, $transporteur] = $this->ongoingTrip();
 
-        // Deux détections identiques (même partie, même type) → pas de doublon.
-        foreach ([0, 1] as $i) {
-            $ping = app(RouteService::class);
-            $trip->planned_route_polyline = $ping->encodePolyline([
-                [3.8480, 11.5021],
-                [3.8700, 11.5210],
-            ]);
-            $trip->save();
+        $routeService = app(RouteService::class);
+        $trip->planned_route_polyline = $routeService->encodePolyline([
+            [3.8480, 11.5021],
+            [3.8700, 11.5210],
+        ]);
+        $trip->save();
 
+        // Ancien point hors tracé (6 min) : la déviation est persistée.
+        $trip->locations()->create([
+            'latitude' => 4.2000,
+            'longitude' => 12.0000,
+            'vitesse_km_h' => 40,
+            'captured_at' => now()->subMinutes(6),
+        ]);
+
+        // Deux POSTs frais (même passager, même type DETOUR) → pas de doublon.
+        foreach ([0, 1] as $i) {
             $this->actingAs($passager)->postJson("/api/v1/trips/{$trip->id}/locations", [
                 'latitude' => 4.2000,
                 'longitude' => 12.0000,
@@ -288,6 +413,6 @@ class AnomalyVerificationTest extends TestCase
             ])->assertCreated();
         }
 
-        $this->assertDatabaseCount('anomaly_verifications', 2);
+        $this->assertDatabaseCount('anomaly_verifications', 1);
     }
 }

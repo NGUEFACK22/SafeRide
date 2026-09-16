@@ -18,12 +18,14 @@ class AnomalyVerification extends Model
         'gravite',
         'statut',
         'responded_at',
+        'rappel_at',
     ];
 
     protected function casts(): array
     {
         return [
             'responded_at' => 'datetime',
+            'rappel_at' => 'datetime',
         ];
     }
 

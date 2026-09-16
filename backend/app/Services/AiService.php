@@ -495,9 +495,13 @@ class AiService
     {
         $detected = [];
 
-        // Les deux parties sont averties et facturées d'une réponse
-        // indépendante : passager et transporteur (affecté dès le scan).
-        $respondentIds = collect([$trip->passager_id, $trip->transporteur_id])
+        // Vitesse et perte de signal : les DEUX parties sont averties et
+        // répondent indépendamment. Déviation d'itinéraire et arrêt
+        // prolongé : c'est le PASSAGER qu'on interroge (« le transporteur
+        // n'a pas respecté l'itinéraire, tout va bien ? »), et seulement
+        // quand la situation PERSISTE (5 min hors tracé / 10 min immobile)
+        // — un simple ralentissement ou un détour de 2 min n'alarme personne.
+        $bothParties = collect([$trip->passager_id, $trip->transporteur_id])
             ->filter()
             ->unique()
             ->values()
@@ -506,7 +510,7 @@ class AiService
         // 1) Vitesse excessive
         $lastLocation = $trip->locations()->orderByDesc('captured_at')->first();
         if ($lastLocation && $lastLocation->vitesse_km_h && $lastLocation->vitesse_km_h > 120) {
-            foreach ($respondentIds as $userId) {
+            foreach ($bothParties as $userId) {
                 $detected[] = $this->createVerification(
                     $trip, $userId,
                     'SPEED',
@@ -517,33 +521,25 @@ class AiService
             }
         }
 
-        // 2) Arrêt prolongé (> 5 min à vitesse < 2 km/h)
-        $slowCount = $trip->locations()
+        // 2) Arrêt prolongé (> 10 min à vitesse < 2 km/h) — question au passager.
+        $slowStreak = $trip->locations()
             ->where('vitesse_km_h', '<', 2)
             ->whereNotNull('vitesse_km_h')
-            ->where('captured_at', '>', now()->subMinutes(10))
-            ->count();
+            ->where('captured_at', '>', now()->subMinutes(20))
+            ->orderBy('captured_at')
+            ->get();
+        $firstSlow = $slowStreak->first();
 
-        if ($slowCount >= 5) {
-            $firstSlow = $trip->locations()
-                ->where('vitesse_km_h', '<', 2)
-                ->whereNotNull('vitesse_km_h')
-                ->where('captured_at', '>', now()->subMinutes(10))
-                ->orderBy('captured_at')
-                ->value('captured_at');
-
-            if ($firstSlow) {
-                $durationMin = now()->diffInMinutes($firstSlow);
-                foreach ($respondentIds as $userId) {
-                    $detected[] = $this->createVerification(
-                        $trip, $userId,
-                        'STOP',
-                        "Arrêt prolongé : {$durationMin} min sans mouvement "
-                            . "({$slowCount} points GPS < 2 km/h).",
-                        'MOYENNE'
-                    );
-                }
-            }
+        if ($firstSlow && $firstSlow->captured_at->diffInMinutes(now()) >= self::STOP_NOTIF_MINUTES
+            && $slowStreak->count() >= 5 && $trip->passager_id) {
+            $durationMin = $firstSlow->captured_at->diffInMinutes(now());
+            $detected[] = $this->createVerification(
+                $trip, $trip->passager_id,
+                'STOP',
+                "Notre système a constaté que le véhicule est arrêté au même endroit depuis {$durationMin} "
+                    . 'min pendant votre trajet. Tout va bien ? Sinon, signalez un problème : l\'alerte SOS partira immédiatement.',
+                'MOYENNE'
+            );
         }
 
         // 3) Perte de signal GPS (> seuil sans mise à jour) — repli sur
@@ -551,7 +547,7 @@ class AiService
         $lastLocTime = $trip->locations()->max('captured_at');
         $gpsReference = $lastLocTime ? Carbon::parse($lastLocTime) : $trip->started_at;
         if ($gpsReference && $gpsReference->diffInMinutes(now()) >= self::MOVEMENT_LOSS_MINUTES) {
-            foreach ($respondentIds as $userId) {
+            foreach ($bothParties as $userId) {
                 $detected[] = $this->createVerification(
                     $trip, $userId,
                     'MOVEMENT_LOSS',
@@ -562,28 +558,33 @@ class AiService
             }
         }
 
-        // 4) Déviation d'itinéraire (polyline comparison)
+        // 4) Déviation d'itinéraire — constatée ET persistée 5 min (le
+        // transporteur n'est pas revenu sur le tracé) => fenêtre au passager.
         if ($trip->planned_route_polyline && $lastLocation) {
             $routeService = app(RouteService::class);
             $planned = $routeService->decodePolyline($trip->planned_route_polyline);
 
             if (count($planned) >= 2) {
-                $minDist = PHP_FLOAT_MAX;
-                foreach ($planned as $pt) {
-                    $d = $routeService->haversine(
-                        (float) $lastLocation->latitude, (float) $lastLocation->longitude,
-                        $pt[0], $pt[1]
-                    );
-                    $minDist = min($minDist, $d);
-                }
+                $minDist = $this->distanceToPlanned($planned, $lastLocation->latitude, $lastLocation->longitude);
 
-                if ($minDist > 1.0) {
-                    foreach ($respondentIds as $userId) {
+                if ($minDist > 1.0 && $trip->passager_id) {
+                    // La déviation est-elle ancienne (≥ 5 min) ? On vérifie
+                    // qu'un point hors tracé a été capturé il y a 5 min ou
+                    // plus : le transporteur n'est pas revenu sur l'itinéraire.
+                    $persisted = $trip->locations()
+                        ->where('captured_at', '>=', now()->subMinutes(30))
+                        ->where('captured_at', '<=', now()->subMinutes(self::DETOUR_PERSIST_MINUTES))
+                        ->get()
+                        ->contains(fn ($l) => $this->distanceToPlanned($planned, $l->latitude, $l->longitude) > 1.0);
+
+                    if ($persisted) {
                         $detected[] = $this->createVerification(
-                            $trip, $userId,
+                            $trip, $trip->passager_id,
                             'DETOUR',
-                            "Déviation d'itinéraire : " . round($minDist, 2)
-                                . " km du tracé prévu (seuil: 1 km).",
+                            "Le transporteur n'a pas respecté l'itinéraire prévu (" . round($minDist, 1)
+                                . " km de l'écart, constant depuis plus de "
+                                . self::DETOUR_PERSIST_MINUTES . ' min). Est-ce que tout va bien ? '
+                                . 'Sinon signalez un problème : l\'alerte SOS partira immédiatement.',
                             'ELEVEE'
                         );
                     }
@@ -592,6 +593,46 @@ class AiService
         }
 
         return $detected;
+    }
+
+    /**
+     * Distance (km) minimale entre une position et le tracé planifié décodé.
+     */
+    protected function distanceToPlanned(array $planned, float|string $lat, float|string $lng): float
+    {
+        $routeService = app(RouteService::class);
+        $min = PHP_FLOAT_MAX;
+        foreach ($planned as $pt) {
+            $min = min($min, $routeService->haversine((float) $lat, (float) $lng, $pt[0], $pt[1]));
+        }
+
+        return $min;
+    }
+
+    /**
+     * La situation d'origine d'une vérification est-elle toujours en cours ?
+     * Utilisé par l'escalade : pas de rappel si le transporteur est revenu
+     * sur l'itinéraire ou si le véhicule est reparti entre-temps.
+     */
+    public function situationOngoing(AnomalyVerification $verification): bool
+    {
+        $trip = $verification->trip;
+        if (! $trip) {
+            return true; // trajet supprimé : on considère que rien ne rassure.
+        }
+        $last = $trip->locations()->orderByDesc('captured_at')->first();
+
+        return match ($verification->anomaly_type) {
+            'DETOUR' => $trip->planned_route_polyline && $last
+                ? $this->distanceToPlanned(
+                    app(RouteService::class)->decodePolyline($trip->planned_route_polyline),
+                    $last->latitude,
+                    $last->longitude,
+                ) > 1.0
+                : true,
+            'STOP' => $last ? (float) ($last->vitesse_km_h ?? 0) < 2 : true,
+            default => true,
+        };
     }
 
     /**
@@ -642,6 +683,19 @@ class AiService
      * parties (non-réponse → SOS automatique après timeout).
      */
     public const MOVEMENT_LOSS_MINUTES = 10;
+
+    /**
+     * Le transporteur doit être resté hors itinéraire pendant au moins ce
+     * délai (min) pour qu'on NOTIFIE le passager : une brève déviation
+     * (un embouteillage, un tourne-à-droite) n'alarme personne.
+     */
+    public const DETOUR_PERSIST_MINUTES = 5;
+
+    /**
+     * Arrêt immobilisé (min) au même endroit avant de demander au passager
+     * si tout va bien.
+     */
+    public const STOP_NOTIF_MINUTES = 10;
 
     /**
      * Watchdog planifié (à appeler chaque minute) : détecte la perte de
