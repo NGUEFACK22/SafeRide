@@ -923,7 +923,7 @@ class AiService
             return [
                 'reponse' => "$formule {$user->prenom} ! Je suis l'assistant SafeRide. "
                     .'Je peux vous aider sur les trajets, la réservation, le QR de vérification, '
-                    .'le bouton SOS, votre profil vérifié et la PRÉDICTION du trafic. '
+                    .'le bouton SOS, votre profil vérifié et l\'ANALYSE du trafic. '
                     .'Que puis-je faire pour vous ?',
                 'hors_domaine' => false,
                 'generateur' => 'REGLE',
@@ -962,7 +962,7 @@ class AiService
                 ."partagés sécurisés (rôle de l'utilisateur : {$role}). Fonctions de la plateforme : "
                 .'réservation de trajet (sélection départ/destination à Douala, estimation du prix), '
                 .'suivi GPS en temps réel, QR vérifié à chaque montée, bouton SOS URGENCE (alerte '
-                .'secours + contacts), bouton PRÉDICTION (heures de bouchons, climat des zones '
+                .'secours + contacts), bouton ANALYSE (heures de bouchons, climat des zones '
                 .'fréquentes, conseils), profil avec vérification d\'identité (badge IDENTITÉ '
                 .'VÉRIFIÉE) et e-mail, notation en étoiles des trajets, partage de trajet, assistant '
                 .'vocal. RÈGLE ABSOLUE : si la question ne concerne pas SafeRide ou l\'une de ces '
@@ -1005,14 +1005,14 @@ class AiService
             (bool) preg_match('/verif|identite|badge|profil|compte|inscription|connexion|mot de passe|email|e-mail/', $q)
                 => 'Votre profil affiche le badge IDENTITÉ VÉRIFIÉE dès que votre pièce et votre e-mail sont validés. Pour revérifier : Profil → Vérifier mon identité ; pour l\'e-mail : Profil → Renvoyer la vérification.',
             (bool) preg_match('/prediction|bouchon|embouteill|meteo|climat|trafic/', $q)
-                => 'Le bouton PRÉDICTION analyse vos trajets de la semaine : il vous donne les heures probables de bouchons, les créneaux fluides et le climat sur les zones que vous fréquentez le plus, avec des conseils pour éviter les pics.',
+                => 'Le bouton ANALYSE analyse vos trajets de la semaine : il vous donne les heures probables de bouchons, les créneaux fluides et le climat sur les zones que vous fréquentez le plus, avec des conseils pour éviter les pics.',
             (bool) preg_match('/note|evaluation|etoile|litige|plainte|signaler/', $q)
                 => 'À la fin d\'un trajet, notez-le de 1 à 5 étoiles avec un commentaire. Un problème ? Signalez-le depuis le détail du trajet : le litige est examiné par la gestion.',
             (bool) preg_match('/prix|tarif|paiement|facture|commission/', $q)
                 => 'Le prix est estimé avant la réservation selon la distance et la destination choisie. Le paiement se règle avec le transporteur ; une facture détaillée reste disponible dans l\'historique.',
             (bool) preg_match('/partage|localisation|gps|carte|suivi/', $q)
                 => 'Le partage de trajet permet à vos contacts de suivre votre position GPS en direct pendant la course, jusqu\'à l\'arrivée. Activez-le depuis l\'écran du trajet en cours.',
-            default => 'Je peux vous guider sur : réserver un trajet, le QR de vérification, le bouton SOS, la vérification d\'identité du profil, le bouton PRÉDICTION, les notes et litiges. Précisez votre question.',
+            default => 'Je peux vous guider sur : réserver un trajet, le QR de vérification, le bouton SOS, la vérification d\'identité du profil, le bouton ANALYSE, les notes et litiges. Précisez votre question.',
         };
     }
 
@@ -1232,7 +1232,7 @@ class AiService
 
     protected function fallbackPrediction(array $p): string
     {
-        $lines = ["Prédiction SafeRide (gérée par règles, {$p['genere_le']}) :"];
+        $lines = ["Analyse SafeRide (gérée par règles, {$p['genere_le']}) :"];
         if ($p['zones_frequentes']) {
             $zones = implode(', ', array_map(fn ($z) => $z['libelle'] . ' (' . $z['trajets'] . ' trajets)', $p['zones_frequentes']));
             $lines[] = "- Vos zones fréquentes : $zones.";
