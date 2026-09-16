@@ -27,7 +27,7 @@ class SosController extends Controller
             'destination' => 'nullable|string|max:255',
             'latitude' => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
-            'declenchement' => 'required|in:VOCAL,BOUTON',
+            'declenchement' => 'required|in:VOCAL,BOUTON,ANALYSE_IA',
             'keyword' => 'nullable|string|max:40',
             'empreinte' => 'nullable',
         ]);

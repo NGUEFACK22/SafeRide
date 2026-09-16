@@ -381,6 +381,7 @@ class AnomalyVerificationTest extends TestCase
         $this->assertDatabaseHas('sos_alerts', [
             'trip_id' => $trip->id,
             'passager_id' => $passager->id,
+            'declenchement' => 'ANALYSE_IA',
         ]);
     }
 

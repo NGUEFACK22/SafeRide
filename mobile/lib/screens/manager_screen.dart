@@ -152,7 +152,7 @@ class _ManagerScreenState extends State<ManagerScreen> {
             children: [
               _infoRow('Statut', statut),
               _infoRow('Déclenchement',
-                  (sos['declenchement'] as String?) ?? '—'),
+                  _declenchementLabel(sos['declenchement'])),
               _infoRow('Passager', passagerNom.isEmpty ? '—' : passagerNom),
               _infoRow('Transporteur',
                   transporteurNom.isEmpty ? '—' : transporteurNom),
@@ -216,6 +216,20 @@ class _ManagerScreenState extends State<ManagerScreen> {
         ],
       ),
     );
+  }
+
+  /// Libellé lisible du mode de déclenchement d'une alerte SOS.
+  String _declenchementLabel(dynamic valeur) {
+    switch (valeur) {
+      case 'VOCAL':
+        return 'Vocal';
+      case 'ANALYSE_IA':
+        return 'Analyse IA';
+      case 'BOUTON':
+        return 'Bouton';
+      default:
+        return '—';
+    }
   }
 
   Future<void> _openMaps(String link) async {

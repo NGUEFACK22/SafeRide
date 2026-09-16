@@ -111,7 +111,7 @@ class AnomalyVerificationController extends Controller
             'trip_id' => $trip?->id,
             'passager_id' => $user->id,
             'destination' => $trip?->destination_address,
-            'declenchement' => 'BOUTON',
+            'declenchement' => 'ANALYSE_IA',
             'latitude' => $lat,
             'longitude' => $lng,
             'heure_detection' => now(),

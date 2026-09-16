@@ -152,7 +152,7 @@ class _UnifiedLitigesTabState extends State<_UnifiedLitigesTab> {
               [];
       for (final s in sosAlerts) {
         final (label, color) = _sosStatus(s['statut'] as String?);
-        final declenchement = s['declenchement'] ?? 'BOUTON';
+        final declenchement = _declenchementLabel(s['declenchement']);
         dossiers.add(_UnifiedDossier(
           type: _DossierType.sos,
           title: 'Alerte SOS ($declenchement)',
@@ -369,7 +369,7 @@ class _DossierDetailSheet extends StatelessWidget {
         ] else if (dossier.type == _DossierType.sos) ...[
           _detailRow('Trajet', '#${raw['trip_id']}'),
           _detailRow('Déclenchement',
-              raw['declenchement'] ?? 'BOUTON'),
+              _declenchementLabel(raw['declenchement'])),
           if (raw['latitude'] != null && raw['longitude'] != null)
             _detailRow('Position',
                 '${raw['latitude']}, ${raw['longitude']}'),
@@ -860,6 +860,20 @@ DateTime? _parseDate(String? iso) {
       return ('Vérification', Colors.amber);
     default:
       return (statut ?? '', Colors.grey);
+  }
+}
+
+/// Libellé lisible du mode de déclenchement d'une alerte SOS.
+String _declenchementLabel(dynamic valeur) {
+  switch (valeur) {
+    case 'VOCAL':
+      return 'Vocal';
+    case 'ANALYSE_IA':
+      return 'Analyse IA';
+    case 'BOUTON':
+      return 'Bouton';
+    default:
+      return 'Bouton';
   }
 }
 
