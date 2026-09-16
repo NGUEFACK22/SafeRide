@@ -250,6 +250,7 @@ class LanguageService extends ChangeNotifier {
     'emergency_contacts': {'fr': 'Gestion Contacts Urgence', 'en': 'Emergency Contacts'},
     'history_trips_menu': {'fr': 'Historique des trajets', 'en': 'Ride history'},
     'support_ai': {'fr': 'Support • Assistant IA', 'en': 'Support • AI Assistant'},
+    'assistant_ia': {'fr': 'ASSISTANT IA', 'en': 'AI ASSISTANT'},
     'verify_identity': {'fr': 'Vérification d\'identité', 'en': 'Identity verification'},
     'voice_recognition': {'fr': 'Reconnaissance vocale', 'en': 'Voice recognition'},
     'settings_saved': {'fr': 'Paramètres enregistrés', 'en': 'Settings saved'},

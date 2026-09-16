@@ -741,22 +741,43 @@ class _PassagerViewState extends State<_PassagerView> {
           const SizedBox(height: 14),
           // PRÉDICTION a remplacé SOS URGENCE ici (le SOS d'urgence reste
           // accessible via le bouton flottant rouge en bas de l'accueil).
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/prediction'),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF0F62FE), Color(0xFF1B2F6B)], begin: Alignment.centerLeft, end: Alignment.centerRight),
-                borderRadius: BorderRadius.circular(14),
+          Row(children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () => Navigator.pushNamed(context, '/prediction'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFF0F62FE), Color(0xFF1B2F6B)], begin: Alignment.centerLeft, end: Alignment.centerRight),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.insights, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                    FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
+                  ]),
+                ),
               ),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.insights, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
-              ]),
             ),
-          ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => Navigator.pushNamed(context, '/ai'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF312E81)], begin: Alignment.centerLeft, end: Alignment.centerRight),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.smart_toy, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                    FittedBox(child: Text(LanguageService.instance.t('assistant_ia'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
+                  ]),
+                ),
+              ),
+            ),
+          ]),
           const SizedBox(height: 18),
           // Section ordonnÃ©e : Mes services en grille 2x2
           Text(LanguageService.instance.t('services'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
@@ -1017,22 +1038,43 @@ class _TransporteurViewState extends State<_TransporteurView> {
           const SizedBox(height: 14),
           // PRÉDICTION a remplacé le bouton SOS URGENCE de la rangée (SOS
           // d'urgence reste via le bouton flottant rouge).
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/prediction'),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF0F62FE), Color(0xFF1B2F6B)], begin: Alignment.centerLeft, end: Alignment.centerRight),
-                borderRadius: BorderRadius.circular(14),
+          Row(children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () => Navigator.pushNamed(context, '/prediction'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFF0F62FE), Color(0xFF1B2F6B)], begin: Alignment.centerLeft, end: Alignment.centerRight),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.insights, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                    FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
+                  ]),
+                ),
               ),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.insights, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
-              ]),
             ),
-          ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => Navigator.pushNamed(context, '/ai'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF312E81)], begin: Alignment.centerLeft, end: Alignment.centerRight),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.smart_toy, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                    FittedBox(child: Text(LanguageService.instance.t('assistant_ia'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
+                  ]),
+                ),
+              ),
+            ),
+          ]),
           const SizedBox(height: 18),
           Text(LanguageService.instance.t('services'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 10),
