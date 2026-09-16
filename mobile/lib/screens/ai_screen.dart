@@ -84,17 +84,12 @@ class _AiScreenState extends State<AiScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.textDark,
         foregroundColor: Colors.white,
-        title: const Text('Assistant IA'),
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(30),
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(
-              'Réponses limitées à SafeRide — trajets, QR, SOS, profil, prédiction.',
-              style: TextStyle(fontSize: 11, color: Colors.white70),
-            ),
-          ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
         ),
+        automaticallyImplyLeading: false,
+        title: const Text('Assistant IA'),
       ),
       body: Column(
         children: [
