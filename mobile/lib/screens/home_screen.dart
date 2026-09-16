@@ -739,40 +739,22 @@ class _PassagerViewState extends State<_PassagerView> {
             ),
           ),
           const SizedBox(height: 14),
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.pushNamed(context, '/sos-button'),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                      decoration: BoxDecoration(color: AppTheme.sosRed, borderRadius: BorderRadius.circular(14)),
-                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Icon(Icons.sos, color: Colors.white, size: 16),
-                        SizedBox(width: 6),
-                        FittedBox(child: Text(LanguageService.instance.t('sos'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))),
-                      ]),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.pushNamed(context, '/prediction'),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                      decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)),
-                       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Icon(Icons.insights, size: 18, color: AppTheme.textDark),
-                        SizedBox(width: 6),
-                        FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))),
-                      ]),
-                    ),
-                  ),
-                ),
-              ],
+          // PRÉDICTION a remplacé SOS URGENCE ici (le SOS d'urgence reste
+          // accessible via le bouton flottant rouge en bas de l'accueil).
+          GestureDetector(
+            onTap: () => Navigator.pushNamed(context, '/prediction'),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF0F62FE), Color(0xFF1B2F6B)], begin: Alignment.centerLeft, end: Alignment.centerRight),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.insights, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
+              ]),
             ),
           ),
           const SizedBox(height: 18),
@@ -1033,12 +1015,23 @@ class _TransporteurViewState extends State<_TransporteurView> {
           const SizedBox(height: 14),
           const _TransporteurQrCard(),
           const SizedBox(height: 14),
-          IntrinsicHeight(
-            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/sos-button'), child: Container(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.sosRed, borderRadius: BorderRadius.circular(14)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sos, color: Colors.white, size: 16), SizedBox(width: 6), FittedBox(child: Text(LanguageService.instance.t('sos'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
-              const SizedBox(width: 12),
-              Expanded(child: GestureDetector(onTap: () => Navigator.pushNamed(context, '/prediction'), child: Container(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12), decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.lightBlueBorder)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.insights, size: 18, color: AppTheme.textDark), SizedBox(width: 6), FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 13))) ])))),
-            ]),
+          // PRÉDICTION a remplacé le bouton SOS URGENCE de la rangée (SOS
+          // d'urgence reste via le bouton flottant rouge).
+          GestureDetector(
+            onTap: () => Navigator.pushNamed(context, '/prediction'),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF0F62FE), Color(0xFF1B2F6B)], begin: Alignment.centerLeft, end: Alignment.centerRight),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.insights, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
+              ]),
+            ),
           ),
           const SizedBox(height: 18),
           Text(LanguageService.instance.t('services'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
