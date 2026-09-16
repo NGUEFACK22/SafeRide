@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../utils/error_helper.dart';
 
-import '../services/ai_advice_service.dart';
 import '../services/ai_service.dart';
 
+/// Assistant IA = un simple chat. L'IA répond uniquement aux questions liées
+/// à SafeRide (trajets, réservation, QR, SOS, profil, prédiction…) ; toute
+/// autre question reçoit « Cette question n'est pas dans mes compétences. »
 class AiScreen extends StatefulWidget {
   const AiScreen({super.key});
 
@@ -13,30 +15,23 @@ class AiScreen extends StatefulWidget {
 }
 
 class _AiScreenState extends State<AiScreen> {
-  final _ai = AiService();
-  final _advice = AiAdviceService();
-  bool _loading = true;
-  String? _summary;
-  String? _weekly;
-  List<dynamic> _insights = [];
-  String? _error;
-  TravelAdvice? _travelAdvice;
-  bool _adviceLoading = false;
-
-  // ── Assistant conversationnel (périmètre SafeRide uniquement) ──
+  final AiService _ai = AiService();
   final TextEditingController _question = TextEditingController();
-  final List<Map<String, String>> _messages = []; // {role: user|assistant, texte}
+  final ScrollController _scroll = ScrollController();
+  final List<Map<String, String>> _messages = [
+    {
+      'role': 'assistant',
+      'texte': 'Bonjour ! Je suis l\'assistant SafeRide. Posez-moi une question '
+          'sur les trajets, la réservation, le QR, le SOS, votre profil ou la '
+          'prédiction de trafic — je ne réponds qu\'à ce sujet.',
+    },
+  ];
   bool _asking = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
 
   @override
   void dispose() {
     _question.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -48,6 +43,7 @@ class _AiScreenState extends State<AiScreen> {
       _messages.add({'role': 'user', 'texte': q});
       _asking = true;
     });
+    _scrollToBottom();
     try {
       final data = await _ai.ask(q);
       if (!mounted) return;
@@ -66,338 +62,153 @@ class _AiScreenState extends State<AiScreen> {
         _asking = false;
       });
     }
+    _scrollToBottom();
   }
 
-  Future<void> _load({bool refresh = false}) async {
-    setState(() => _loading = true);
-    try {
-      final data = await _ai.summary(refresh: refresh);
-      final report = data['report'] as Map<String, dynamic>?;
-      if (!mounted) return;
-      setState(() => _summary = report?['contenu'] as String?);
-
-      // Résumé hebdomadaire IA (le dimanche / disponible à tout moment)
-      try {
-        final weekly = await _ai.weekly(refresh: refresh);
-        if (mounted) {
-          setState(() {
-            _weekly =
-                (weekly['report'] as Map<String, dynamic>?)?['contenu'] as String?;
-          });
-        }
-      } catch (_) {
-        if (mounted) setState(() => _weekly = null);
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
       }
-
-      // Anomalies (silencieusement ignorées si l'utilisateur n'a pas le droit)
-      try {
-        final anomalies = await _ai.anomalies();
-        if (mounted) {
-          setState(() => _insights = anomalies['insights'] as List<dynamic>? ?? []);
-        }
-      } catch (_) {
-        if (mounted) setState(() => _insights = []);
-      }
-
-      // Conseil déplacements (historique + météo + bouchons)
-      await _loadTravelAdvice();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = friendlyError(e));
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  /// Analyse l'historique des déplacements pour un conseil récapitulatif
-  /// (destinations fréquentes + météo + conseils anti-bouchons).
-  Future<void> _loadTravelAdvice() async {
-    setState(() => _adviceLoading = true);
-    try {
-      final advice = await _advice.analyze();
-      if (!mounted) return;
-      setState(() {
-        _travelAdvice = advice;
-        _adviceLoading = false;
-      });
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _travelAdvice = null;
-          _adviceLoading = false;
-        });
-      }
-    }
-  }
-
-  Color _graviteColor(String? g) {
-    return switch (g) {
-      'ELEVEE' => Colors.red,
-      'MOYENNE' => Colors.orange,
-      _ => Colors.blue,
-    };
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF4F6FB),
       appBar: AppBar(
+        backgroundColor: AppTheme.textDark,
+        foregroundColor: Colors.white,
         title: const Text('Assistant IA'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Rafraîchir',
-            onPressed: _loading ? null : () => _load(refresh: true),
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(30),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(
+              'Réponses limitées à SafeRide — trajets, QR, SOS, profil, prédiction.',
+              style: TextStyle(fontSize: 11, color: Colors.white70),
+            ),
           ),
-        ],
+        ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              controller: _scroll,
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_error != null)
-                    Card(
-                      color: Colors.red.shade50,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text('Erreur : $_error'),
+              itemCount: _messages.length + (_asking ? 1 : 0),
+              itemBuilder: (context, i) {
+                if (i == _messages.length) return _typingBubble();
+                final m = _messages[i];
+                final mine = m['role'] == 'user';
+                return Align(
+                  alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    decoration: BoxDecoration(
+                      color: mine ? AppTheme.primaryBlue : Colors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(mine ? 16 : 4),
+                        bottomRight: Radius.circular(mine ? 4 : 16),
                       ),
-                    )
-                  else ...[
-                    _buildChat(),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Votre bilan personnalisé',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      border: mine
+                          ? null
+                          : Border.all(color: const Color(0xFFD8E4FB)),
                     ),
-                    const SizedBox(height: 8),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(
-                          _summary ?? 'Aucun résumé disponible.',
-                          style: const TextStyle(height: 1.4),
-                        ),
+                    child: Text(
+                      m['texte']!,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.45,
+                        color: mine ? Colors.white : AppTheme.textDark,
                       ),
                     ),
-                    if (_weekly != null && _weekly!.isNotEmpty) ...[
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Résumé hebdomadaire',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      const SizedBox(height: 8),
-                      Card(
-                        color: Theme.of(context).colorScheme.primaryContainer
-                            .withValues(alpha: 0.35),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text(
-                            _weekly!,
-                            style: const TextStyle(height: 1.4),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                  if (_insights.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Anomalies détectées',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    const SizedBox(height: 8),
-                    ..._insights.map((raw) {
-                      final insight = raw as Map<String, dynamic>;
-                      return Card(
-                        child: ListTile(
-                          leading: Icon(Icons.warning,
-                              color: _graviteColor(insight['gravite'])),
-                          title: Text(insight['titre'] ?? ''),
-                          subtitle: insight['description'] != null
-                              ? Text(insight['description'])
-                              : null,
-                        ),
-                      );
-                    }),
-                  ],
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Conseil déplacements',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
-                  const SizedBox(height: 8),
-                  _buildAdvice(),
-                ],
-              ),
+                );
+              },
             ),
-    );
-  }
-
-  /// Carte « Posez une question » : l'assistant ne répond que sur SafeRide.
-  Widget _buildChat() {
-    return Card(
-      color: AppTheme.lightBlueBadge,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(children: [
-              const Icon(Icons.smart_toy_outlined, size: 20, color: AppTheme.primaryBlue),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text('Posez une question à l\'assistant',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-              ),
-            ]),
-            const SizedBox(height: 4),
-            const Text(
-              'Trajets, réservation, QR, SOS, profil, prédiction… — uniquement en lien avec SafeRide.',
-              style: TextStyle(fontSize: 11, color: AppTheme.textGrey),
-            ),
-            const SizedBox(height: 10),
-            for (final m in _messages)
-              Align(
-                alignment: m['role'] == 'user' ? Alignment.centerRight : Alignment.centerLeft,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  decoration: BoxDecoration(
-                    color: m['role'] == 'user' ? AppTheme.primaryBlue : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: m['role'] == 'user'
-                        ? null
-                        : Border.all(color: AppTheme.lightBlueBorder),
-                  ),
-                  child: Text(
-                    m['texte']!,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      height: 1.4,
-                      color: m['role'] == 'user' ? Colors.white : AppTheme.textDark,
-                    ),
-                  ),
-                ),
-              ),
-            if (_asking)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Row(children: [
-                  SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue)),
-                  SizedBox(width: 10),
-                  Text('L\'assistant réfléchit…', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
-                ]),
-              ),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: _question,
-                  enabled: !_asking,
-                  maxLength: 500,
-                  maxLines: 2,
-                  minLines: 1,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _ask(),
-                  decoration: InputDecoration(
-                    counterText: '',
-                    hintText: 'Ex : comment réserver un trajet ?',
-                    isDense: true,
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filled(
-                onPressed: _asking ? null : _ask,
-                icon: const Icon(Icons.send, size: 20),
-                style: IconButton.styleFrom(backgroundColor: AppTheme.primaryBlue, foregroundColor: Colors.white),
-              ),
-            ]),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Carte "Conseil déplacements" : destinations fréquentes + météo + conseils.
-  Widget _buildAdvice() {
-    if (_adviceLoading) {
-      return const Card(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        ),
-      );
-    }
-    final advice = _travelAdvice;
-    if (advice == null || advice.destinations.isEmpty) {
-      return const Card(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text(
-            'Aucun historique suffisant pour générer un conseil déplacements.',
-            style: TextStyle(color: AppTheme.textGrey),
           ),
-        ),
-      );
-    }
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final d in advice.destinations) ...[
-              Row(
-                children: [
-                  Icon(d.weather?.icon ?? Icons.place,
-                      size: 20,
-                      color: d.weather == null
-                          ? AppTheme.textGrey
-                          : Colors.orange.shade700),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(d.label,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 14)),
-                        Text(
-                          '${d.count} trajet${d.count > 1 ? 's' : ''} • '
-                          '${d.weather?.description ?? 'météo indisponible'} '
-                          '${d.weather?.tempDisplay ?? ''}',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppTheme.textGrey),
-                        ),
-                      ],
+          Container(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              10,
+              12,
+              10 + MediaQuery.of(context).viewInsets.bottom + 6,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Color(0xFFE3E8F2))),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _question,
+                    enabled: !_asking,
+                    maxLength: 500,
+                    maxLines: 1,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _ask(),
+                    decoration: InputDecoration(
+                      counterText: '',
+                      hintText: 'Votre question…',
+                      isDense: true,
+                      filled: true,
+                      fillColor: const Color(0xFFF0F3FA),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
-                ],
-              ),
-              const Divider(height: 20),
-            ],
-            const SizedBox(height: 4),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.lightbulb_outline,
-                    size: 16, color: AppTheme.primaryBlue),
+                ),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: Text(advice.recap,
-                      style: const TextStyle(height: 1.4, fontSize: 13)),
+                IconButton.filled(
+                  onPressed: _asking ? null : _ask,
+                  icon: const Icon(Icons.send, size: 20),
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppTheme.primaryBlue,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _typingBubble() {
+    return const Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.smart_toy_outlined, size: 16, color: AppTheme.textGrey),
+            SizedBox(width: 6),
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue),
+            ),
+            SizedBox(width: 8),
+            Text('L\'assistant réfléchit…',
+                style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
           ],
         ),
       ),

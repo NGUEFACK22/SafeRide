@@ -61,6 +61,34 @@ class AiAskTest extends TestCase
         $this->assertNotSame(AiService::HORS_DOMAINE_REPONSE, $response->json('reponse'));
     }
 
+    public function test_bonjour_est_salue(): void
+    {
+        $user = $this->user();
+
+        foreach (['Bonjour', 'bonsoir', 'salut !', 'hello'] as $salutation) {
+            $response = $this->actingAs($user)->postJson('/api/v1/ai/ask', [
+                'question' => $salutation,
+            ]);
+            $response->assertOk()->assertJsonPath('hors_domaine', false);
+            $reponse = $response->json('reponse');
+            $this->assertStringContainsStringIgnoringCase('assistant SafeRide', $reponse);
+            $this->assertStringNotContainsString('pas dans mes compétences', $reponse);
+        }
+    }
+
+    public function test_merci_remercie(): void
+    {
+        $user = $this->user();
+
+        $response = $this->actingAs($user)->postJson('/api/v1/ai/ask', [
+            'question' => 'Merci beaucoup !',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('hors_domaine', false)
+            ->assertJsonPath('reponse', 'Avec plaisir ! Bonne route avec SafeRide. 🚗');
+    }
+
     public function test_question_qr_repond_le_qr(): void
     {
         $user = $this->user();

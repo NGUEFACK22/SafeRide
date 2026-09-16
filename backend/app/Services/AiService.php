@@ -914,6 +914,31 @@ class AiService
         $q = mb_strtolower(trim($question));
         $qFold = $this->foldFr($q);
 
+        // Salutations et politesse : toujours bienvenues (c'est la base d'un
+        // chat), même si le reste doit rester dans le périmètre SafeRide.
+        if ($this->estSalutation($qFold)) {
+            $heure = (int) now()->format('G');
+            $formule = $heure < 12 ? 'Bonjour' : ($heure < 18 ? 'Bon après-midi' : 'Bonsoir');
+
+            return [
+                'reponse' => "$formule {$user->prenom} ! Je suis l'assistant SafeRide. "
+                    .'Je peux vous aider sur les trajets, la réservation, le QR de vérification, '
+                    .'le bouton SOS, votre profil vérifié et la PRÉDICTION du trafic. '
+                    .'Que puis-je faire pour vous ?',
+                'hors_domaine' => false,
+                'generateur' => 'REGLE',
+            ];
+        }
+
+        // Remerciements : réponse courte et chaleureuse.
+        if (preg_match('/merci|remerc/', $qFold) && mb_strlen($qFold) < 40) {
+            return [
+                'reponse' => 'Avec plaisir ! Bonne route avec SafeRide. 🚗',
+                'hors_domaine' => false,
+                'generateur' => 'REGLE',
+            ];
+        }
+
         // Pré-filtre : aucune trace de la plateforme => refus sans dépenser l'IA.
         $lieePlateforme = false;
         foreach (self::PLATEFORME_TERMES as $terme) {
@@ -1000,6 +1025,18 @@ class AiService
             'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'ö' => 'o', 'ú' => 'u', 'ù' => 'u',
             'û' => 'u', 'ü' => 'u', 'ç' => 'c', 'ñ' => 'n',
         ]);
+    }
+
+    /** Message de pure courtoisie (salutation) — jamais une vraie question. */
+    protected function estSalutation(string $qFold): bool
+    {
+        // Formules connues, et messages très courts (≤ 3 mots) qui ne peuvent
+        // pas être une question hors périmètre.
+        if (preg_match('/\b(bonjour|bonsoir|salut|hello|hey|coucou|yo|bjr|slt|good (morning|evening|afternoon))\b/', $qFold)) {
+            return true;
+        }
+
+        return mb_strlen($qFold) < 25 && preg_match('/^(a(la)?|comment (ca|ça|vas|allez)|ca va|vous vas|bienvenue|hi)\b/', $qFold);
     }
 
     /**
