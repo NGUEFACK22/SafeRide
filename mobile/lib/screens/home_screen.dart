@@ -45,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _checkingAnomalies = false;
   int? _handledRequestId;
   bool _requestDialogOpen = false;
+  bool _identiteVerifiee = false; // badge « vérifié » visible partout (avatar accueil)
 
   bool get _isGuest => _user == null;
   bool get _isTransporteur => _user?.hasRole('transporteur') == true;
@@ -87,6 +88,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     } catch (_) {
       // Hors-ligne : on reste sur le user en cache.
+    }
+    _loadVerifBadge();
+  }
+
+  /// Badge « vérifié » sur l'avatar de l'accueil (comptes vérifiés = toutes
+  /// les fonctionnalités de leur rôle, mention visible partout).
+  Future<void> _loadVerifBadge() async {
+    try {
+      final data = await _api.get('/identity/status');
+      if (!mounted) return;
+      setState(() => _identiteVerifiee = data['identite_verifiee'] == true);
+    } catch (_) {
+      // Silencieux : pas de badge si le statut n'est pas joignable.
     }
   }
 
@@ -385,10 +399,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           if (!_isGuest)
             Padding(
               padding: const EdgeInsets.only(right: 12),
-              child: CircleAvatar(
-                radius: 16,
-                backgroundColor: AppTheme.lightBlueBadge,
-                child: Text(_user!.prenom.isNotEmpty ? _user!.prenom[0].toUpperCase() : '?', style: const TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w700)),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: AppTheme.lightBlueBadge,
+                    child: Text(_user!.prenom.isNotEmpty ? _user!.prenom[0].toUpperCase() : '?', style: const TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w700)),
+                  ),
+                  if (_identiteVerifiee)
+                    Positioned(
+                      right: -2,
+                      bottom: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(1.5),
+                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                        child: const Icon(Icons.verified, size: 13, color: AppTheme.successText),
+                      ),
+                    ),
+                ],
               ),
             ),
         ],
