@@ -16,6 +16,7 @@ class Trip extends Model
         'transporteur_id',
         'vehicle_id',
         'qr_token',
+        'share_token',
         'start_latitude',
         'start_longitude',
         'destination_latitude',
@@ -43,6 +44,14 @@ class Trip extends Model
             'deviation_km' => 'decimal:2',
             'deviation_alert' => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // Jeton de suivi public, jamais devinable, créé avec le trajet.
+        static::creating(function (Trip $trip) {
+            $trip->share_token ??= bin2hex(random_bytes(16));
+        });
     }
 
     public function passager(): BelongsTo

@@ -369,6 +369,7 @@ class SosController extends Controller
             '📌 Localisation actuelle : ' . $data['current_location'],
             '',
             '🗺️ Position GPS : ' . $data['maps_link'],
+            $data['live_link'] !== '—' ? '📡 Suivi en direct (position actualisée) : ' . $data['live_link'] : null,
             '🆔 Identifiant du trajet : ' . $data['trip_id'],
             '',
             'Cette alerte indique qu\'une situation d\'urgence pourrait être en cours. Veuillez intervenir rapidement ou contacter les services d\'urgence si nécessaire.',
@@ -376,7 +377,7 @@ class SosController extends Controller
             'SafeRide AI – Votre sécurité, notre priorité.',
         ];
 
-        return implode(PHP_EOL, $lines);
+        return implode(PHP_EOL, array_values(array_filter($lines, fn ($l) => $l !== null)));
     }
 
     /**

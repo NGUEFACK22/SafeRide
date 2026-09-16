@@ -82,7 +82,26 @@ class SosAlert extends Model
             'maps_link' => $hasPos
                 ? 'https://maps.google.com/?q=' . $this->latitude . ',' . $this->longitude
                 : '—',
+            'live_link' => $this->liveTrackingLink($trip) ?? '—',
             'trip_id' => $trip?->id !== null ? (string) $trip->id : '—',
         ];
+    }
+
+    /**
+     * Lien de suivi GPS en direct quand le trajet est encore actif :
+     * les secours/proches peuvent suivre la victime en mouvement.
+     */
+    protected function liveTrackingLink(?Trip $trip): ?string
+    {
+        if (! $trip || ! $trip->share_token) {
+            return null;
+        }
+
+        $actifs = ['SCANNE', 'EN_ATTENTE_TRANSPORTEUR', 'CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'];
+        if (! in_array($trip->statut, $actifs)) {
+            return null;
+        }
+
+        return \App\Http\Controllers\TripShareController::shareUrl($trip);
     }
 }

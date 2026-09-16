@@ -137,6 +137,14 @@ class AnomalyVerificationController extends Controller
             $smsMessage .= ' Destination : ' . $trip->destination_address;
         }
 
+        // Suivi GPS en direct (le trajet est forcément actif ici)
+        if ($trip) {
+            $liveUrl = \App\Http\Controllers\TripShareController::shareUrl($trip);
+            if ($liveUrl) {
+                $smsMessage .= ' Suivi live : ' . $liveUrl;
+            }
+        }
+
         // Envoyer SMS + WhatsApp aux contacts d'urgence
         $smsService = app(SmsService::class);
         $waService = app(WhatsappService::class);

@@ -31,6 +31,11 @@ class SosAlertMail extends Mailable
             ? '—'
             : '<a href="' . $mapLink . '">' . $mapLink . '</a>';
 
+        $liveLink = e($data['live_link'] ?? '—');
+        $liveRow = $liveLink === '—'
+            ? ''
+            : '<tr><td style="border-bottom:1px solid #f0f0f0">📡 <strong>Suivi en direct :</strong></td><td style="border-bottom:1px solid #f0f0f0"><a href="' . $liveLink . '"><strong>Suivre la position en mouvement →</strong></a><br><span style="color:#666;font-size:12px">' . $liveLink . '</span></td></tr>';
+
         $html = '<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;border:1px solid #eee;border-radius:8px;overflow:hidden">'
             . '<div style="background:#d32f2f;color:#fff;padding:16px 20px;font-size:20px;font-weight:bold">🚨 ALERTE SOS – SafeRide AI</div>'
             . '<div style="padding:20px">'

@@ -17,6 +17,7 @@ use App\Http\Controllers\VoiceSecurityProfileController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\RatingController;
 use App\Http\Controllers\TransporteurController;
+use App\Http\Controllers\TripShareController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -32,6 +33,10 @@ Route::get('password/reset/{token}', function (string $token, Illuminate\Http\Re
     return response()->json(['token' => $token, 'email' => $request->query('email')]);
 })->name('password.reset');
 Route::get('auth/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail'])->name('verification.verify')->middleware('signed');
+
+    // ==== Suivi GPS public (lien partageable, sans compte) ====
+    Route::get('public/suivi/{token}', [TripShareController::class, 'show'])->middleware('throttle:30,1');
+    Route::get('public/suivi/{token}/data', [TripShareController::class, 'data'])->middleware('throttle:60,1');
 
     // ==== Routes authentifiées ====
     Route::middleware('auth:sanctum')->group(function () {
@@ -58,6 +63,7 @@ Route::get('auth/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail
         Route::post('trips/{trip}/locations', [TripController::class, 'storeLocation']);
         Route::post('trips/{trip}/end', [TripController::class, 'end']);
         Route::get('trips/{trip}/route', [TripController::class, 'route']);
+        Route::get('trips/{trip}/share-link', [TripShareController::class, 'link']);
 
         // Véhicules (transporteur)
         Route::get('vehicles', [VehicleController::class, 'index']);

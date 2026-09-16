@@ -53,6 +53,7 @@ class LanguageService extends ChangeNotifier {
     'regle': {'fr': 'Règles', 'en': 'Rules'},
     'ia_safe': {'fr': 'IA SafeRide', 'en': 'SafeRide AI'},
     'sos': {'fr': 'SOS URGENCE', 'en': 'SOS EMERGENCY'},
+    'share_position': {'fr': 'PARTAGER MA POSITION', 'en': 'SHARE MY LOCATION'},
     'sos_desc': {'fr': 'Appuyez pour alerter vos contacts', 'en': 'Tap to alert your contacts'},
     'scan_qr': {'fr': 'Scanner un QR Code', 'en': 'Scan QR Code'},
     'scan_qr_desc': {'fr': 'Appuyez ici pour démarrer ou vérifier une course sécurisée.', 'en': 'Tap here to start or verify a secure ride.'},

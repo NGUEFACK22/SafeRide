@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../utils/error_helper.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -70,6 +72,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   bool _voiceAvailable = false;
   bool _voiceMonitoring = false;
   bool _autoSosSending = false;
+  bool _shareBusy = false;
   DateTime? _lastAutoSosAt;
   String _voiceStatus = '';
   bool _voiceConsentGiven = false;
@@ -1083,6 +1086,76 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     );
   }
 
+  /// Ouvre la fiche de partage : lien de suivi GPS public, à envoyer
+  /// à un proche. La page se met à jour en direct tant que le trajet est actif.
+  Future<void> _sharePosition(int tripId) async {
+    setState(() => _shareBusy = true);
+    String? url;
+    try {
+      final res = await _api.get('/trips/$tripId/share-link');
+      url = res['url'] as String?;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Impossible de générer le lien : $e')),
+        );
+      }
+    }
+    if (mounted) setState(() => _shareBusy = false);
+    if (url == null || !mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Suivi GPS en direct'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Envoyez ce lien à un proche : il verra votre position bouger '
+              'en direct sur une carte, sans installer l\'application. '
+              'Le suivi se coupe automatiquement à la fin du trajet.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            SelectableText(
+              url!,
+              style: const TextStyle(fontSize: 12, color: AppTheme.primaryBlue),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: url!));
+              if (ctx.mounted) Navigator.of(ctx).pop();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Lien copié ✓')),
+                );
+              }
+            },
+            child: const Text('Copier le lien'),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              final wa = Uri.parse(
+                'https://wa.me/?text=${Uri.encodeComponent('Je suis en trajet SafeRide, suis ma position en direct : $url')}',
+              );
+              if (!await launchUrl(wa, mode: LaunchMode.externalApplication)) {
+                await launchUrl(Uri.parse(url!), mode: LaunchMode.externalApplication);
+              }
+            },
+            icon: const Icon(Icons.share, size: 18),
+            label: const Text('Partager'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _cancelByPassenger(int tripId) async {
     setState(() => _busy = true);
     try {
@@ -1544,6 +1617,20 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
             icon: _autoSosSending ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.sos),
             label: Text(_autoSosSending ? LanguageService.instance.t('processing') : LanguageService.instance.t('sos'), style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.5)),
           ),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: (_shareBusy || _busy || _autoSosSending) ? null : () => _sharePosition(trip.id),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppTheme.primaryBlue,
+            side: const BorderSide(color: AppTheme.primaryBlue),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+          icon: _shareBusy
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.share_location_outlined),
+          label: Text(LanguageService.instance.t('share_position'), style: const TextStyle(fontWeight: FontWeight.w700)),
         ),
       ],
     );
