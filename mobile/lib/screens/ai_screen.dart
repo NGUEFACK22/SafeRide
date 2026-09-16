@@ -23,10 +23,49 @@ class _AiScreenState extends State<AiScreen> {
   TravelAdvice? _travelAdvice;
   bool _adviceLoading = false;
 
+  // ── Assistant conversationnel (périmètre SafeRide uniquement) ──
+  final TextEditingController _question = TextEditingController();
+  final List<Map<String, String>> _messages = []; // {role: user|assistant, texte}
+  bool _asking = false;
+
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _question.dispose();
+    super.dispose();
+  }
+
+  Future<void> _ask() async {
+    final q = _question.text.trim();
+    if (q.isEmpty || _asking) return;
+    _question.clear();
+    setState(() {
+      _messages.add({'role': 'user', 'texte': q});
+      _asking = true;
+    });
+    try {
+      final data = await _ai.ask(q);
+      if (!mounted) return;
+      setState(() {
+        _messages.add({
+          'role': 'assistant',
+          'texte': (data['reponse'] as String?) ??
+              'Cette question n\'est pas dans mes compétences.',
+        });
+        _asking = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add({'role': 'assistant', 'texte': friendlyError(e)});
+        _asking = false;
+      });
+    }
   }
 
   Future<void> _load({bool refresh = false}) async {
@@ -128,6 +167,8 @@ class _AiScreenState extends State<AiScreen> {
                       ),
                     )
                   else ...[
+                    _buildChat(),
+                    const SizedBox(height: 24),
                     const Text(
                       'Votre bilan personnalisé',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -193,6 +234,96 @@ class _AiScreenState extends State<AiScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  /// Carte « Posez une question » : l'assistant ne répond que sur SafeRide.
+  Widget _buildChat() {
+    return Card(
+      color: AppTheme.lightBlueBadge,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(children: [
+              const Icon(Icons.smart_toy_outlined, size: 20, color: AppTheme.primaryBlue),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('Posez une question à l\'assistant',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              ),
+            ]),
+            const SizedBox(height: 4),
+            const Text(
+              'Trajets, réservation, QR, SOS, profil, prédiction… — uniquement en lien avec SafeRide.',
+              style: TextStyle(fontSize: 11, color: AppTheme.textGrey),
+            ),
+            const SizedBox(height: 10),
+            for (final m in _messages)
+              Align(
+                alignment: m['role'] == 'user' ? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  decoration: BoxDecoration(
+                    color: m['role'] == 'user' ? AppTheme.primaryBlue : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: m['role'] == 'user'
+                        ? null
+                        : Border.all(color: AppTheme.lightBlueBorder),
+                  ),
+                  child: Text(
+                    m['texte']!,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.4,
+                      color: m['role'] == 'user' ? Colors.white : AppTheme.textDark,
+                    ),
+                  ),
+                ),
+              ),
+            if (_asking)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Row(children: [
+                  SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primaryBlue)),
+                  SizedBox(width: 10),
+                  Text('L\'assistant réfléchit…', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+                ]),
+              ),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: _question,
+                  enabled: !_asking,
+                  maxLength: 500,
+                  maxLines: 2,
+                  minLines: 1,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _ask(),
+                  decoration: InputDecoration(
+                    counterText: '',
+                    hintText: 'Ex : comment réserver un trajet ?',
+                    isDense: true,
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filled(
+                onPressed: _asking ? null : _ask,
+                icon: const Icon(Icons.send, size: 20),
+                style: IconButton.styleFrom(backgroundColor: AppTheme.primaryBlue, foregroundColor: Colors.white),
+              ),
+            ]),
+          ],
+        ),
+      ),
     );
   }
 

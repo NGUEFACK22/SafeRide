@@ -829,6 +829,126 @@ class AiService
     }
 
     /**
+     * Phrase de refus exacte pour toute question hors périmètre SafeRide.
+     */
+    public const HORS_DOMAINE_REPONSE = 'Cette question n\'est pas dans mes compétences. Je réponds uniquement aux questions liées à SafeRide : trajets, réservations, sécurité (SOS, QR), profil, prédiction de trafic…';
+
+    /**
+     * Termes qui rattachent une question à la plateforme (pré-filtre rapide,
+     * accents ignorés). Aucun terme trouvé => refus immédiat sans appel LLM.
+     */
+    protected const PLATEFORME_TERMES = [
+        'trajet', 'course', 'reserv', 'commande', 'sos', 'urgence', 'assistance',
+        'qr', 'verif', 'identite', 'profil', 'compte', 'inscription', 'connexion',
+        'mot de passe', 'password', 'prediction', 'bouchon', 'embouteill', 'climat',
+        'meteo', 'prix', 'tarif', 'paiement', 'facture', 'securite', 'partage',
+        'note', 'evaluation', 'etoile', 'transporteur', 'chauffeur', 'passager',
+        'gestionnaire', 'admin', 'application', 'app ', 'saferide', 'destination',
+        'itineraire', 'annul', 'signaler', 'plainte', 'litige', 'voice', 'voie ',
+        'localisation', 'gps', 'carte', 'douala', 'region', 'vehicule', 'voiture',
+        'moto', 'bus', 'adresse', 'telephon', 'email', 'mail', 'notifications',
+    ];
+
+    /**
+     * Répond à une question de l'utilisateur — UNIQUEMENT sur SafeRide et son
+     * activité. Hors périmètre : message de refus (jamais de réponse générale).
+     *
+     * @return array{reponse: string, hors_domaine: bool, generateur: string}
+     */
+    public function ask(User $user, string $question): array
+    {
+        $q = mb_strtolower(trim($question));
+        $qFold = $this->foldFr($q);
+
+        // Pré-filtre : aucune trace de la plateforme => refus sans dépenser l'IA.
+        $lieePlateforme = false;
+        foreach (self::PLATEFORME_TERMES as $terme) {
+            if (str_contains($qFold, $terme)) {
+                $lieePlateforme = true;
+                break;
+            }
+        }
+        if (! $lieePlateforme) {
+            return [
+                'reponse' => self::HORS_DOMAINE_REPONSE,
+                'hors_domaine' => true,
+                'generateur' => 'REGLE',
+            ];
+        }
+
+        $role = $user->roles()->first()?->slug ?? 'passager';
+
+        if ($this->isEnabled()) {
+            $system = "Tu es l'assistant IA de SafeRide, une application camerounaise de trajets "
+                ."partagés sécurisés (rôle de l'utilisateur : {$role}). Fonctions de la plateforme : "
+                .'réservation de trajet (sélection départ/destination à Douala, estimation du prix), '
+                .'suivi GPS en temps réel, QR vérifié à chaque montée, bouton SOS URGENCE (alerte '
+                .'secours + contacts), bouton PRÉDICTION (heures de bouchons, climat des zones '
+                .'fréquentes, conseils), profil avec vérification d\'identité (badge IDENTITÉ '
+                .'VÉRIFIÉE) et e-mail, notation en étoiles des trajets, partage de trajet, assistant '
+                .'vocal. RÈGLE ABSOLUE : si la question ne concerne pas SafeRide ou l\'une de ces '
+                .'fonctions, répond EXACTEMENT : « '
+                .self::HORS_DOMAINE_REPONSE
+                .' » sans rien ajouter d\'autre. Sinon réponds en français, en 2 à 6 phrases '
+                .'concrètes, avec les étapes s\'il y en a.';
+
+            $answer = $this->complete($system, "Question de {$user->prenom} : {$question}");
+
+            if ($answer !== null) {
+                $refuse = str_contains($this->foldFr(mb_strtolower($answer)), 'pas dans mes competences');
+
+                return [
+                    'reponse' => $refuse ? self::HORS_DOMAINE_REPONSE : trim($answer),
+                    'hors_domaine' => $refuse,
+                    'generateur' => 'IA_SafeRide',
+                ];
+            }
+        }
+
+        // Repli déterministe (IA désactivée ou indisponible).
+        return [
+            'reponse' => $this->fallbackAsk($qFold),
+            'hors_domaine' => false,
+            'generateur' => 'REGLE',
+        ];
+    }
+
+    /** Réponses standard par sujet (IA non configurée). */
+    protected function fallbackAsk(string $q): string
+    {
+        return match (true) {
+            (bool) preg_match('/reserv|commande|nouveau trajet|comment.*trajet/', $q)
+                => 'Pour réserver : allez sur l\'accueil, choisissez votre départ et votre destination dans la liste de Douala, validez — le prix estimé s\'affiche, puis un transporteur confirmé vous prend en charge avec QR vérifié.',
+            (bool) preg_match('/sos|urgence| secours|alarme/', $q)
+                => 'Le bouton SOS URGENCE (écran accueil) alerte immédiatement vos contacts de secours et la plateforme avec votre position GPS en direct. En cas de danger, appuyez longuement et gardez le téléphone avec vous.',
+            (bool) preg_match('/qr|code|verifier.*mont|montee/', $q)
+                => 'Le QR de vérification est régénéré à chaque montée : le passager le montre et le transporteur le scanne pour confirmer que ce sont bien les personnes réservées. Sans QR validé, le trajet ne démarre pas.',
+            (bool) preg_match('/verif|identite|badge|profil|compte|inscription|connexion|mot de passe|email|e-mail/', $q)
+                => 'Votre profil affiche le badge IDENTITÉ VÉRIFIÉE dès que votre pièce et votre e-mail sont validés. Pour revérifier : Profil → Vérifier mon identité ; pour l\'e-mail : Profil → Renvoyer la vérification.',
+            (bool) preg_match('/prediction|bouchon|embouteill|meteo|climat|trafic/', $q)
+                => 'Le bouton PRÉDICTION analyse vos trajets de la semaine : il vous donne les heures probables de bouchons, les créneaux fluides et le climat sur les zones que vous fréquentez le plus, avec des conseils pour éviter les pics.',
+            (bool) preg_match('/note|evaluation|etoile|litige|plainte|signaler/', $q)
+                => 'À la fin d\'un trajet, notez-le de 1 à 5 étoiles avec un commentaire. Un problème ? Signalez-le depuis le détail du trajet : le litige est examiné par la gestion.',
+            (bool) preg_match('/prix|tarif|paiement|facture|commission/', $q)
+                => 'Le prix est estimé avant la réservation selon la distance et la destination choisie. Le paiement se règle avec le transporteur ; une facture détaillée reste disponible dans l\'historique.',
+            (bool) preg_match('/partage|localisation|gps|carte|suivi/', $q)
+                => 'Le partage de trajet permet à vos contacts de suivre votre position GPS en direct pendant la course, jusqu\'à l\'arrivée. Activez-le depuis l\'écran du trajet en cours.',
+            default => 'Je peux vous guider sur : réserver un trajet, le QR de vérification, le bouton SOS, la vérification d\'identité du profil, le bouton PRÉDICTION, les notes et litiges. Précisez votre question.',
+        };
+    }
+
+    /** Minuscules + accents retirés (aligné sur le fold du mobile). */
+    protected function foldFr(string $s): string
+    {
+        return strtr($s, [
+            'á' => 'a', 'à' => 'a', 'â' => 'a', 'ä' => 'a', 'é' => 'e', 'è' => 'e',
+            'ê' => 'e', 'ë' => 'e', 'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
+            'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'ö' => 'o', 'ú' => 'u', 'ù' => 'u',
+            'û' => 'u', 'ü' => 'u', 'ç' => 'c', 'ñ' => 'n',
+        ]);
+    }
+
+    /**
      * Agrège l'historique de l'utilisateur : ses 3 zones les plus fréquentes
      * (cluster grille ~1,1 km via arrondi 2 décimales), la densité horaire de
      * ses départs, et la durée moyenne par tranche horaire.

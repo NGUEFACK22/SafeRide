@@ -31,4 +31,9 @@ class AiService {
   Future<Map<String, dynamic>> anomalies() async {
     return await _api.get('/ai/anomalies');
   }
+
+  /// Assistant conversationnel : réponse limitée au périmètre SafeRide.
+  Future<Map<String, dynamic>> ask(String question) async {
+    return await _api.post('/ai/ask', {'question': question});
+  }
 }

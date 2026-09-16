@@ -161,4 +161,19 @@ class AiController extends Controller
 
         return response()->json($payload);
     }
+
+    /**
+     * Assistant conversationnel : POST /ai/ask {question}. L'IA ne répond
+     * qu'aux questions liées à SafeRide ; hors périmètre => refus.
+     */
+    public function ask(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'question' => ['required', 'string', 'min:2', 'max:500'],
+        ]);
+
+        $result = $this->ai->ask($request->user(), $data['question']);
+
+        return response()->json($result);
+    }
 }
