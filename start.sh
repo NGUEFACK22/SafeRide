@@ -63,6 +63,9 @@ php artisan key:generate --force --no-interaction
 # Lancer les migrations
 php artisan migrate --force --no-interaction
 
+# Lien symlinking public/storage → storage/app/public (photos profil, documents)
+php artisan storage:link --no-interaction || true
+
 # Optimiser pour la production — NON BLOQUANT : un échec de cache ne doit
 # jamais empêcher le démarrage du serveur (sinon Render : "no open ports").
 if [ "$APP_ENV" = "production" ]; then

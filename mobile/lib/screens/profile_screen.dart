@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import '../config/api_config.dart';
 import '../utils/error_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -347,6 +349,84 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     }
   }
 
+  /// Changement de la photo de profil : choix caméra/galerie puis upload
+  /// multipart vers POST /auth/profile/photo. Le user serveur est rafraîchi.
+  Future<void> _changePhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            const Text('Photo de profil', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppTheme.textDark)),
+            const SizedBox(height: 4),
+            const Text('Choisissez la source de votre photo', style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const CircleAvatar(backgroundColor: AppTheme.lightBlueBadge, child: Icon(Icons.photo_camera_outlined, color: AppTheme.primaryBlue)),
+              title: const Text('Prendre une photo', style: TextStyle(fontWeight: FontWeight.w600)),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const CircleAvatar(backgroundColor: AppTheme.lightBlueBadge, child: Icon(Icons.photo_library_outlined, color: AppTheme.primaryBlue)),
+              title: const Text('Choisir dans la galerie', style: TextStyle(fontWeight: FontWeight.w600)),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    final granted = source == ImageSource.camera
+        ? await PermissionService.camera(context)
+        : await PermissionService.photos(context);
+    if (!granted) return;
+
+    XFile? picked;
+    try {
+      picked = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 72,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        preferredCameraDevice: CameraDevice.front,
+      );
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
+      return;
+    }
+    if (picked == null) return;
+
+    setState(() => _saving = true);
+    try {
+      final data = await _api.postMultipart(
+        '/auth/profile/photo',
+        {},
+        file: File(picked.path),
+        fileField: 'photo',
+      );
+      final user = data['user'] as Map<String, dynamic>?;
+      if (mounted && user != null) {
+        setState(() => _user = User.fromJson(user));
+        await _api.saveUser(user);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(data['message'] as String? ?? 'Photo mise à jour'), backgroundColor: AppTheme.successText),
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   void dispose() {
     _entry.dispose();
@@ -390,10 +470,29 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             child: Stack(
               alignment: Alignment.bottomRight,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppTheme.lightBlueBorder, width: 2), boxShadow: [BoxShadow(color: AppTheme.primaryBlue.withValues(alpha: 0.15), blurRadius: 12)]),
-                  child: CircleAvatar(radius: 44, backgroundColor: AppTheme.primaryBlue, child: Text(displayName.isNotEmpty ? displayName[0].toUpperCase() : '?', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700))),
+                GestureDetector(
+                  onTap: _changePhoto,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppTheme.lightBlueBorder, width: 2), boxShadow: [BoxShadow(color: AppTheme.primaryBlue.withValues(alpha: 0.15), blurRadius: 12)]),
+                    child: CircleAvatar(
+                      radius: 44,
+                      backgroundColor: AppTheme.primaryBlue,
+                      foregroundImage: _user?.photoUrl != null
+                          ? NetworkImage(ApiConfig.resolvePhotoUrl(_user!.photoUrl))
+                          : null,
+                      child: Text(
+                        displayName.isNotEmpty && _saving == false ? displayName[0].toUpperCase() : '?',
+                        style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ),
+                Container( // badge vert/bas + petite icône appareil photo pour signaler la modification
+                  width: 24, height: 24,
+                  margin: const EdgeInsets.only(bottom: 40, right: 2),
+                  decoration: BoxDecoration(color: AppTheme.textDark, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+                  child: const Icon(Icons.photo_camera, size: 11, color: Colors.white),
                 ),
                 Container(
                   width: 24, height: 24,
@@ -403,7 +502,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               ],
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _changePhoto,
+            style: TextButton.styleFrom(foregroundColor: AppTheme.primaryBlue, padding: const EdgeInsets.symmetric(horizontal: 8)),
+            icon: const Icon(Icons.edit, size: 15),
+            label: Text(_user?.photoUrl == null ? 'Ajouter une photo de profil' : 'Changer la photo', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          ),
+          const SizedBox(height: 2),
           Center(child: Text(displayName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.textDark))),
           const SizedBox(height: 6),
           Center(
@@ -595,7 +701,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(icon: const Icon(Icons.arrow_back, color: AppTheme.textDark), onPressed: () => Navigator.pop(context)),
-        title: Text('SafeRide AI', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800)),
+        title: Image.asset('assets/images/logo.png', height: 28, fit: BoxFit.contain),
         centerTitle: true,
       ),
       body: content,

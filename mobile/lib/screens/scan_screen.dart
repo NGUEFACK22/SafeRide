@@ -414,10 +414,10 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       foregroundColor: Colors.white,
       elevation: 0,
       leading: IconButton(
-        icon: const Icon(Icons.shield, color: Colors.white),
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
         onPressed: () => Navigator.pop(context),
       ),
-      title: Text('SafeRide AI', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+      title: Image.asset('assets/images/logo.png', height: 26, fit: BoxFit.contain),
       centerTitle: true,
       actions: [
         const Padding(

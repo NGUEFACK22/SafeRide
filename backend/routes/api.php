@@ -44,6 +44,7 @@ Route::get('auth/verify-email/{id}/{hash}', [AuthController::class, 'verifyEmail
         Route::get('auth/profile', [AuthController::class, 'profile']);
         Route::get('auth/profile/stats', [AuthController::class, 'profileStats']);
         Route::put('auth/profile', [AuthController::class, 'updateProfile']);
+        Route::post('auth/profile/photo', [AuthController::class, 'uploadPhoto']);
         Route::delete('auth/account', [AuthController::class, 'deleteAccount']);
         Route::post('auth/send-verification', [AuthController::class, 'sendVerification']);
 

@@ -58,18 +58,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 12),
-                  Center(
-                    child: Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF111827),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(Icons.shield, size: 32, color: AppTheme.primaryBlue),
-                    ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset('assets/images/logo.png', width: 210, fit: BoxFit.contain),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   Text('SafeRide AI', textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
                   const SizedBox(height: 6),
                   Text(LanguageService.instance.t('welcome'), textAlign: TextAlign.center, style: TextStyle(color: AppTheme.textGrey, fontSize: 14)),

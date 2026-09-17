@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\QrCode;
+use App\Models\SosAlert;
 use App\Models\Trip;
 use App\Models\TripLocation;
 use App\Models\TripRating;
@@ -204,6 +205,8 @@ class TripController extends Controller
                     'verifie' => $vehicle->transporteur->statutVerification(),
                     'trips_count' => Trip::where('transporteur_id', $vehicle->transporteur_id)
                         ->where('statut', 'TERMINE')
+                        ->count(),
+                    'sos_count' => SosAlert::whereIn('trip_id', $vehicle->transporteur->tripsAsTransporteur()->pluck('id'))
                         ->count(),
                     'reviews' => TripRating::where('rated_id', $vehicle->transporteur_id)
                         ->with('rater:id,prenom,nom')

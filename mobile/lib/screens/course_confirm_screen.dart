@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../utils/error_helper.dart';
 
+import '../config/api_config.dart';
 import '../models/trip.dart';
 import '../services/trip_service.dart';
 import '../theme/app_theme.dart';
@@ -243,6 +244,7 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
     final ratingCount = t['ratings_count'] as int? ?? 0;
     final verifie = t['verifie'] as String?;
     final tripsCount = t['trips_count'] as int? ?? 0;
+    final sosCount = t['sos_count'] as int? ?? 0;
     final reviews = (t['reviews'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
 
@@ -288,7 +290,7 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
                       radius: 28,
                       backgroundColor: AppTheme.lightBlueBadge,
                       backgroundImage: t['photo_url'] != null
-                          ? NetworkImage(t['photo_url'])
+                          ? NetworkImage(ApiConfig.resolvePhotoUrl(t['photo_url'] as String?))
                           : null,
                       child: t['photo_url'] == null
                           ? Text(
@@ -378,6 +380,33 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
                                   color: AppTheme.primaryBlue,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                sosCount > 0
+                                    ? Icons.emergency_share
+                                    : Icons.shield_outlined,
+                                size: 14,
+                                color: sosCount > 0
+                                    ? AppTheme.sosRed
+                                    : AppTheme.successText,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                sosCount > 0
+                                    ? '$sosCount alerte(s) SOS déclenchée(s) par des passagers'
+                                    : 'Aucune alerte SOS sur ses courses',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: sosCount > 0
+                                      ? AppTheme.sosRed
+                                      : AppTheme.successText,
                                 ),
                               ),
                             ],

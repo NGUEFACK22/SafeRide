@@ -360,9 +360,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: const Padding(
-          padding: EdgeInsets.only(left: 12),
-          child: Icon(Icons.shield, color: AppTheme.textDark, size: 22),
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: Image.asset('assets/images/logo.png', height: 32, fit: BoxFit.contain),
         ),
         title: Text('SafeRide AI', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 15)),
         centerTitle: true,
@@ -625,6 +625,14 @@ class _PassagerViewState extends State<_PassagerView> {
         children: [
           Text(name.isEmpty ? LanguageService.instance.t('hello') : '${LanguageService.instance.t('hello')}, $name', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 8),
+          Container(
+            alignment: Alignment.center,
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.lightBlueBorder)),
+            child: Image.asset('assets/images/logo.png', height: 56, fit: BoxFit.contain),
+          ),
+          const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppTheme.lightBlueBorder)),

@@ -878,6 +878,13 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
               'Fin : ${trip.endMethod == 'AUTO_10MIN' ? 'automatique (10 min sans action)' : 'manuelle'}',
               style: const TextStyle(fontStyle: FontStyle.italic),
             ),
+            const SizedBox(height: 14),
+            const Icon(Icons.star_outline, color: AppTheme.primaryBlue),
+            const SizedBox(height: 4),
+            Text(
+              LanguageService.instance.t('rate_trip_optional'),
+              style: const TextStyle(fontSize: 12, color: AppTheme.textGrey),
+            ),
           ],
         ),
         actions: [
@@ -886,7 +893,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
               Navigator.pop(ctx);
               Navigator.of(context).pushReplacementNamed('/home');
             },
-            child: Text(LanguageService.instance.t('close')),
+            child: Text(LanguageService.instance.t('rate_later')),
           ),
           FilledButton.icon(
             onPressed: () {
@@ -903,7 +910,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
               });
             },
             icon: const Icon(Icons.star_rate),
-            label: Text('Noter le trajet'),
+            label: Text(LanguageService.instance.t('rate_trip')),
           ),
         ],
       ),

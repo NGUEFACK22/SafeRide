@@ -251,6 +251,34 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Upload de la photo de profil : stockée dans storage/app/public/photos,
+     * accessible via /storage/photos/…. Le champ photo_url est mis à jour.
+     * Une ancienne photo locale (déjà stockée) est supprimée pour éviter
+     * l'accumulation d'images orphelines.
+     */
+    public function uploadPhoto(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'photo' => 'required|image|mimes:jpeg,jpg,png,webp|max:5120',
+        ]);
+
+        $user = $request->user();
+
+        // Suppression de l'ancienne photo locale (pas une URL distante type Google).
+        if ($user->photo_url && ! str_starts_with($user->photo_url, 'http')) {
+            \Storage::disk('public')->delete($user->photo_url);
+        }
+
+        $path = $request->file('photo')->store('photos', 'public');
+        $user->update(['photo_url' => $path]);
+
+        return response()->json([
+            'message' => 'Photo de profil mise à jour',
+            'user' => $this->userPayload($user->fresh()->load('roles', 'vehicles')),
+        ]);
+    }
+
     public function deleteAccount(Request $request): JsonResponse
     {
         $user = $request->user();

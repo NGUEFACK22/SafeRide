@@ -146,14 +146,9 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: const Color(0xFF111827),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(Icons.shield, size: 36, color: AppTheme.primaryBlue),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset('assets/images/logo.png', width: 260, fit: BoxFit.contain),
             ),
             const SizedBox(height: 16),
             const Text('SafeRide AI', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: AppTheme.textDark)),

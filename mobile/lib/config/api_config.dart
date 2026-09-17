@@ -35,4 +35,13 @@ class ApiConfig {
     }
     return null;
   }
+
+  /// Résout une URL de photo de profil : si c'est déjà une URL absolue
+  /// (photo Google), on la retourne telle quelle ; sinon on la préfixe
+  /// avec l'origine de l'API + `/storage/` (photos uploadées).
+  static String resolvePhotoUrl(String? url) {
+    if (url == null || url.isEmpty) return '';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return '${baseUrl.replaceAll('/api/v1', '')}/storage/$url';
+  }
 }
