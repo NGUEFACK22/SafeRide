@@ -1158,7 +1158,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
 
   void _startPolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _checkRefresh());
+    _pollTimer = Timer.periodic(const Duration(seconds: 6), (_) => _checkRefresh());
   }
 
   Future<void> _checkRefresh() async {
@@ -1169,17 +1169,12 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
       return;
     }
     try {
-      final data = await _api.get('/vehicles/$_vehicleId/qr');
+      final data = await _api.post('/vehicles/$_vehicleId/qr/refresh', {});
       final qr = data['qr'] as Map<String, dynamic>?;
       final newToken = qr?['token'] as String?;
       _refreshFailures = 0;
       if (newToken != null && newToken != _token && mounted) {
         setState(() => _token = newToken);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(LanguageService.instance.t('qr_regenerated')), backgroundColor: Colors.green, duration: Duration(seconds: 2)),
-          );
-        }
       }
     } catch (_) {
       // Erreur rÃ©seau/401 : aprÃ¨s 5 Ã©checs consÃ©cutifs (â‰ˆ15 s), on recharge
