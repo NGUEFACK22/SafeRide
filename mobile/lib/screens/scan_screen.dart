@@ -417,7 +417,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
         icon: const Icon(Icons.arrow_back, color: Colors.white),
         onPressed: () => Navigator.pop(context),
       ),
-      title: Image.asset('assets/images/logo.png', height: 26, fit: BoxFit.contain),
+      title: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.asset('assets/images/logo_round.png', height: 26, fit: BoxFit.contain)),
       centerTitle: true,
       actions: [
         const Padding(

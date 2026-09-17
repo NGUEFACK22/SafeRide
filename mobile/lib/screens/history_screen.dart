@@ -55,7 +55,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(icon: const Icon(Icons.arrow_back, color: AppTheme.textDark), onPressed: () => Navigator.pop(context)),
-        title: Image.asset('assets/images/logo.png', height: 28, fit: BoxFit.contain),
+        title: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.asset('assets/images/logo_round.png', height: 28, fit: BoxFit.contain)),
         centerTitle: true,
         actions: const [Padding(padding: EdgeInsets.only(right: 12), child: CircleAvatar(radius: 16, backgroundColor: AppTheme.lightBlueBadge, child: Icon(Icons.person, size: 16, color: AppTheme.primaryBlue)))],
       ),

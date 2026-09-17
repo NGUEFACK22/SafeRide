@@ -362,7 +362,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         elevation: 0,
         leading: Padding(
           padding: const EdgeInsets.only(left: 8),
-          child: Image.asset('assets/images/logo.png', height: 32, fit: BoxFit.contain),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.asset('assets/images/logo_round.png', height: 32, fit: BoxFit.contain),
+          ),
         ),
         title: Text('SafeRide AI', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 15)),
         centerTitle: true,
