@@ -102,9 +102,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
                     children: [
                       _header(lang),
                       const SizedBox(height: 14),
-                      _bouchonsCard(lang),
-                      const SizedBox(height: 12),
-                      _fluidesCard(lang),
+                      _circulationBlock(lang),
                       const SizedBox(height: 12),
                       _climatCard(lang),
                       const SizedBox(height: 12),
@@ -125,126 +123,216 @@ class _PredictionScreenState extends State<PredictionScreen> {
     final n = _p['nb_trajets_analyses'] ?? 0;
     final genere = _p['genere_le'] ?? '';
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppTheme.textDark, Color(0xFF1B2F6B)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 14, offset: const Offset(0, 6))],
       ),
-      child: Row(children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), shape: BoxShape.circle),
-          child: const Icon(Icons.insights, color: Colors.white, size: 26),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(lang.t('prediction_title'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
-            const SizedBox(height: 3),
-            Text('$n trajets analysés • $genere',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11)),
-          ]),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: _generateur == 'IA_SafeRide' ? Colors.green.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFF0F62FE), Color(0xFF7C3AED)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+            ),
+            child: const Icon(Icons.insights, color: Colors.white, size: 28),
           ),
-          child: Text(
-            _generateur == 'IA_SafeRide' ? lang.t('ia_safe') : lang.t('regle'),
-            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(lang.t('prediction_title'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17)),
+              const SizedBox(height: 3),
+              Text(lang.t('analyse_zone'), maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11)),
+            ]),
           ),
-        ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: _generateur == 'IA_SafeRide' ? Colors.green.withValues(alpha: 0.28) : Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+            ),
+            child: Text(
+              _generateur == 'IA_SafeRide' ? lang.t('ia_safe') : lang.t('regle'),
+              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 14),
+        Row(children: [
+          _statChip(Icons.route_outlined, '$n', lang.t('trips').toLowerCase(), Colors.blue.shade300),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
+              child: Text(genere.isEmpty ? '' : '${lang.t('analyzed_on')} $genere', maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 10)),
+            ),
+          ),
+        ]),
       ]),
     );
   }
 
-  Widget _bouchonsCard(LanguageService lang) {
-    final heures = List<String>.from(_p['heures_bouchons'] ?? const []);
-    return _card(
-      lang.t('bouchons_title'),
-      Icons.traffic,
-      Colors.red.shade700,
-      heures.isEmpty
-          ? const Text('Données insuffisantes pour prédire des pics.', style: TextStyle(fontSize: 12, color: AppTheme.textGrey))
-          : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                for (final h in heures)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.red.shade200),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.access_time, size: 14, color: Colors.red.shade700),
-                      const SizedBox(width: 5),
-                      Text(h, style: TextStyle(fontWeight: FontWeight.w800, color: Colors.red.shade800, fontSize: 13)),
-                    ]),
-                  ),
-              ]),
-              const SizedBox(height: 8),
-              const Text('Créneaux où votre temps de trajet est susceptible de s’allonger.',
-                  style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
-            ]),
+  Widget _statChip(IconData icon, String valeur, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white.withValues(alpha: 0.12))),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 15, color: color),
+        const SizedBox(width: 6),
+        Text(valeur, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 10)),
+      ]),
     );
   }
 
-  Widget _fluidesCard(LanguageService lang) {
-    final heures = List<String>.from(_p['heures_fluides'] ?? const []);
-    return _card(
-      lang.t('fluides_title'),
-      Icons.timeline,
-      Colors.green.shade700,
-      heures.isEmpty
-          ? const Text('Aucun créneau fluide identifié pour le moment.', style: TextStyle(fontSize: 12, color: AppTheme.textGrey))
-          : Wrap(spacing: 8, runSpacing: 8, children: [
-              for (final h in heures)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.green.shade200),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.check_circle_outline, size: 14, color: Colors.green.shade700),
-                    const SizedBox(width: 5),
-                    Text(h, style: TextStyle(fontWeight: FontWeight.w800, color: Colors.green.shade800, fontSize: 13)),
-                  ]),
-                ),
-            ]),
+  /// Bloc « Circulation » : heures à bouchons + créneaux fluides côte à côte.
+  Widget _circulationBlock(LanguageService lang) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.08), blurRadius: 10, offset: const Offset(0, 3))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _cardHeader(Icons.traffic, lang.t('bouchons_title'), Colors.red.shade700),
+        const SizedBox(height: 12),
+        _bouchonsContent(lang),
+        const SizedBox(height: 16),
+        const Divider(height: 1),
+        const SizedBox(height: 16),
+        _cardHeader(Icons.timeline, lang.t('fluides_title'), Colors.green.shade700),
+        const SizedBox(height: 12),
+        _fluidesContent(lang),
+      ]),
     );
+  }
+
+  Widget _cardHeader(IconData icon, String titre, Color couleur) {
+    return Row(children: [
+      Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(color: couleur.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(9)),
+        child: Icon(icon, size: 17, color: couleur),
+      ),
+      const SizedBox(width: 10),
+      Text(titre, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+    ]);
+  }
+
+  Widget _bouchonsContent(LanguageService lang) {
+    final heures = List<String>.from(_p['heures_bouchons'] ?? const []);
+    if (heures.isEmpty) {
+      return const Text('Données insuffisantes pour prédire des pics.', style: TextStyle(fontSize: 12, color: AppTheme.textGrey));
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final h in heures)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.access_time, size: 14, color: Colors.red.shade700),
+              const SizedBox(width: 5),
+              Text(h, style: TextStyle(fontWeight: FontWeight.w800, color: Colors.red.shade800, fontSize: 13)),
+            ]),
+          ),
+      ]),
+      const SizedBox(height: 8),
+      const Text('Créneaux où votre temps de trajet est susceptible de s’allonger.',
+          style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+    ]);
+  }
+
+  Widget _fluidesContent(LanguageService lang) {
+    final heures = List<String>.from(_p['heures_fluides'] ?? const []);
+    if (heures.isEmpty) {
+      return const Text('Aucun créneau fluide identifié pour le moment.', style: TextStyle(fontSize: 12, color: AppTheme.textGrey));
+    }
+    return Wrap(spacing: 8, runSpacing: 8, children: [
+      for (final h in heures)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.green.shade200),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.check_circle_outline, size: 14, color: Colors.green.shade700),
+            const SizedBox(width: 5),
+            Text(h, style: TextStyle(fontWeight: FontWeight.w800, color: Colors.green.shade800, fontSize: 13)),
+          ]),
+        ),
+    ]);
   }
 
   Widget _climatCard(LanguageService lang) {
     final climats = List<Map<String, dynamic>>.from(
         (_p['climats'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)) ?? const []);
-    return _card(lang.t('climat_title'), Icons.cloud_outlined, AppTheme.primaryBlue, climats.isEmpty
-        ? const Text('Climat indisponible (zones non géolocalisées ou réseau).',
-            style: TextStyle(fontSize: 12, color: AppTheme.textGrey))
-        : Column(children: [
-            for (final c in climats)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Row(children: [
-                  Icon(_climatIcon(c['code_wmo']), size: 18, color: AppTheme.primaryBlue),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('${c['libelle'] ?? c['zone']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
+    if (climats.isEmpty) {
+      return _card(lang.t('climat_title'), Icons.cloud_outlined, AppTheme.primaryBlue,
+          const Text('Climat indisponible (zones non géolocalisées ou réseau).',
+              style: TextStyle(fontSize: 12, color: AppTheme.textGrey)));
+    }
+    return _card(lang.t('climat_title'), Icons.cloud_outlined, AppTheme.primaryBlue,
+        Column(children: [
+          for (var i = 0; i < climats.length; i++) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppTheme.lightBlueBadge,
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  Text('${c['description'] ?? ''} ${c['temperature_c'] != null ? '• ${c['temperature_c']}°C' : ''}${c['pluie_prob'] != null ? ' • pluie ${c['pluie_prob']}%' : ''}',
-                      style: const TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+                  child: Icon(_climatIcon(climats[i]['code_wmo']), size: 18, color: AppTheme.primaryBlue),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${climats[i]['libelle'] ?? climats[i]['zone']}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+                    if (climats[i]['temperature_c'] != null)
+                      Text('${climats[i]['temperature_c']}°C', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+                  ]),
+                ),
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  if (climats[i]['pluie_prob'] != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)),
+                      child: Text('💧 ${climats[i]['pluie_prob']}%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.primaryBlue)),
+                    ),
+                  if (climats[i]['description'] != null && climats[i]['description'] != '')
+                    Text('${climats[i]['description']}', style: const TextStyle(fontSize: 10, color: AppTheme.textGrey)),
                 ]),
-              ),
-          ]));
+              ]),
+            ),
+            if (i < climats.length - 1) const Divider(height: 12),
+          ]
+        ]));
   }
 
   IconData _climatIcon(dynamic code) {
@@ -260,23 +348,53 @@ class _PredictionScreenState extends State<PredictionScreen> {
   Widget _zonesCard(LanguageService lang) {
     final zones = List<Map<String, dynamic>>.from(
         (_p['zones_frequentes'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)) ?? const []);
-    return _card(lang.t('zones_title'), Icons.place_outlined, AppTheme.primaryBlue, zones.isEmpty
-        ? const Text('Effectuez quelques trajets pour que l’IA apprenne vos zones.',
-            style: TextStyle(fontSize: 12, color: AppTheme.textGrey))
-        : Column(children: [
-            for (final z in zones)
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.location_history, size: 20, color: AppTheme.primaryBlue),
-                title: Text('${z['libelle']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
-                trailing: Container(
+    if (zones.isEmpty) {
+      return _card(lang.t('zones_title'), Icons.place_outlined, AppTheme.primaryBlue,
+          const Text('Effectuez quelques trajets pour que l’IA apprenne vos zones.',
+              style: TextStyle(fontSize: 12, color: AppTheme.textGrey)));
+    }
+    final maxTrajets = zones.fold<int>(1, (m, z) {
+      final n = int.tryParse('${z['trajets'] ?? 0}') ?? 0;
+      return n > m ? n : m;
+    });
+    return _card(lang.t('zones_title'), Icons.place_outlined, AppTheme.primaryBlue,
+        Column(children: [
+          for (final z in zones)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.location_history, size: 18, color: AppTheme.primaryBlue),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${z['libelle']}', maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: (int.tryParse('${z['trajets'] ?? 0}') ?? 0) / maxTrajets,
+                        minHeight: 5,
+                        backgroundColor: AppTheme.lightBlueBorder,
+                        valueColor: const AlwaysStoppedAnimation(AppTheme.primaryBlue),
+                      ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(width: 10),
+                Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)),
                   child: Text('${z['trajets']} x', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.primaryBlue)),
                 ),
-              ),
-          ]));
+              ]),
+            ),
+        ]));
   }
 
   Widget _conseilsCard(LanguageService lang) {
@@ -287,9 +405,15 @@ class _PredictionScreenState extends State<PredictionScreen> {
         children: [
           for (final c in conseils)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.symmetric(vertical: 5),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('💡 ', style: TextStyle(fontSize: 12, color: Colors.amber.shade800)),
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(color: Colors.amber.shade50, shape: BoxShape.circle),
+                  child: const Icon(Icons.lightbulb, size: 13, color: Colors.amber),
+                ),
+                const SizedBox(width: 10),
                 Expanded(child: Text(c, style: const TextStyle(fontSize: 12, color: AppTheme.textDark, height: 1.4))),
               ]),
             ),
@@ -310,15 +434,12 @@ class _PredictionScreenState extends State<PredictionScreen> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [BoxShadow(color: Colors.grey.withValues(alpha: 0.08), blurRadius: 10, offset: const Offset(0, 3))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(icon, size: 18, color: couleur),
-          const SizedBox(width: 8),
-          Text(titre, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
-        ]),
+        _cardHeader(icon, titre, couleur),
         const SizedBox(height: 10),
         contenu,
       ]),

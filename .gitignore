@@ -31,3 +31,8 @@ mobile/.flutter-plugins-dependencies
 
 # Scripts de travail temporaires (éditions Python one-shot)
 mobile/python_edit_cleanup/
+
+# Fichiers de test jetables (JSON de register, tokens scannés)
+test_register.json
+scan_token*.txt
+tools/keep_alive.log

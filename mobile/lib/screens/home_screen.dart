@@ -626,14 +626,6 @@ class _PassagerViewState extends State<_PassagerView> {
           Text(name.isEmpty ? LanguageService.instance.t('hello') : '${LanguageService.instance.t('hello')}, $name', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
           const SizedBox(height: 8),
           Container(
-            alignment: Alignment.center,
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.lightBlueBorder)),
-            child: Image.asset('assets/images/logo.png', height: 56, fit: BoxFit.contain),
-          ),
-          const SizedBox(height: 10),
-          Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppTheme.lightBlueBorder)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -754,15 +746,19 @@ class _PassagerViewState extends State<_PassagerView> {
               child: GestureDetector(
                 onTap: () => Navigator.pushNamed(context, '/prediction'),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFF0F62FE), Color(0xFF1B2F6B)], begin: Alignment.centerLeft, end: Alignment.centerRight),
-                    borderRadius: BorderRadius.circular(14),
+                    gradient: const LinearGradient(colors: [Color(0xFF0F62FE), Color(0xFF1B2F6B)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(Icons.insights, color: Colors.white, size: 20),
-                    SizedBox(width: 8),
-                    FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
+                  child: Row(children: [
+                    Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.insights, color: Colors.white, size: 19)),
+                    const SizedBox(width: 8),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))),
+                      const SizedBox(height: 2),
+                      Text(LanguageService.instance.t('prediction_sub'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 10)),
+                    ])),
                   ]),
                 ),
               ),
@@ -772,15 +768,15 @@ class _PassagerViewState extends State<_PassagerView> {
               child: GestureDetector(
                 onTap: () => Navigator.pushNamed(context, '/ai'),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF312E81)], begin: Alignment.centerLeft, end: Alignment.centerRight),
-                    borderRadius: BorderRadius.circular(14),
+                    gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF312E81)], begin: Alignment.topLeft, end: Alignment.centerRight),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(Icons.smart_toy, color: Colors.white, size: 20),
-                    SizedBox(width: 8),
-                    FittedBox(child: Text(LanguageService.instance.t('assistant_ia'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
+                  child: Row(children: [
+                    Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.smart_toy, color: Colors.white, size: 19)),
+                    const SizedBox(width: 8),
+                    Expanded(child: FittedBox(child: Text(LanguageService.instance.t('assistant_ia'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)))),
                   ]),
                 ),
               ),
@@ -1051,15 +1047,19 @@ class _TransporteurViewState extends State<_TransporteurView> {
               child: GestureDetector(
                 onTap: () => Navigator.pushNamed(context, '/prediction'),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFF0F62FE), Color(0xFF1B2F6B)], begin: Alignment.centerLeft, end: Alignment.centerRight),
-                    borderRadius: BorderRadius.circular(14),
+                    gradient: const LinearGradient(colors: [Color(0xFF0F62FE), Color(0xFF1B2F6B)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(Icons.insights, color: Colors.white, size: 20),
-                    SizedBox(width: 8),
-                    FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
+                  child: Row(children: [
+                    Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.insights, color: Colors.white, size: 19)),
+                    const SizedBox(width: 8),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))),
+                      const SizedBox(height: 2),
+                      Text(LanguageService.instance.t('prediction_sub'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 10)),
+                    ])),
                   ]),
                 ),
               ),
@@ -1069,15 +1069,15 @@ class _TransporteurViewState extends State<_TransporteurView> {
               child: GestureDetector(
                 onTap: () => Navigator.pushNamed(context, '/ai'),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF312E81)], begin: Alignment.centerLeft, end: Alignment.centerRight),
-                    borderRadius: BorderRadius.circular(14),
+                    gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF312E81)], begin: Alignment.topLeft, end: Alignment.centerRight),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(Icons.smart_toy, color: Colors.white, size: 20),
-                    SizedBox(width: 8),
-                    FittedBox(child: Text(LanguageService.instance.t('assistant_ia'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
+                  child: Row(children: [
+                    Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.smart_toy, color: Colors.white, size: 19)),
+                    const SizedBox(width: 8),
+                    Expanded(child: FittedBox(child: Text(LanguageService.instance.t('assistant_ia'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)))),
                   ]),
                 ),
               ),
@@ -1192,6 +1192,31 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
         _token = null;
         _loadQr();
       }
+    }
+  }
+
+  /// Régénère manuellement le QR (bouton de secours quand le QR affiché a
+  /// été consommé ou que le polling de détection est en échec, ex. serveur en veille).
+  Future<void> _manualRefresh() async {
+    if (_vehicleId == null) {
+      _loadQr();
+      return;
+    }
+    try {
+      final data = await _api.post('/vehicles/$_vehicleId/qr/refresh', {});
+      final qr = data['qr'] as Map<String, dynamic>?;
+      final newToken = qr?['token'] as String?;
+      if (newToken != null && newToken.isNotEmpty && mounted) {
+        setState(() => _token = newToken);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(LanguageService.instance.t('qr_regenerated_simple')), backgroundColor: Colors.green, duration: const Duration(seconds: 2)),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -1311,6 +1336,21 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
               const SizedBox(width: 6),
               Text(LanguageService.instance.t('qr_active'), style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 11, fontWeight: FontWeight.w600)),
             ]),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _manualRefresh,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Colors.white24),
+                backgroundColor: Colors.white.withValues(alpha: 0.08),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+              icon: const Icon(Icons.qr_code_2, size: 18),
+              label: Text(LanguageService.instance.t('regenerate_qr'), style: const TextStyle(fontWeight: FontWeight.w700)),
+            ),
           ),
         ],
       ),

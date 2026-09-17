@@ -50,6 +50,7 @@ class LanguageService extends ChangeNotifier {
     'climat_title': {'fr': 'Climat sur vos zones', 'en': 'Weather on your areas'},
     'conseils_title': {'fr': 'Conseils pour les éviter', 'en': 'Tips to avoid them'},
     'analyse_zone': {'fr': 'Analyse en cours de vos habitudes (trajets)', 'en': 'Analyzing your trip patterns'},
+    'analyzed_on': {'fr': 'Généré le', 'en': 'Generated on'},
     'regle': {'fr': 'Règles', 'en': 'Rules'},
     'ia_safe': {'fr': 'IA SafeRide', 'en': 'SafeRide AI'},
     'sos': {'fr': 'SOS URGENCE', 'en': 'SOS EMERGENCY'},
