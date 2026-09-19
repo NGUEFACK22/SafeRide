@@ -179,6 +179,44 @@ void main() {
       expect(sent, 0);
       expect(db.deletedIds, isEmpty);
     });
+
+    test('coupure 5 min simulée (20 échecs) puis retour -> SOS part', () async {
+      // Reproduit : réseau coupé 5 min (20 ticks x 15s) puis rétabli.
+      // Le SOS ne doit JAMAIS être purgé pour "trop de tentatives".
+      final db = _FakeDb([
+        {
+          'id': 21,
+          'endpoint': '/sos',
+          'payload':
+              '{"latitude":3.848,"longitude":11.5021,"declenchement":"BOUTON"}',
+        },
+      ]);
+      var calls = 0;
+      Future<http.Response> flaky(
+          Uri uri, Map<String, String> headers, String body) async {
+        calls++;
+        if (calls <= 20) throw Exception('no network 5 min');
+        return http.Response('{"sos":{}}', 201);
+      }
+
+      for (var i = 0; i < 20; i++) {
+        final sent = await BackgroundLocationService.flushSosQueueInBackground(
+          openDbForTest: () async => db,
+          postForTest: flaky,
+          skipTokenForTest: true,
+        );
+        expect(sent, 0);
+        expect(db.deletedIds, isEmpty,
+            reason: 'tick ${i + 1}/20 : le SOS doit rester en file');
+      }
+      final sent = await BackgroundLocationService.flushSosQueueInBackground(
+        openDbForTest: () async => db,
+        postForTest: flaky,
+        skipTokenForTest: true,
+      );
+      expect(sent, 1);
+      expect(db.deletedIds, [21]);
+    });
   });
 }
 

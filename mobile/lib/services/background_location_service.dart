@@ -100,17 +100,25 @@ class BackgroundLocationService {
     service.invoke('ready', {});
 
     // P3-13 : 15s au lieu de 10s pour économiser batterie + adaptatif si immobile
+    // + compteur persistant : après 8 ticks sans succès (~2 min), on affiche
+    // une notification "SOS en attente" pour que l'utilisateur sache.
     Timer.periodic(const Duration(seconds: 15), (timer) async {
       // 1) Toujours rejouer la file SOS / sync_queue, avec ou sans trajet.
       // C'est ce qui fait partir l'alerte en attente dès le retour réseau,
-      // même si l'utilisateur a fermé l'app.
+      // même si l'utilisateur a fermé l'app. Aucune limite de tentatives
+      // pour les SOS : l'attente peut durer 2 à 5 min et plus.
       try {
         final flushed = await flushSosQueueInBackground();
-        if (flushed > 0 && service is AndroidServiceInstance) {
-          service.setForegroundNotificationInfo(
-            title: 'SafeRide AI',
-            content: 'Alerte SOS transmise ($flushed)',
-          );
+        if (flushed > 0) {
+          await _resetSosWaitCounter();
+          if (service is AndroidServiceInstance) {
+            service.setForegroundNotificationInfo(
+              title: 'SafeRide AI',
+              content: 'Alerte SOS transmise ($flushed)',
+            );
+          }
+        } else {
+          await _noteSosWaitTick(service);
         }
       } catch (_) {
         // Silence en fond : on réessaiera au prochain tick.
@@ -254,5 +262,34 @@ class BackgroundLocationService {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Compteur persistant d'attente SOS (survit au redémarrage du service).
+  /// Après 8 ticks à 15s (~2 min) sans transmission, la notification de fond
+  /// affiche "SOS en attente — réessai automatique" au lieu du silence.
+  static const _sosWaitKey = 'sos_wait_ticks';
+
+  static Future<void> _resetSosWaitCounter() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_sosWaitKey, 0);
+    } catch (_) {}
+  }
+
+  static Future<void> _noteSosWaitTick(ServiceInstance service) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ticks = (prefs.getInt(_sosWaitKey) ?? 0) + 1;
+      await prefs.setInt(_sosWaitKey, ticks);
+      if (ticks >= 8 && service is AndroidServiceInstance) {
+        final mins = (ticks * 15) ~/ 60;
+        service.setForegroundNotificationInfo(
+          title: 'SafeRide AI',
+          content: mins < 1
+              ? 'SOS en attente — réessai automatique…'
+              : 'SOS en attente depuis ~${mins} min — réessai automatique…',
+        );
+      }
+    } catch (_) {}
   }
 }

@@ -1,5 +1,5 @@
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 
@@ -20,6 +20,15 @@ class OfflineService {
       if (_online) _replayQueues();
     });
     _init();
+    // Garde-fou réseau faible : connectivity_plus ne voit pas toujours le
+    // retour d'un réseau dégradé (2G, portail captif). On re-tente la file
+    // SOS toutes les 30s tant qu'elle n'est pas vide, même sans changement
+    // d'état — garantit la reprise sous 2 à 5 min d'attente.
+    _sosRetryTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      try {
+        if (await pendingSosCount() > 0) await _flushQueue();
+      } catch (_) {}
+    });
   }
 
   static final OfflineService instance = OfflineService._();
@@ -32,6 +41,7 @@ class OfflineService {
 
   final _connectivityController = StreamController<bool>.broadcast();
   Stream<bool> get onConnectivityChanged => _connectivityController.stream;
+  Timer? _sosRetryTimer;
 
   Future<void> _init() async {
     final result = await _connectivity.checkConnectivity();
@@ -149,9 +159,19 @@ class OfflineService {
     if (_online) await _flushQueue();
   }
 
+  /// Nombre de SOS en attente dans la file (jamais purgés pour échec réseau).
+  Future<int> pendingSosCount() async {
+    final db = await DatabaseService.database;
+    final result = await db.rawQuery(
+      "SELECT COUNT(*) AS c FROM sync_queue WHERE endpoint LIKE '%/sos%'",
+    );
+    return (result.first['c'] as int?) ?? 0;
+  }
+
   /// Rejoue la file d'attente. Distinction cruciale :
   /// - erreur TRANSIENTE (pas de réponse réseau, ou 5xx serveur) → retry_count++,
-  ///   abandon après 10 tentatives, on réessaiera à la prochaine connexion ;
+  ///   JAMAIS d'abandon pour les SOS (ils doivent tenir 2 à 5 min et plus) ;
+  ///   les autres endpoints sont abandonnés après 40 tentatives (~20 min) ;
   /// - erreur PERMANENTE (4xx : ex anti-spam 429 SOS, validation 422, 401) →
   ///   l'opération est définitivement refusée par le serveur : on la retire
   ///   de la file (et on note last_error), sinon elle bloquerait toute la queue.
@@ -160,14 +180,16 @@ class OfflineService {
     final pending = await db.query('sync_queue', orderBy: 'created_at ASC');
     for (final row in pending) {
       final id = row['id'];
+      final endpoint = (row['endpoint'] as String?) ?? '';
+      final isSos = endpoint.contains('/sos');
       try {
-        await _api.post(row['endpoint'] as String, jsonDecode(row['payload'] as String));
+        await _api.post(endpoint, jsonDecode(row['payload'] as String));
         await db.delete('sync_queue', where: 'id = ?', whereArgs: [id]);
       } on ApiException catch (e) {
         // Un 5xx est transitoire (serveur surchargé / redéploiement) : on réessaie.
         if (e.statusCode >= 500) {
           final retries = (row['retry_count'] as int? ?? 0) + 1;
-          if (retries >= 10) {
+          if (!isSos && retries >= 40) {
             await db.delete('sync_queue', where: 'id = ?', whereArgs: [id]);
           } else {
             await db.update(
@@ -195,9 +217,10 @@ class OfflineService {
         );
         await db.delete('sync_queue', where: 'id = ?', whereArgs: [id]);
       } catch (e) {
-        // Erreur réseau : réessayer plus tard, abandon après 10 tentatives.
+        // Erreur réseau : réessayer plus tard. Les SOS ne sont JAMAIS
+        // abandonnés (attente 2-5 min et plus) ; les autres le sont après 40.
         final retries = (row['retry_count'] as int? ?? 0) + 1;
-        if (retries >= 10) {
+        if (!isSos && retries >= 40) {
           await db.delete('sync_queue', where: 'id = ?', whereArgs: [id]);
         } else {
           await db.update(
