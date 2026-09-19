@@ -40,7 +40,7 @@ SafeRide AI met en relation passagers et transporteurs et assure :
 | Composant | Version / outil |
 |---|---|
 | PHP | 8.2+ (Composer) |
-| Backend | Laravel 12, Sanctum, Spatie Laravel Permission |
+| Backend | Laravel 12, Sanctum, rôles maison (`user_roles`, sans Spatie) |
 | Mobile | Flutter 3.44+, Android SDK (NDK r28c, AGP 9), scanner `mobile_scanner`, `google_sign_in` |
 | Base de données | PostgreSQL (Neon) |
 | IA | Mistral (`mistral-small-latest`) |

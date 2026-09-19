@@ -191,7 +191,7 @@ class AiService
             'gestionnaire' => [
                 'dossiers_attribues' => $user->managerAssignments()->whereBetween('created_at', [$debut, $fin])->count(),
                 'dossiers_clotures' => $user->managerAssignments()->whereBetween('created_at', [$debut, $fin])->where('statut', 'CLOTURE')->count(),
-                'sos_en_cours' => SosAlert::where('statut', '!=', 'RESOLU')->whereBetween('created_at', [$debut, $fin])->count(),
+                'sos_en_cours' => SosAlert::whereNotIn('statut', ['RESOLU', 'CLOTURE', 'FAUSSE_ALERTE'])->whereBetween('created_at', [$debut, $fin])->count(),
             ],
             'admin' => [
                 'total_trajets' => (clone $trajetsQuery)->count(),

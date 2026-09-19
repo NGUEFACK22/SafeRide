@@ -130,7 +130,7 @@ class _ManagerScreenState extends State<ManagerScreen> {
         '${transporteur['prenom'] ?? ''} ${transporteur['nom'] ?? ''}'.trim();
 
     final resolved = statut == 'RESOLU' ||
-        statut == 'CLOTE' ||
+        statut == 'CLOTURE' ||
         statut == 'FAUSSE_ALERTE';
 
     if (!mounted) return;

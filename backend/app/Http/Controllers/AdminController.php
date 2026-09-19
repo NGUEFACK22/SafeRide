@@ -20,9 +20,9 @@ class AdminController extends Controller
         return response()->json([
             'users_total' => User::count(),
             'trips_total' => Trip::whereIn('statut', ['EN_COURS', 'TERMINE'])->count(),
-            'trips_active' => Trip::where('statut', 'EN_COURS')->count(),
+            'trips_active' => Trip::whereIn('statut', ['SCANNE', 'EN_ATTENTE_TRANSPORTEUR', 'CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'])->count(),
             'sos_total' => SosAlert::count(),
-            'sos_open' => SosAlert::whereNotIn('statut', ['RESOLU', 'CLOTE', 'FAUSSE_ALERTE'])->count(),
+            'sos_open' => SosAlert::whereNotIn('statut', ['RESOLU', 'CLOTURE', 'FAUSSE_ALERTE'])->count(),
             'disputes_total' => Dispute::count(),
             'lost_items_total' => LostItemReport::count(),
             'identities' => IdentityVerification::count(),

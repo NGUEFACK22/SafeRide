@@ -236,11 +236,11 @@ class ProcessCoverageTest extends TestCase
         $this->assertNotNull($assignment->fresh()->taken_at);
         $this->assertSame('EN_COURS', SosAlert::findOrFail($sos['id'])->statut);
 
-        // Clôture → alerte CLOTE.
+        // Clôture → alerte CLOTURE.
         $this->actingAs($manager)->postJson("/api/v1/manager/assignments/{$assignment->id}/close")
             ->assertOk()
             ->assertJsonPath('assignment.statut', 'CLOTURE');
-        $this->assertSame('CLOTE', SosAlert::findOrFail($sos['id'])->statut);
+        $this->assertSame('CLOTURE', SosAlert::findOrFail($sos['id'])->statut);
 
         // Re-take impossible après clôture (422/404).
         $this->actingAs($manager)->postJson("/api/v1/manager/assignments/{$assignment->id}/take")

@@ -54,7 +54,7 @@ class SosController extends Controller
         // P2-9 : anti double SOS / replay 30s
         $recent = SosAlert::where('passager_id', $request->user()->id)
             ->where('created_at', '>', now()->subSeconds(30))
-            ->whereNotIn('statut', ['RESOLU', 'CLOTE', 'FAUSSE_ALERTE']);
+            ->whereNotIn('statut', ['RESOLU', 'CLOTURE', 'FAUSSE_ALERTE']);
         if ($trip) {
             $recent = $recent->where('trip_id', $trip->id);
         } else {

@@ -17,14 +17,15 @@ class ApiConfig {
   // IMPORTANT : Sans ces valeurs, le bouton Google affichera un message d'erreur.
   // Build avec :
   //   flutter run --dart-define=GOOGLE_CLIENT_ID=<web-client-id> --dart-define=GOOGLE_ANDROID_CLIENT_ID=<android-client-id>
+  // Les valeurs par défaut sont volontairement vides : aucun secret n'est versionné.
   static const String googleClientId = String.fromEnvironment(
     'GOOGLE_CLIENT_ID',
-    defaultValue: '841219332616-ib3ge6r9a3n6nrpt9pp7q7u7ia5mi60a.apps.googleusercontent.com',
+    defaultValue: '',
   );
 
   static const String googleAndroidClientId = String.fromEnvironment(
     'GOOGLE_ANDROID_CLIENT_ID',
-    defaultValue: '841219332616-007e6v8ho3jdnkbr2pfo0v50jnbujd2e.apps.googleusercontent.com',
+    defaultValue: '',
   );
 
   /// Vérifie si la connexion Google est configurée.

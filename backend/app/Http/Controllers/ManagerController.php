@@ -97,7 +97,7 @@ class ManagerController extends Controller
         $message = $mode === 'OPENER' ? 'EN_COURS' : 'CLOTURE';
 
         if ($dossier instanceof SosAlert && in_array($dossier->statut, ['DETECTE', 'VERIFICATION', 'DECLENCHE', 'NOTIFIE', 'EN_COURS'])) {
-            $dossier->update(['statut' => $message === 'CLOTURE' ? 'CLOTE' : 'EN_COURS']);
+            $dossier->update(['statut' => $message === 'CLOTURE' ? 'CLOTURE' : 'EN_COURS']);
         } elseif ($dossier instanceof LostItemReport && $dossier->statut === 'SIGNALE') {
             $dossier->update(['statut' => $message === 'CLOTURE' ? 'CLOTURE' : 'EN_RECHERCHE']);
         } elseif ($dossier instanceof Dispute && $dossier->statut === 'OUVERT') {
