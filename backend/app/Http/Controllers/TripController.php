@@ -478,6 +478,7 @@ class TripController extends Controller
             ]);
         }
 
+        try {
         // Transition en deux temps pour que le TripObserver audite
         // DESTINATION_PROPOSEE → DESTINATION_CONFIRMEE (destination_confirmee)
         // puis DESTINATION_CONFIRMEE → EN_COURS (trip_start). Sans cette
@@ -493,6 +494,16 @@ class TripController extends Controller
             'titre' => 'Trajet démarré',
             'message' => 'Le trajet vers ' . $trip->destination_address . ' a commencé.',
         ]);
+    } catch (\Throwable $e) {
+        // En cas d'erreur de transition d'état, on retourne un message clair
+        \Log::error('Erreur lors de la confirmation de destination', [
+            'trip_id' => $id,
+            'error' => $e->getMessage(),
+        ]);
+        return response()->json([
+            'message' => 'Erreur lors de la mise à jour du statut. Réessayez.',
+        ], 500);
+    }
 
         return response()->json([
             'message' => 'Destination confirmée. Trajet en cours.',

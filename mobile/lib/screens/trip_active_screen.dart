@@ -151,9 +151,19 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     _plannedRoute = OsrmService.decodePolyline(encoded);
   }
 
-  /// Déclenche les actions liées à l'état courant (suivi GPS + écoute vocale en EN_COURS).
+    /// Déclenche les actions liées à l'état courant (suivi GPS + écoute vocale en EN_COURS).
   void _enterState() {
-    if (_trip?.statut == 'EN_COURS') {
+    // Vérification défensive : si le trajet est null ou terminé, on nettoie avant de lire le statut.
+    if (_trip == null) {
+      _tracker?.cancel();
+      _endPoll?.cancel();
+      _stopVoiceMonitoring();
+      return;
+    }
+
+    final statut = _trip!.statut;
+
+    if (statut == 'EN_COURS') {
       _decodePlannedRoute(_trip!);
       _waitingPoll?.cancel();
       _startTracking();
@@ -163,7 +173,20 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       _loadWeather();
       _askVoiceConsent();
       _startEndPoll();
+    } else if (statut == 'TERMINE' || statut == 'ANNULE') {
+      // Le trajet est terminé ou annulé : arrêt du suivi et retour à l'accueil.
+      _tracker?.cancel();
+      _endPoll?.cancel();
+      _stopVoiceMonitoring();
+      BackgroundLocationService().stopTripTracking();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(statut == 'TERMINE' ? 'Le trajet est terminé.' : 'Le trajet a été annulé.'), backgroundColor: AppTheme.sosRed),
+        );
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
     } else {
+      // Autres états (SCANNE, EN_ATTENTE_TRANSPORTEUR, CONFIRME, DESTINATION_PROPOSEE) : on nettoie les timers mais on ne démarre pas le suivi
       _tracker?.cancel();
       _endPoll?.cancel();
       _stopVoiceMonitoring();
