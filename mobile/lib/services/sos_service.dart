@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_service.dart';
+import 'background_location_service.dart';
 import 'offline_service.dart';
 
 class SosService {
@@ -100,6 +101,7 @@ class SosService {
 
   /// POST /sos avec repli hors-ligne : toute panne réseau (pas une erreur de
   /// validation du serveur) met l'alerte en file d'attente SQLite.
+  /// Le service de fond est réveillé pour rejouer la file même app fermée.
   Future<Map<String, dynamic>> _postOrEnqueue(Map<String, dynamic> payload) async {
     try {
       return await _api.post('/sos', payload);
@@ -107,6 +109,11 @@ class SosService {
       rethrow; // l'API a répondu (ex : 422) : vraie erreur, pas de file
     } catch (_) {
       await OfflineService.instance.enqueue('/sos', 'POST', payload);
+      // Réveille le watchdog de fond : reprise auto au retour réseau,
+      // même si l'utilisateur quitte l'app juste après le SOS.
+      try {
+        await BackgroundLocationService().ensureSosWatchdog();
+      } catch (_) {}
       return const {'queued': true, 'sms_message': null, 'emergency_contacts': <dynamic>[]};
     }
   }

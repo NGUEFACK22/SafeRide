@@ -47,7 +47,11 @@ class ApiService {
       if (auth) 'Authorization': 'Bearer ${await getToken()}',
     };
 
-    final response = await http.post(uri, headers: headers, body: jsonEncode(body));
+    // Timeout anti-blocage : sur réseau faible (2G, Render free qui dort),
+    // on échoue vite pour basculer en file d'attente au lieu du spinner infini.
+    final response = await http
+        .post(uri, headers: headers, body: jsonEncode(body))
+        .timeout(const Duration(seconds: 12));
     final data = _decode(response);
 
     if (response.statusCode >= 400) {
@@ -64,7 +68,9 @@ class ApiService {
       if (auth) 'Authorization': 'Bearer ${await getToken()}',
     };
 
-    final response = await http.get(uri, headers: headers);
+    final response = await http
+        .get(uri, headers: headers)
+        .timeout(const Duration(seconds: 12));
     final data = _decode(response);
 
     if (response.statusCode >= 400) {

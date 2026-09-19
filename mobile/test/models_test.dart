@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:saferide_mobile/models/trip.dart';
 import 'package:saferide_mobile/models/user.dart';
+import 'package:saferide_mobile/services/background_location_service.dart';
 import 'package:saferide_mobile/services/osrm_service.dart';
 
 void main() {
@@ -121,4 +123,86 @@ void main() {
       expect(user.roles, isEmpty);
     });
   });
+
+  group('BackgroundLocationService.flushSosQueueInBackground', () {
+    test('file vide -> 0 envoyé', () async {
+      final sent = await BackgroundLocationService.flushSosQueueInBackground(
+        openDbForTest: () async => _FakeDb([]),
+        postForTest: (_, __, ___) async => http.Response('{}', 201),
+        skipTokenForTest: true,
+      );
+      expect(sent, 0);
+    });
+
+    test('1 SOS en file + réseau OK -> envoyé et purgé', () async {
+      final db = _FakeDb([
+        {
+          'id': 7,
+          'endpoint': '/sos',
+          'payload':
+              '{"latitude":3.848,"longitude":11.5021,"declenchement":"BOUTON"}',
+        },
+      ]);
+      final sent = await BackgroundLocationService.flushSosQueueInBackground(
+        openDbForTest: () async => db,
+        postForTest: (_, __, ___) async => http.Response('{"sos":{}}', 201),
+        skipTokenForTest: true,
+      );
+      expect(sent, 1);
+      expect(db.deletedIds, [7]);
+    });
+
+    test('erreur 422 (refus définitif) -> purgé sans bloquer, 0 envoyé',
+        () async {
+      final db = _FakeDb([
+        {'id': 9, 'endpoint': '/sos', 'payload': '{}'},
+      ]);
+      final sent = await BackgroundLocationService.flushSosQueueInBackground(
+        openDbForTest: () async => db,
+        postForTest: (_, __, ___) async => http.Response('{}', 422),
+        skipTokenForTest: true,
+      );
+      expect(sent, 0);
+      expect(db.deletedIds, [9]);
+    });
+
+    test('panne réseau (exception) -> conservé pour le prochain tick',
+        () async {
+      final db = _FakeDb([
+        {'id': 11, 'endpoint': '/sos', 'payload': '{}'},
+      ]);
+      final sent = await BackgroundLocationService.flushSosQueueInBackground(
+        openDbForTest: () async => db,
+        postForTest: (_, __, ___) async => throw Exception('no network'),
+        skipTokenForTest: true,
+      );
+      expect(sent, 0);
+      expect(db.deletedIds, isEmpty);
+    });
+  });
+}
+
+/// Faux SQLite minimal pour tester la logique de rejeu sans plugin natif.
+class _FakeDb {
+  _FakeDb(this.rows);
+  final List<Map<String, Object?>> rows;
+  final List<Object?> deletedIds = [];
+  bool closed = false;
+
+  Future<List<Map<String, Object?>>> query(String table,
+      {String? orderBy, int? limit}) async {
+    var out = List<Map<String, Object?>>.from(rows);
+    if (limit != null && out.length > limit) out = out.sublist(0, limit);
+    return out;
+  }
+
+  Future<int> delete(String table,
+      {String? where, List<Object?>? whereArgs}) async {
+    if (whereArgs != null) deletedIds.addAll(whereArgs);
+    return whereArgs?.length ?? 0;
+  }
+
+  Future<void> close() async {
+    closed = true;
+  }
 }
