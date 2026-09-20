@@ -96,8 +96,8 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       if (mounted) {
         setState(() => _enrolled = profile != null && (profile['enrolled'] == true));
         if (profile != null && profile['mot_securite'] != null) {
-          _wordController.text = profile['mot_securite'] as String;
-          _securityWord = profile['mot_securite'] as String;
+          _wordController.text = profile['mot_securite'].toString();
+          _securityWord = profile['mot_securite'].toString();
         }
       }
     } catch (_) {

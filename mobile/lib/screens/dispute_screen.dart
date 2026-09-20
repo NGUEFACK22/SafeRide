@@ -131,7 +131,7 @@ class _UnifiedLitigesTabState extends State<_UnifiedLitigesTab> {
       for (final l in lostItems) {
         final (label, color) = _reportStatus(l['statut'] as String?);
         final hasImage = l['image_url'] != null &&
-            (l['image_url'] as String).isNotEmpty;
+            (l['image_url'] ?? '').toString().isNotEmpty;
         dossiers.add(_UnifiedDossier(
           type: _DossierType.lostItem,
           title: l['objet'] ?? 'Objet perdu',

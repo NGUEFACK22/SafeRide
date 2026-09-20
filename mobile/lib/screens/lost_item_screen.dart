@@ -118,7 +118,7 @@ class _LostReportsTabState extends State<_LostReportsTab> {
         itemBuilder: (context, index) {
           final report = _reports[index];
           final (label, color) = _reportStatus(report['statut'] as String?);
-          final hasImage = report['image_url'] != null && (report['image_url'] as String).isNotEmpty;
+          final hasImage = report['image_url'] != null && (report['image_url'] ?? '').toString().isNotEmpty;
           return Card(
             margin: const EdgeInsets.symmetric(vertical: 4),
             child: ListTile(
