@@ -2101,9 +2101,12 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
     if (_qrActive || _qrExpiresAt == null) return;
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
+      // Compte à rebours terminé : on relance un check pour basculer sur le
+      // QR réactivé. Si le serveur ne l'a pas encore activé, le décompte
+      // sera relancé au prochain check (cf. _checkRefresh).
       if (_remainingSeconds() == 0) {
         _countdownTimer?.cancel();
-        _qrExpiresAt = null;
+        _countdownTimer = null;
         _checkRefresh();
         return;
       }
@@ -2286,6 +2289,8 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
       final qrData = await _api.get('/vehicles/$vehicleId/qr');
       final qr = qrData['qr'] as Map<String, dynamic>?;
       final token = qr?['token'] as String?;
+      final isQrActive = qr?['actif'] as bool? ?? true;
+      final qrExpiresAt = qr?['expires_at'] as String?;
       if (!mounted) return;
       if (token == null || token.isEmpty) {
         setState(() {
@@ -2300,11 +2305,11 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
           _immat = immat;
           _vehicleId = vehicleId;
           _loading = false;
-          _pendingToken = null;
-          _qrActive = true;
-          _qrExpiresAt = null;
+          _pendingToken = isQrActive ? null : token;
+          _qrActive = isQrActive;
+          _qrExpiresAt = isQrActive ? null : (qrExpiresAt != null ? DateTime.tryParse(qrExpiresAt) : null);
         });
-        _stopCountdown();
+        isQrActive ? _stopCountdown() : _startCountdown();
       }
     } catch (e) {
       if (!mounted) return;
