@@ -234,19 +234,56 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
     );
   }
 
+  // Parsing défensif : le backend peut renvoyer des nombres en String
+  // (ex. AVG() MySQL -> "4.50"), des nulls, ou des reviews paginés
+  // ({data:[...]}). Aucun cast dur ici : l'écran ne doit jamais crasher.
+  static double _asDouble(dynamic v) {
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v.replaceAll(',', '.')) ?? 0;
+    return 0;
+  }
+
+  static int _asInt(dynamic v) {
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
+  }
+
+  static String _asStr(dynamic v) => v == null ? '' : v.toString();
+
+  static List<Map<String, dynamic>> _asReviewList(dynamic v) {
+    final raw = v is Map<String, dynamic> ? v['data'] : v;
+    if (raw is! List) return const [];
+    return raw.whereType<Map<String, dynamic>>().toList();
+  }
+
+  /// URL photo utilisable, ou null -> on affiche l'initiale.
+  static String? _photoUrl(Map<String, dynamic> t) {
+    final raw = t['photo_url'];
+    if (raw == null) return null;
+    final resolved = ApiConfig.resolvePhotoUrl(raw.toString());
+    if (resolved.startsWith('http://') ||
+        resolved.startsWith('https://')) {
+      return resolved;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_waiting) return _waitingView();
     final t = widget.transporteur;
     final v = widget.vehicle;
-    final fullName = '${t['prenom'] ?? ''} ${t['nom'] ?? ''}'.trim();
-    final rating = (t['average_rating'] as num?)?.toDouble() ?? 0;
-    final ratingCount = t['ratings_count'] as int? ?? 0;
-    final verifie = t['verifie'] as String?;
-    final tripsCount = t['trips_count'] as int? ?? 0;
-    final sosCount = t['sos_count'] as int? ?? 0;
-    final reviews = (t['reviews'] as List<dynamic>? ?? [])
-        .cast<Map<String, dynamic>>();
+    final fullName = '${_asStr(t['prenom'])} ${_asStr(t['nom'])}'.trim();
+    final rating = _asDouble(t['average_rating']);
+    final ratingCount = _asInt(t['ratings_count']);
+    final verifie = _asStr(t['verifie']);
+    final tripsCount = _asInt(t['trips_count']);
+    final sosCount = _asInt(t['sos_count']);
+    final reviews = _asReviewList(t['reviews']);
+    final photoUrl = _photoUrl(t);
+    final vType = _asStr(v['type']);
 
     return PopScope(
       canPop: false,
@@ -289,10 +326,11 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
                     CircleAvatar(
                       radius: 28,
                       backgroundColor: AppTheme.lightBlueBadge,
-                      backgroundImage: t['photo_url'] != null
-                          ? NetworkImage(ApiConfig.resolvePhotoUrl(t['photo_url'] as String?))
-                          : null,
-                      child: t['photo_url'] == null
+                      backgroundImage:
+                          photoUrl != null ? NetworkImage(photoUrl) : null,
+                      onBackgroundImageError:
+                          photoUrl != null ? (_, _) {} : null,
+                      child: photoUrl == null
                           ? Text(
                               fullName.isNotEmpty
                                   ? fullName[0].toUpperCase()
@@ -329,7 +367,9 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
                               Text(
                                 verifie == 'VERIFIE'
                                     ? 'Vérifié'
-                                    : verifie ?? 'Non vérifié',
+                                    : (verifie.isEmpty
+                                        ? 'Non vérifié'
+                                        : verifie),
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: verifie == 'VERIFIE'
@@ -349,16 +389,16 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            t['telephone'] ?? '',
+                            _asStr(t['telephone']),
                             style: const TextStyle(
                               fontSize: 12,
                               color: AppTheme.textGrey,
                             ),
                           ),
-                          if ((t['email'] ?? '').toString().isNotEmpty) ...[
+                          if (_asStr(t['email']).isNotEmpty) ...[
                             const SizedBox(height: 2),
                             Text(
-                              t['email'],
+                              _asStr(t['email']),
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: AppTheme.textGrey,
@@ -436,7 +476,8 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(
-                        _vehicleIcon(v['type'] as String? ?? 'VOITURE'),
+                        _vehicleIcon(
+                            vType.isEmpty ? 'VOITURE' : vType),
                         color: AppTheme.primaryBlue,
                       ),
                     ),
@@ -529,7 +570,7 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
                                         color: Colors.amber.shade700,
                                       ),
                                       Text(
-                                        ' ${r['rating'] ?? ''}  ',
+                                        ' ${_asStr(r['rating'])}  ',
                                         style: const TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w700,
@@ -537,7 +578,7 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
                                         ),
                                       ),
                                       Text(
-                                        '${r['prenom'] ?? 'Passager'} ${r['nom'] ?? ''}'
+                                        '${_asStr(r['prenom']).isEmpty ? 'Passager' : _asStr(r['prenom'])} ${_asStr(r['nom'])}'
                                             .trim(),
                                         style: const TextStyle(
                                           fontSize: 11,
@@ -546,15 +587,14 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
                                       ),
                                     ],
                                   ),
-                                  if (r['comment'] != null &&
-                                      (r['comment'] as String).isNotEmpty)
+                                  if (_asStr(r['comment']).isNotEmpty)
                                     Padding(
                                       padding: const EdgeInsets.only(
                                         left: 18,
                                         top: 2,
                                       ),
                                       child: Text(
-                                        r['comment'],
+                                        _asStr(r['comment']),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(

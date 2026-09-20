@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models/trip.dart';
 import 'models/user.dart';
@@ -52,6 +53,20 @@ void main() {
     runApp(const SafeRideApp());
   }, (error, stack) {
     debugPrint('[SafeRide][zone-guard] $error');
+    // Journal persistant (20 dernières) : si l'app a un comportement
+    // anormal, on peut lire prefs 'zone_errors' pour identifier la cause.
+    try {
+      SharedPreferences.getInstance().then((prefs) async {
+        try {
+          final prev = prefs.getStringList('zone_errors') ?? [];
+          final entry =
+              '${DateTime.now().toIso8601String()} :: ${error.toString()}';
+          final next = [...prev, entry];
+          await prefs.setStringList(
+              'zone_errors', next.length > 20 ? next.sublist(next.length - 20) : next);
+        } catch (_) {}
+      });
+    } catch (_) {}
   });
 }
 

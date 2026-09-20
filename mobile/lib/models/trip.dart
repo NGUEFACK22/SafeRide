@@ -58,35 +58,44 @@ class Trip {
   });
 
   factory Trip.fromJson(Map<String, dynamic> json) {
-    final transporteur = json['transporteur'] as Map<String, dynamic>?;
+    final transporteur = json['transporteur'] is Map<String, dynamic>
+        ? json['transporteur'] as Map<String, dynamic>
+        : null;
     return Trip(
-      id: json['id'],
-      passagerId: json['passager_id'],
-      transporteurId: json['transporteur_id'],
-      vehicleId: json['vehicle_id'],
+      id: _toInt(json['id']) ?? 0,
+      passagerId: _toInt(json['passager_id']) ?? 0,
+      transporteurId: _toInt(json['transporteur_id']) ?? 0,
+      vehicleId: _toInt(json['vehicle_id']) ?? 0,
       startLatitude: _toDouble(json['start_latitude']),
       startLongitude: _toDouble(json['start_longitude']),
       destinationLatitude: _toDouble(json['destination_latitude']),
       destinationLongitude: _toDouble(json['destination_longitude']),
-      destinationAddress: json['destination_address'],
-      startedAt: json['started_at'],
-      endedAt: json['ended_at'],
+      destinationAddress: json['destination_address']?.toString(),
+      startedAt: json['started_at']?.toString(),
+      endedAt: json['ended_at']?.toString(),
       distanceKm: _toDouble(json['distance_km']),
-      durationSeconds: json['duration_seconds'],
+      durationSeconds: _toInt(json['duration_seconds'], fallback: null),
       deviationKm: _toDouble(json['deviation_km']),
-      statut: json['statut'],
-      endMethod: json['end_method'],
-      plannedRoutePolyline: json['planned_route_polyline'],
-      actualRoutePolyline: json['actual_route_polyline'],
-      transporteurNom: transporteur?['nom'],
-      transporteurPrenom: transporteur?['prenom'],
+      statut: json['statut']?.toString() ?? '',
+      endMethod: json['end_method']?.toString(),
+      plannedRoutePolyline: json['planned_route_polyline']?.toString(),
+      actualRoutePolyline: json['actual_route_polyline']?.toString(),
+      transporteurNom: transporteur?['nom']?.toString(),
+      transporteurPrenom: transporteur?['prenom']?.toString(),
       transporteurAvgRating: _toDouble(transporteur?['average_rating']),
-      transporteurRatingsCount: transporteur?['ratings_count'] as int?,
-      myRating: json['my_rating'] as Map<String, dynamic>?,
+      transporteurRatingsCount:
+          _toInt(transporteur?['ratings_count'], fallback: null),
+      myRating: json['my_rating'] is Map<String, dynamic>
+          ? json['my_rating'] as Map<String, dynamic>
+          : null,
       ratingsAvg: _toDouble(json['ratings_avg']),
-      ratingsCount: json['ratings_count'] as int?,
-      passager: json['passager'] as Map<String, dynamic>?,
-      vehicle: json['vehicle'] as Map<String, dynamic>?,
+      ratingsCount: _toInt(json['ratings_count'], fallback: null),
+      passager: json['passager'] is Map<String, dynamic>
+          ? json['passager'] as Map<String, dynamic>
+          : null,
+      vehicle: json['vehicle'] is Map<String, dynamic>
+          ? json['vehicle'] as Map<String, dynamic>
+          : null,
     );
   }
 
@@ -101,5 +110,15 @@ class Trip {
   static double? _toDouble(dynamic value) {
     if (value == null) return null;
     return double.tryParse(value.toString());
+  }
+
+  /// Entier tolérant : accepte int, double et String numérique
+  /// (ex. COUNT()/AVG() MySQL renvoyés en String). Retourne [fallback]
+  /// si la valeur est absente ou illisible — jamais de throw.
+  static int? _toInt(dynamic value, {int? fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? fallback;
+    return fallback;
   }
 }

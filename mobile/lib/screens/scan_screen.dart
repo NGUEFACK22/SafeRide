@@ -25,6 +25,9 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   bool _permissionChecked = false;
   String? _cameraError;
   DateTime _lastAttempt = DateTime.fromMillisecondsSinceEpoch(0);
+  // Vrai dès qu'une navigation sortante est engagée : bloque toute
+  // nouvelle détection et protège le dispose pendant la transition.
+  bool _navigating = false;
 
   // Contrôleur géré manuellement : autoStart désactivé pour contrôler
   // précisément le cycle de vie de la caméra (évite les doubles démarrages).
@@ -137,7 +140,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
-    if (_loading) return;
+    if (_loading || _navigating) return;
     if (DateTime.now().difference(_lastAttempt) < const Duration(seconds: 2)) return;
     final barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
@@ -158,6 +161,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       Navigator.of(context).pushNamed('/login');
       return;
     }
+    if (!mounted) return;
     setState(() => _loading = true);
     try {
       double lat = DoualaPlaces.centerLatitude, lng = DoualaPlaces.centerLongitude;
@@ -202,6 +206,14 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       final trip = Trip.fromJson(data['trip'] as Map<String, dynamic>);
       final transporteur = (data['transporteur'] as Map<String, dynamic>?) ?? {};
       final vehicle = (data['vehicle'] as Map<String, dynamic>?) ?? {};
+      // Stopper la caméra AVANT de naviguer : quitter l'écran pendant que
+      // la session Camera2/analyseur tourne encore provoque un crash natif
+      // (l'app "se ferme seule" à l'affichage des infos transporteur).
+      _navigating = true;
+      try {
+        await _scanner.stop();
+      } catch (_) {}
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => CourseConfirmScreen(trip: trip, transporteur: transporteur, vehicle: vehicle),
@@ -221,6 +233,11 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
               backgroundColor: Colors.orange,
             ),
           );
+          _navigating = true;
+          try {
+            await _scanner.stop();
+          } catch (_) {}
+          if (!mounted) return;
           Navigator.of(context).pushReplacementNamed('/trip-active', arguments: existing);
           return;
         }
@@ -280,7 +297,9 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _scanner.dispose();
+    try {
+      _scanner.dispose();
+    } catch (_) {}
     super.dispose();
   }
 
