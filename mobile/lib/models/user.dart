@@ -20,15 +20,28 @@ class User {
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
+    int asInt(dynamic v) {
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v) ?? 0;
+      return 0;
+    }
+
+    String asStr(dynamic v) => v == null ? '' : v.toString();
+
+    final rolesRaw = json['roles'];
+    final roles = rolesRaw is List
+        ? rolesRaw.map((e) => e.toString()).toList()
+        : <String>[];
     return User(
-      id: json['id'],
-      nom: json['nom'],
-      prenom: json['prenom'],
-      email: json['email'],
-      telephone: json['telephone'],
-      photoUrl: json['photo_url'],
-      statut: json['statut'],
-      roles: List<String>.from(json['roles'] ?? []),
+      id: asInt(json['id']),
+      nom: asStr(json['nom']),
+      prenom: asStr(json['prenom']),
+      email: asStr(json['email']),
+      telephone: asStr(json['telephone']),
+      photoUrl: json['photo_url']?.toString(),
+      statut: asStr(json['statut']),
+      roles: roles,
     );
   }
 

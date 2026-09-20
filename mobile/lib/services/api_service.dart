@@ -26,10 +26,25 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>?> getUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_userKey);
-    if (raw == null) return null;
-    return jsonDecode(raw) as Map<String, dynamic>;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_userKey);
+      if (raw == null || raw.isEmpty) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        // Session corrompue (ancien format) : on purge, pas de crash.
+        await prefs.remove(_userKey);
+        return null;
+      }
+      return decoded;
+    } catch (_) {
+      // JSON illisible : on purge la session corrompue et on repart à zéro.
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_userKey);
+      } catch (_) {}
+      return null;
+    }
   }
 
   Future<void> clearSession() async {
@@ -89,7 +104,9 @@ class ApiService {
       if (auth) 'Authorization': 'Bearer ${await getToken()}',
     };
 
-    final response = await http.put(uri, headers: headers, body: jsonEncode(body));
+    final response = await http
+        .put(uri, headers: headers, body: jsonEncode(body))
+        .timeout(const Duration(seconds: 12));
     final data = _decode(response);
 
     if (response.statusCode >= 400) {
@@ -106,7 +123,9 @@ class ApiService {
       if (auth) 'Authorization': 'Bearer ${await getToken()}',
     };
 
-    final response = await http.delete(uri, headers: headers);
+    final response = await http
+        .delete(uri, headers: headers)
+        .timeout(const Duration(seconds: 12));
     final data = _decode(response);
 
     if (response.statusCode >= 400) {
@@ -175,7 +194,16 @@ class ApiService {
 
   Map<String, dynamic> _decode(http.Response response) {
     if (response.body.isEmpty) return {};
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) return decoded;
+      // Le serveur a renvoyé une liste ou un scalaire : on l'enveloppe.
+      return {'data': decoded};
+    } catch (_) {
+      // Réponse non-JSON (page HTML d'erreur Render/Cloudflare, proxy,
+      // passerelle) : jamais de crash, l'appelant reçoit une ApiException.
+      return {'_raw': response.body};
+    }
   }
 
   String _messageFrom(Map<String, dynamic> data, int statusCode) {

@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'models/trip.dart';
@@ -32,13 +35,24 @@ import 'services/auth_service.dart';
 import 'services/language_service.dart';
 import 'services/push_service.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await LanguageService.instance.init();
-  try {
-    await Firebase.initializeApp();
-  } catch (_) {}
-  runApp(const SafeRideApp());
+void main() {
+  // Garde-fou global : en release, une exception async non catchée tue
+  // l'isolate (= l'app "se ferme seule"). On la log, on ne meurt jamais.
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    FlutterError.onError = (details) {
+      if (kDebugMode) FlutterError.presentError(details);
+    };
+    try {
+      await LanguageService.instance.init();
+    } catch (_) {}
+    try {
+      await Firebase.initializeApp();
+    } catch (_) {}
+    runApp(const SafeRideApp());
+  }, (error, stack) {
+    debugPrint('[SafeRide][zone-guard] $error');
+  });
 }
 
 class SafeRideApp extends StatelessWidget {
@@ -123,17 +137,23 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _bootstrap() async {
-    await Future.delayed(const Duration(milliseconds: 600));
-    final User? user = await _auth.currentUser();
     try {
-      await PushService.instance.init();
+      await Future.delayed(const Duration(milliseconds: 600));
+      final User? user = await _auth.currentUser();
+      try {
+        await PushService.instance.init();
+      } catch (_) {
+        // Push indisponible (ex. Firebase non configuré) : l'app continue.
+      }
+      if (!mounted) return;
+      if (user != null) {
+        Navigator.of(context).pushReplacementNamed('/home', arguments: user);
+      } else {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
     } catch (_) {
-      // Push indisponible (ex. Firebase non configuré) : l'app continue.
-    }
-    if (!mounted) return;
-    if (user != null) {
-      Navigator.of(context).pushReplacementNamed('/home', arguments: user);
-    } else {
+      // Jamais de crash au splash : repli vers l'écran de connexion.
+      if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/login');
     }
   }

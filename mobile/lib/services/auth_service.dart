@@ -54,9 +54,14 @@ class AuthService {
   }
 
   Future<User?> currentUser() async {
-    final raw = await _api.getUser();
-    if (raw == null) return null;
-    return User.fromJson(raw);
+    try {
+      final raw = await _api.getUser();
+      if (raw == null) return null;
+      return User.fromJson(raw);
+    } catch (_) {
+      // Session locale illisible : déconnecté, jamais de crash.
+      return null;
+    }
   }
 
   Future<void> logout() async {
