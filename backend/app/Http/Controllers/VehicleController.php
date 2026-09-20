@@ -114,6 +114,13 @@ class VehicleController extends Controller
         $vehicle = Vehicle::where('id', $id)->where('transporteur_id', $request->user()->id)->firstOrFail();
         $qr = $vehicle->qrCodes()->orderByDesc('id')->first();
 
+        // P1-15 : si le QR est inactif mais que la latence de 15 secondes est écoulée,
+        // on l'active automatiquement pour que le transporteur voie le nouveau QR.
+        if ($qr !== null && ! $qr->actif && $qr->expires_at !== null && now()->getTimestamp() >= $qr->expires_at->getTimestamp()) {
+            $qr->update(['actif' => true]);
+            $qr = $vehicle->qrCodes()->orderByDesc('id')->first();
+        }
+
         return response()->json([
             'qr' => $qr ? [
                 'token' => $qr->token,

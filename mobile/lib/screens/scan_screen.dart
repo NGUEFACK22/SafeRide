@@ -28,6 +28,9 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   // Vrai dès qu'une navigation sortante est engagée : bloque toute
   // nouvelle détection et protège le dispose pendant la transition.
   bool _navigating = false;
+  // Empêche les démarrages concurrents de la caméra (ex : post-frame
+  // callback pendant que _startCamera est encore en cours).
+  bool _cameraStarting = false;
 
   // Contrôleur géré manuellement : autoStart désactivé pour contrôler
   // précisément le cycle de vie de la caméra (évite les doubles démarrages).
@@ -46,10 +49,10 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_hasPermission) return;
+    if (!_hasPermission || _navigating) return;
     switch (state) {
       case AppLifecycleState.resumed:
-        _startCamera();
+        if (_permissionChecked) _startCamera();
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
@@ -61,33 +64,42 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _startCamera() async {
-    if (_cameraError != null) return;
+    // Protéger contre les appels concurrents et l'arrêt après dispose.
+    if (_cameraError != null || _cameraStarting || !mounted) return;
+    _cameraStarting = true;
     try {
       await _scanner.start();
     } catch (e) {
-      if (mounted) setState(() => _cameraError = e.toString());
+      if (!mounted) return;
+      setState(() => _cameraError = e.toString());
+    } finally {
+      if (mounted) _cameraStarting = false;
     }
   }
 
   Future<void> _stopCamera() async {
+    // Arrêter la caméra ouvertement, mais silencieusement si le contrôleur est déjà libéré.
     try {
       await _scanner.stop();
     } catch (_) {}
   }
 
   Future<void> _restartCamera() async {
+    if (_navigating || !mounted) return;
     setState(() => _cameraError = null);
     // Recréer un contrôleur propre après une erreur caméra
     try {
       await _scanner.dispose();
     } catch (_) {}
+    if (!mounted) return;
     _scanner = MobileScannerController(
       autoStart: false,
       facing: CameraFacing.back,
       detectionSpeed: DetectionSpeed.normal,
     );
-    if (mounted) setState(() {});
-    WidgetsBinding.instance.addPostFrameCallback((_) => _startCamera());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _startCamera();
+    });
   }
 
   Future<void> _checkPermission() async {
@@ -97,7 +109,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       _hasPermission = ok;
       _permissionChecked = true;
     });
-    if (ok) {
+    if (ok && !_navigating) {
       // Le MobileScanner se monte à la prochaine frame, puis on démarre la caméra
       WidgetsBinding.instance.addPostFrameCallback((_) => _startCamera());
     }
@@ -132,16 +144,13 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
         ),
       );
     }
-    return MobileScanner(
-      controller: _scanner,
-      onDetect: _onDetect,
-      
-    );
+    return MobileScanner(controller: _scanner, onDetect: _onDetect);
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
     if (_loading || _navigating) return;
-    if (DateTime.now().difference(_lastAttempt) < const Duration(seconds: 2)) return;
+    if (DateTime.now().difference(_lastAttempt) < const Duration(seconds: 2))
+      return;
     final barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
     final code = barcodes.first.rawValue;
@@ -156,7 +165,10 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
     if (token == null || token.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(LanguageService.instance.t('auth_error_relogin')), backgroundColor: Colors.orange),
+        SnackBar(
+          content: Text(LanguageService.instance.t('auth_error_relogin')),
+          backgroundColor: Colors.orange,
+        ),
       );
       Navigator.of(context).pushNamed('/login');
       return;
@@ -164,7 +176,8 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() => _loading = true);
     try {
-      double lat = DoualaPlaces.centerLatitude, lng = DoualaPlaces.centerLongitude;
+      double lat = DoualaPlaces.centerLatitude,
+          lng = DoualaPlaces.centerLongitude;
       if (!mounted) return;
       final locationOk = await PermissionService.location(context);
       if (!locationOk) {
@@ -176,7 +189,10 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       try {
         try {
           final pos = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 8)),
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              timeLimit: Duration(seconds: 8),
+            ),
           );
           lat = pos.latitude;
           lng = pos.longitude;
@@ -204,7 +220,8 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       });
       if (!mounted) return;
       final trip = Trip.fromJson(data['trip'] as Map<String, dynamic>);
-      final transporteur = (data['transporteur'] as Map<String, dynamic>?) ?? {};
+      final transporteur =
+          (data['transporteur'] as Map<String, dynamic>?) ?? {};
       final vehicle = (data['vehicle'] as Map<String, dynamic>?) ?? {};
       // Stopper la caméra AVANT de naviguer : quitter l'écran pendant que
       // la session Camera2/analyseur tourne encore provoque un crash natif
@@ -216,7 +233,11 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => CourseConfirmScreen(trip: trip, transporteur: transporteur, vehicle: vehicle),
+          builder: (_) => CourseConfirmScreen(
+            trip: trip,
+            transporteur: transporteur,
+            vehicle: vehicle,
+          ),
         ),
       );
     } catch (e) {
@@ -229,7 +250,9 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
           final existing = Trip.fromJson(d['trip'] as Map<String, dynamic>);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Vous avez déjà un trajet en cours — reprise du trajet.'),
+              content: Text(
+                'Vous avez déjà un trajet en cours — reprise du trajet.',
+              ),
               backgroundColor: Colors.orange,
             ),
           );
@@ -238,14 +261,16 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
             await _scanner.stop();
           } catch (_) {}
           if (!mounted) return;
-          Navigator.of(context).pushReplacementNamed('/trip-active', arguments: existing);
+          Navigator.of(
+            context,
+          ).pushReplacementNamed('/trip-active', arguments: existing);
           return;
         }
       }
       final msg = _mapError(e);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -260,18 +285,25 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       if (r.contains('proximité') || r.contains('proximite')) {
         return 'Proximité non vérifiée — soyez à côté du véhicule avant de scanner.';
       }
-      if (r.contains('déjà utilisé') || r.contains('deja utilise') || status == 422 && r.contains('utilisé')) {
+      if (r.contains('déjà utilisé') ||
+          r.contains('deja utilise') ||
+          status == 422 && r.contains('utilisé')) {
         return LanguageService.instance.t('qr_already_used');
       }
-      if (status == 401) return LanguageService.instance.t('auth_error_relogin');
+      if (status == 401)
+        return LanguageService.instance.t('auth_error_relogin');
       if (status == 403) return LanguageService.instance.t('access_denied');
       if (status == 422) return raw;
-      if (status == 500) return LanguageService.instance.t('server_unavailable_try_later');
+      if (status == 500)
+        return LanguageService.instance.t('server_unavailable_try_later');
       // Retourner le message serveur réel si présent (fini le "trip_start_failed" générique)
-      return raw.isNotEmpty ? raw : LanguageService.instance.t('trip_start_failed');
+      return raw.isNotEmpty
+          ? raw
+          : LanguageService.instance.t('trip_start_failed');
     }
     final r = e.toString().toLowerCase();
-    if (r.contains('location_permission_denied')) return LanguageService.instance.t('location_permission_denied');
+    if (r.contains('location_permission_denied'))
+      return LanguageService.instance.t('location_permission_denied');
     return LanguageService.instance.t('trip_start_failed');
   }
 
@@ -279,16 +311,28 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Row(children: [Icon(Icons.location_on, color: AppTheme.primaryBlue), SizedBox(width: 8), Text(LanguageService.instance.t('location_required'))]),
+        title: Row(
+          children: [
+            Icon(Icons.location_on, color: AppTheme.primaryBlue),
+            SizedBox(width: 8),
+            Text(LanguageService.instance.t('location_required')),
+          ],
+        ),
         content: Text(LanguageService.instance.t('enable_location_to_scan')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(LanguageService.instance.t('cancel'))),
-          FilledButton(onPressed: () {
-            Navigator.pop(ctx);
-            // Ouvre les paramètres Android/iOS
-            // Note : pour iOS on utiliserait openAppSettings, mais Flutter gère cross-platform via url_launcher
-            // ici on laisse un message guiding l'utilisateur
-          }, child: Text(LanguageService.instance.t('settings'))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(LanguageService.instance.t('cancel')),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              // Ouvre les paramètres Android/iOS
+              // Note : pour iOS on utiliserait openAppSettings, mais Flutter gère cross-platform via url_launcher
+              // ici on laisse un message guiding l'utilisateur
+            },
+            child: Text(LanguageService.instance.t('settings')),
+          ),
         ],
       ),
     );
@@ -296,10 +340,15 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    // Arrêter la caméra AVANT de disposer le contrôleur pour éviter les crashs.
+    // Nécessaire car dispose() sur un contrôleur en cours d'exécution peut planter l'app.
+    try {
+      _scanner.stop();
+    } catch (_) {}
     try {
       _scanner.dispose();
     } catch (_) {}
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -309,7 +358,9 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       return Scaffold(
         backgroundColor: const Color(0xFF0B1220),
         appBar: _buildAppBar(),
-        body: const Center(child: CircularProgressIndicator(color: Colors.white)),
+        body: const Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
       );
     }
     if (!_hasPermission) {
@@ -326,7 +377,11 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
                 const SizedBox(height: 16),
                 Text(
                   LanguageService.instance.t('permission_camera_denied'),
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -362,7 +417,11 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
                 Text(
                   LanguageService.instance.t('scan_instruction'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 18),
                 Container(
@@ -378,7 +437,9 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
           if (_loading)
             Container(
               color: Colors.black54,
-              child: Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue)),
+              child: Center(
+                child: CircularProgressIndicator(color: AppTheme.primaryBlue),
+              ),
             ),
           Positioned(
             bottom: 0,
@@ -400,7 +461,10 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
                       color: AppTheme.lightBlueBadge,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.qr_code_scanner, color: AppTheme.primaryBlue),
+                    child: const Icon(
+                      Icons.qr_code_scanner,
+                      color: AppTheme.primaryBlue,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -409,11 +473,17 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
                       children: [
                         Text(
                           LanguageService.instance.t('mode_scan_active'),
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
                         ),
                         Text(
                           LanguageService.instance.t('align_qr'),
-                          style: TextStyle(fontSize: 12, color: AppTheme.textGrey),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textGrey,
+                          ),
                         ),
                       ],
                     ),
@@ -436,7 +506,14 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
         icon: const Icon(Icons.arrow_back, color: Colors.white),
         onPressed: () => Navigator.pop(context),
       ),
-      title: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.asset('assets/images/logo_round.png', height: 26, fit: BoxFit.contain)),
+      title: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.asset(
+          'assets/images/logo_round.png',
+          height: 26,
+          fit: BoxFit.contain,
+        ),
+      ),
       centerTitle: true,
       actions: [
         const Padding(

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../utils/error_helper.dart';
@@ -45,7 +45,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _checkingAnomalies = false;
   int? _handledRequestId;
   bool _requestDialogOpen = false;
-  bool _identiteVerifiee = false; // badge « vérifié » visible partout (avatar accueil)
+  bool _identiteVerifiee =
+      false; // badge « vérifié » visible partout (avatar accueil)
 
   bool get _isGuest => _user == null;
   bool get _isTransporteur => _user?.hasRole('transporteur') == true;
@@ -125,7 +126,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!_isTransporteur) return;
     // Idempotent : un seul timer de polling, mÃªme aprÃ¨s refresh du rÃ´le.
     if (_pendingPoll?.isActive ?? false) return;
-    _pendingPoll = Timer.periodic(const Duration(seconds: 3), (_) => _checkPendingRequest());
+    _pendingPoll = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _checkPendingRequest(),
+    );
     _checkPendingRequest();
   }
 
@@ -148,25 +152,52 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _showAcceptRequestDialog(Trip trip) async {
     if (_requestDialogOpen) return;
     _requestDialogOpen = true;
-    final name = '${trip.passager?['prenom'] ?? ''} ${trip.passager?['nom'] ?? ''}'.trim();
+    final name =
+        '${trip.passager?['prenom'] ?? ''} ${trip.passager?['nom'] ?? ''}'
+            .trim();
     final accept = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(children: [
-          Icon(Icons.notifications_active, color: AppTheme.primaryBlue),
-          SizedBox(width: 8),
-          Text('Nouvelle course'),
-        ]),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('$name souhaite dÃ©buter une course avec vous.', style: const TextStyle(fontSize: 14)),
-          const SizedBox(height: 4),
-          if (trip.vehicle != null) Text('${trip.vehicle?['marque']} ${trip.vehicle?['modele']} â€¢ ${trip.vehicle?['immatriculation']}', style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)),
-        ]),
+        title: const Row(
+          children: [
+            Icon(Icons.notifications_active, color: AppTheme.primaryBlue),
+            SizedBox(width: 8),
+            Text('Nouvelle course'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$name souhaite dÃ©buter une course avec vous.',
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 4),
+            if (trip.vehicle != null)
+              Text(
+                '${trip.vehicle?['marque']} ${trip.vehicle?['modele']} â€¢ ${trip.vehicle?['immatriculation']}',
+                style: const TextStyle(fontSize: 12, color: AppTheme.textGrey),
+              ),
+          ],
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Refuser', style: TextStyle(color: AppTheme.sosRed))),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue), child: const Text('Accepter la course')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text(
+              'Refuser',
+              style: TextStyle(color: AppTheme.sosRed),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.primaryBlue,
+            ),
+            child: const Text('Accepter la course'),
+          ),
         ],
       ),
     );
@@ -176,15 +207,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       try {
         final updated = await TripService().acceptCourse(trip.id);
         if (!mounted) return;
-        Navigator.of(context).pushReplacementNamed('/trip-active', arguments: updated);
+        Navigator.of(
+          context,
+        ).pushReplacementNamed('/trip-active', arguments: updated);
       } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+        if (mounted)
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     } else {
       try {
         await TripService().declineCourse(trip.id);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Course refusÃ©e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Course refusÃ©e')));
       } catch (_) {}
     }
   }
@@ -227,18 +265,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Row(children: [Icon(Icons.lock, color: AppTheme.primaryBlue), SizedBox(width: 8), Text(LanguageService.instance.t('signup_required'))]),
+        title: Row(
+          children: [
+            Icon(Icons.lock, color: AppTheme.primaryBlue),
+            SizedBox(width: 8),
+            Text(LanguageService.instance.t('signup_required')),
+          ],
+        ),
         content: Text(LanguageService.instance.t('visitor_restricted_msg')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(LanguageService.instance.t('stay_as_guest'))),
-          FilledButton(onPressed: () { Navigator.pop(ctx); Navigator.pushNamed(context, '/register'); }, child: Text(LanguageService.instance.t('register'))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(LanguageService.instance.t('stay_as_guest')),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pushNamed(context, '/register');
+            },
+            child: Text(LanguageService.instance.t('register')),
+          ),
         ],
       ),
     );
   }
 
   Future<void> _triggerManualSos() async {
-    if (_isGuest) { _requireAuth(); return; }
+    if (_isGuest) {
+      _requireAuth();
+      return;
+    }
     // Gate : au moins 2 contacts d'urgence (formulaire intÃ©grÃ© si manque) â€”
     // identique Ã  l'Ã©cran SOS dÃ©diÃ©, le bouton accueil ne doit pas contourner.
     if (!await ensureEmergencyContacts(context)) return;
@@ -257,7 +313,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final result = await showDialogSafe<({bool confirmed, String destination})>(
       context,
       (ctx) => AlertDialog(
-        title: Row(children: [Icon(Icons.warning, color: AppTheme.sosRed), SizedBox(width: 8), Text(LanguageService.instance.t('sos'))]),
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: AppTheme.sosRed),
+            SizedBox(width: 8),
+            Text(LanguageService.instance.t('sos')),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -288,10 +350,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, (confirmed: false, destination: '')), child: Text(LanguageService.instance.t('cancel'))),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(ctx, (confirmed: false, destination: '')),
+            child: Text(LanguageService.instance.t('cancel')),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppTheme.sosRed),
-            onPressed: () => Navigator.pop(ctx, (confirmed: true, destination: controller.text.trim())),
+            onPressed: () => Navigator.pop(ctx, (
+              confirmed: true,
+              destination: controller.text.trim(),
+            )),
             child: Text(LanguageService.instance.t('trigger_sos')),
           ),
         ],
@@ -307,39 +376,74 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final destination = result.destination;
     try {
       var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
-      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) throw Exception(LanguageService.instance.t('location_permission_denied'));
-      final pos = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
-      final data = await SosService().triggerButton(linkable?.id, pos.latitude, pos.longitude, destination: destination);
+      if (perm == LocationPermission.denied)
+        perm = await Geolocator.requestPermission();
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever)
+        throw Exception(
+          LanguageService.instance.t('location_permission_denied'),
+        );
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+      final data = await SosService().triggerButton(
+        linkable?.id,
+        pos.latitude,
+        pos.longitude,
+        destination: destination,
+      );
       if (data['queued'] == true) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(LanguageService.instance.t('sos_queued')), backgroundColor: AppTheme.sosRed, duration: Duration(seconds: 4)),
+          SnackBar(
+            content: Text(LanguageService.instance.t('sos_queued')),
+            backgroundColor: AppTheme.sosRed,
+            duration: Duration(seconds: 4),
+          ),
         );
         return;
       }
       final sms = data['sms_message'] as String?;
       final contacts = data['emergency_contacts'] as List<dynamic>? ?? [];
-      final phones = contacts.map((c) => ((c['whatsapp_telephone'] as String?)?.trim().isNotEmpty == true ? c['whatsapp_telephone'] : c['telephone']) as String?).where((p) => p != null && p.isNotEmpty).cast<String>().toList();
-      if (phones.isNotEmpty && sms != null) await WhatsAppService.instance.sendBulk(phones, sms);
+      final phones = contacts
+          .map(
+            (c) =>
+                ((c['whatsapp_telephone'] as String?)?.trim().isNotEmpty == true
+                        ? c['whatsapp_telephone']
+                        : c['telephone'])
+                    as String?,
+          )
+          .where((p) => p != null && p.isNotEmpty)
+          .cast<String>()
+          .toList();
+      if (phones.isNotEmpty && sms != null)
+        await WhatsAppService.instance.sendBulk(phones, sms);
       await AlertCounterService.increment();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(SosService().resultMessage(data, bouton: true)),
-        backgroundColor: AppTheme.sosRed,
-        duration: Duration(seconds: 4),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(SosService().resultMessage(data, bouton: true)),
+          backgroundColor: AppTheme.sosRed,
+          duration: Duration(seconds: 4),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyError(e)), backgroundColor: Colors.red),
+      );
     }
   }
 
   Widget _buildBody() {
     if (_isGuest) {
-      if (_selectedIndex == 1) return _GuestBlockedCard(onUnlock: _requireAuth, label: 'Historique');
+      if (_selectedIndex == 1)
+        return _GuestBlockedCard(onUnlock: _requireAuth, label: 'Historique');
       if (_selectedIndex == 2) return const _LocationPreview();
-      if (_selectedIndex == 3) return _GuestBlockedCard(onUnlock: _requireAuth, label: 'Profil');
+      if (_selectedIndex == 3)
+        return _GuestBlockedCard(onUnlock: _requireAuth, label: 'Profil');
       return _GuestView(onAction: _requireAuth);
     }
     if (_selectedIndex == 1) return const _HistoryPreview();
@@ -364,41 +468,128 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           padding: const EdgeInsets.only(left: 8),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: Image.asset('assets/images/logo_round.png', height: 32, fit: BoxFit.contain),
+            child: Image.asset(
+              'assets/images/logo_round.png',
+              height: 32,
+              fit: BoxFit.contain,
+            ),
           ),
         ),
-        title: Text('SafeRide AI', style: TextStyle(color: AppTheme.textDark, fontWeight: FontWeight.w800, fontSize: 15)),
+        title: Text(
+          'SafeRide AI',
+          style: TextStyle(
+            color: AppTheme.textDark,
+            fontWeight: FontWeight.w800,
+            fontSize: 15,
+          ),
+        ),
         centerTitle: true,
         actions: [
           if (_isGuest)
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(icon: Icon(Icons.translate, color: LanguageService.instance.isFr ? AppTheme.primaryBlue : Colors.orange), tooltip: LanguageService.instance.t('translate_tooltip'), onPressed: () async { await LanguageService.instance.toggle(); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Langue : ${LanguageService.instance.t('language')}'))); }),
-              Padding(padding: EdgeInsets.only(right: 12), child: FilledButton(onPressed: () => Navigator.pushNamed(context, '/register'), style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue, padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6)), child: Text(LanguageService.instance.isFr ? 'S\'inscrire' : 'Sign up', style: TextStyle(fontSize: 12)))),
-            ]),
-          if (!_isGuest)
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(icon: Icon(Icons.translate, color: LanguageService.instance.isFr ? AppTheme.primaryBlue : Colors.orange), tooltip: LanguageService.instance.t('translate_tooltip'), onPressed: () async { await LanguageService.instance.toggle(); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Langue : ${LanguageService.instance.t('language')}'))); }),
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.notifications_outlined, color: AppTheme.textDark),
-                    onPressed: _openNotifications,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.translate,
+                    color: LanguageService.instance.isFr
+                        ? AppTheme.primaryBlue
+                        : Colors.orange,
                   ),
-                  if (_unread > 0)
-                    Positioned(
-                      right: 6,
-                      top: 6,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                        decoration: const BoxDecoration(color: AppTheme.sosRed, shape: BoxShape.circle),
-                        child: Text('$_unread', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 10)),
+                  tooltip: LanguageService.instance.t('translate_tooltip'),
+                  onPressed: () async {
+                    await LanguageService.instance.toggle();
+                    if (context.mounted)
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Langue : ${LanguageService.instance.t('language')}',
+                          ),
+                        ),
+                      );
+                  },
+                ),
+                Padding(
+                  padding: EdgeInsets.only(right: 12),
+                  child: FilledButton(
+                    onPressed: () => Navigator.pushNamed(context, '/register'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppTheme.primaryBlue,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
                       ),
                     ),
-                ],
-              ),
-            ]),
+                    child: Text(
+                      LanguageService.instance.isFr ? 'S\'inscrire' : 'Sign up',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          if (!_isGuest)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.translate,
+                    color: LanguageService.instance.isFr
+                        ? AppTheme.primaryBlue
+                        : Colors.orange,
+                  ),
+                  tooltip: LanguageService.instance.t('translate_tooltip'),
+                  onPressed: () async {
+                    await LanguageService.instance.toggle();
+                    if (context.mounted)
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Langue : ${LanguageService.instance.t('language')}',
+                          ),
+                        ),
+                      );
+                  },
+                ),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.notifications_outlined,
+                        color: AppTheme.textDark,
+                      ),
+                      onPressed: _openNotifications,
+                    ),
+                    if (_unread > 0)
+                      Positioned(
+                        right: 6,
+                        top: 6,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          decoration: const BoxDecoration(
+                            color: AppTheme.sosRed,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            '$_unread',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
           if (!_isGuest)
             Padding(
               padding: const EdgeInsets.only(right: 12),
@@ -408,7 +599,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   CircleAvatar(
                     radius: 16,
                     backgroundColor: AppTheme.lightBlueBadge,
-                    child: Text(_user!.prenom.isNotEmpty ? _user!.prenom[0].toUpperCase() : '?', style: const TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w700)),
+                    child: Text(
+                      _user!.prenom.isNotEmpty
+                          ? _user!.prenom[0].toUpperCase()
+                          : '?',
+                      style: const TextStyle(
+                        color: AppTheme.primaryBlue,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                   if (_identiteVerifiee)
                     Positioned(
@@ -416,8 +615,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       bottom: -2,
                       child: Container(
                         padding: const EdgeInsets.all(1.5),
-                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                        child: const Icon(Icons.verified, size: 13, color: AppTheme.successText),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.verified,
+                          size: 13,
+                          color: AppTheme.successText,
+                        ),
                       ),
                     ),
                 ],
@@ -430,7 +636,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         backgroundColor: AppTheme.sosRed,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.sos),
-        label: Text(LanguageService.instance.t('sos').split(' ').first, style: TextStyle(fontWeight: FontWeight.w800)),
+        label: Text(
+          LanguageService.instance.t('sos').split(' ').first,
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
         tooltip: LanguageService.instance.t('sos_manual_tooltip'),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
@@ -443,10 +652,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         unselectedItemColor: const Color(0xFF9AA0AE),
         type: BottomNavigationBarType.fixed,
         items: [
-          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: LanguageService.instance.t('home')),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: LanguageService.instance.t('trips')),
-          BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map), label: LanguageService.instance.t('map')),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: LanguageService.instance.t('profile')),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: LanguageService.instance.t('home'),
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: LanguageService.instance.t('trips'),
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.map_outlined),
+            activeIcon: Icon(Icons.map),
+            label: LanguageService.instance.t('map'),
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: LanguageService.instance.t('profile'),
+          ),
         ],
       ),
     );
@@ -457,7 +681,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 class _HistoryPreview extends StatelessWidget {
   const _HistoryPreview();
   @override
-  Widget build(BuildContext context) => Center(child: Padding(padding: EdgeInsets.all(24), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.history, size: 48, color: AppTheme.primaryBlue), SizedBox(height: 12), Text(LanguageService.instance.t('history'), style: TextStyle(fontWeight: FontWeight.w700)), SizedBox(height: 8), FilledButton(onPressed: () => Navigator.pushNamed(context, '/history'), child: Text(LanguageService.instance.t('history_full')))])));
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.history, size: 48, color: AppTheme.primaryBlue),
+          SizedBox(height: 12),
+          Text(
+            LanguageService.instance.t('history'),
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          SizedBox(height: 8),
+          FilledButton(
+            onPressed: () => Navigator.pushNamed(context, '/history'),
+            child: Text(LanguageService.instance.t('history_full')),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _LocationPreview extends StatefulWidget {
@@ -473,8 +717,10 @@ class _LocationPreviewState extends State<_LocationPreview> {
   bool _loading = true;
   bool _locating = false;
 
-  static const LatLng _fallback =
-      LatLng(DoualaPlaces.centerLatitude, DoualaPlaces.centerLongitude); // Douala (Akwa)
+  static const LatLng _fallback = LatLng(
+    DoualaPlaces.centerLatitude,
+    DoualaPlaces.centerLongitude,
+  ); // Douala (Akwa)
 
   @override
   void initState() {
@@ -498,14 +744,23 @@ class _LocationPreviewState extends State<_LocationPreview> {
       }
       try {
         final pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 8)),
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 8),
+          ),
         );
-        if (mounted) setState(() { _userLocation = LatLng(pos.latitude, pos.longitude); _loading = false; });
+        if (mounted)
+          setState(() {
+            _userLocation = LatLng(pos.latitude, pos.longitude);
+            _loading = false;
+          });
       } catch (_) {
         final last = await Geolocator.getLastKnownPosition();
         if (mounted) {
           setState(() {
-            _userLocation = last != null ? LatLng(last.latitude, last.longitude) : null;
+            _userLocation = last != null
+                ? LatLng(last.latitude, last.longitude)
+                : null;
             _loading = false;
           });
         }
@@ -515,15 +770,16 @@ class _LocationPreviewState extends State<_LocationPreview> {
     }
     // Suivi temps rÃ©el : le marqueur utilisateur doit suivre vos dÃ©placements
     // au lieu d'Ãªtre figÃ© sur une capture unique (position "respectÃ©e").
-    _userTrackSub ??= Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 5, // ne rÃ©-Ã©met que si on bouge d'au moins 5 m
-      ),
-    ).listen((pos) {
-      if (!mounted) return;
-      setState(() => _userLocation = LatLng(pos.latitude, pos.longitude));
-    });
+    _userTrackSub ??=
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 5, // ne rÃ©-Ã©met que si on bouge d'au moins 5 m
+          ),
+        ).listen((pos) {
+          if (!mounted) return;
+          setState(() => _userLocation = LatLng(pos.latitude, pos.longitude));
+        });
   }
 
   Future<void> _centerOnUser() async {
@@ -531,14 +787,21 @@ class _LocationPreviewState extends State<_LocationPreview> {
     setState(() => _locating = true);
     try {
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       final loc = LatLng(pos.latitude, pos.longitude);
       if (!mounted) return;
       setState(() => _userLocation = loc);
       _mapController.move(loc, 17);
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LanguageService.instance.t('location_unavailable'))));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(LanguageService.instance.t('location_unavailable')),
+          ),
+        );
     } finally {
       if (mounted) setState(() => _locating = false);
     }
@@ -547,21 +810,82 @@ class _LocationPreviewState extends State<_LocationPreview> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(), SizedBox(height: 12), Text(LanguageService.instance.t('locating'))]));
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 12),
+            Text(LanguageService.instance.t('locating')),
+          ],
+        ),
+      );
     }
     return Stack(
       children: [
         FlutterMap(
           mapController: _mapController,
-          options: MapOptions(initialCenter: _userLocation ?? _fallback, initialZoom: _userLocation != null ? 18 : 12),
+          options: MapOptions(
+            initialCenter: _userLocation ?? _fallback,
+            initialZoom: _userLocation != null ? 18 : 12,
+          ),
           children: [
-            TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.tech.saveride'),
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.tech.saveride',
+            ),
             if (_userLocation != null)
-              MarkerLayer(markers: [Marker(point: _userLocation!, width: 24, height: 24, alignment: Alignment.center, child: Container(decoration: BoxDecoration(color: AppTheme.primaryBlue, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3), boxShadow: [BoxShadow(blurRadius: 6, color: Colors.black38)])))]),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: _userLocation!,
+                    width: 24,
+                    height: 24,
+                    alignment: Alignment.center,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryBlue,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: [
+                          BoxShadow(blurRadius: 6, color: Colors.black38),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
-        Positioned(bottom: 16, right: 16, child: FloatingActionButton.small(onPressed: _centerOnUser, tooltip: LanguageService.instance.t('my_location'), child: _locating ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(Icons.my_location))),
-        Positioned(bottom: 4, left: 0, right: 0, child: Container(color: Colors.grey.shade200, padding: EdgeInsets.all(4), child: Text(LanguageService.instance.t('map_credits'), textAlign: TextAlign.center, style: TextStyle(fontSize: 11))))
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: FloatingActionButton.small(
+            onPressed: _centerOnUser,
+            tooltip: LanguageService.instance.t('my_location'),
+            child: _locating
+                ? SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(Icons.my_location),
+          ),
+        ),
+        Positioned(
+          bottom: 4,
+          left: 0,
+          right: 0,
+          child: Container(
+            color: Colors.grey.shade200,
+            padding: EdgeInsets.all(4),
+            child: Text(
+              LanguageService.instance.t('map_credits'),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -587,12 +911,14 @@ class _PassagerViewState extends State<_PassagerView> {
 
   Future<void> _loadWeather() async {
     try {
-      double lat = DoualaPlaces.centerLatitude, lng = DoualaPlaces.centerLongitude;
+      double lat = DoualaPlaces.centerLatitude,
+          lng = DoualaPlaces.centerLongitude;
       try {
         final permission = await Geolocator.checkPermission();
         if (permission == LocationPermission.denied) {
           final req = await Geolocator.requestPermission();
-          if (req == LocationPermission.denied || req == LocationPermission.deniedForever) {
+          if (req == LocationPermission.denied ||
+              req == LocationPermission.deniedForever) {
             if (mounted) setState(() => _weatherLoading = false);
             return;
           }
@@ -602,17 +928,27 @@ class _PassagerViewState extends State<_PassagerView> {
         }
         try {
           final position = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(accuracy: LocationAccuracy.low, timeLimit: Duration(seconds: 8)),
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.low,
+              timeLimit: Duration(seconds: 8),
+            ),
           );
           lat = position.latitude;
           lng = position.longitude;
         } catch (_) {
           final last = await Geolocator.getLastKnownPosition();
-          if (last != null) { lat = last.latitude; lng = last.longitude; }
+          if (last != null) {
+            lat = last.latitude;
+            lng = last.longitude;
+          }
         }
       } catch (_) {}
       final weather = await WeatherService.instance.getCurrentWeather(lat, lng);
-      if (mounted) setState(() { _weather = weather; _weatherLoading = false; });
+      if (mounted)
+        setState(() {
+          _weather = weather;
+          _weatherLoading = false;
+        });
     } catch (_) {
       if (mounted) setState(() => _weatherLoading = false);
     }
@@ -626,16 +962,45 @@ class _PassagerViewState extends State<_PassagerView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(name.isEmpty ? LanguageService.instance.t('hello') : '${LanguageService.instance.t('hello')}, $name', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text(
+            name.isEmpty
+                ? LanguageService.instance.t('hello')
+                : '${LanguageService.instance.t('hello')}, $name',
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.textDark,
+            ),
+          ),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppTheme.lightBlueBorder)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.verified_user, size: 16, color: AppTheme.primaryBlue),
-              SizedBox(width: 6),
-              Expanded(child: Text(LanguageService.instance.t('verified_secure'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primaryBlue))),
-            ]),
+            decoration: BoxDecoration(
+              color: AppTheme.lightBlueBadge,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppTheme.lightBlueBorder),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.verified_user,
+                  size: 16,
+                  color: AppTheme.primaryBlue,
+                ),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    LanguageService.instance.t('verified_secure'),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.primaryBlue,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 10),
           // Carte mÃ©tÃ©o
@@ -649,9 +1014,16 @@ class _PassagerViewState extends State<_PassagerView> {
               ),
               child: Row(
                 children: [
-                  SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
                   SizedBox(width: 10),
-                  Text('Chargement de la mÃ©tÃ©oâ€¦', style: TextStyle(fontSize: 13, color: AppTheme.textGrey)),
+                  Text(
+                    'Chargement de la mÃ©tÃ©oâ€¦',
+                    style: TextStyle(fontSize: 13, color: AppTheme.textGrey),
+                  ),
                 ],
               ),
             )
@@ -680,33 +1052,75 @@ class _PassagerViewState extends State<_PassagerView> {
                       children: [
                         Row(
                           children: [
-                            Text(_weather!.tempDisplay, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+                            Text(
+                              _weather!.tempDisplay,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.textDark,
+                              ),
+                            ),
                             if (_weather!.feelsLike != null)
-                              Text(' (ressenti ${_weather!.feelsLike!.round()}Â°)', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+                              Text(
+                                ' (ressenti ${_weather!.feelsLike!.round()}Â°)',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.textGrey,
+                                ),
+                              ),
                           ],
                         ),
-                        Text(_weather!.description, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
+                        Text(
+                          _weather!.description,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textDark,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      if (_weather!.precipitationProbability != null && _weather!.precipitationProbability! > 0)
+                      if (_weather!.precipitationProbability != null &&
+                          _weather!.precipitationProbability! > 0)
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.water_drop, size: 14, color: Colors.blue.shade400),
+                            Icon(
+                              Icons.water_drop,
+                              size: 14,
+                              color: Colors.blue.shade400,
+                            ),
                             const SizedBox(width: 3),
-                            Text('${_weather!.precipitationProbability}%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue.shade700)),
+                            Text(
+                              '${_weather!.precipitationProbability}%',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blue.shade700,
+                              ),
+                            ),
                           ],
                         ),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.air, size: 14, color: AppTheme.textGrey),
+                          const Icon(
+                            Icons.air,
+                            size: 14,
+                            color: AppTheme.textGrey,
+                          ),
                           const SizedBox(width: 3),
-                          Text('${_weather!.windDisplay} ${_weather!.windDirectionText}', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+                          Text(
+                            '${_weather!.windDisplay} ${_weather!.windDirectionText}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textGrey,
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -723,20 +1137,50 @@ class _PassagerViewState extends State<_PassagerView> {
               decoration: BoxDecoration(
                 color: AppTheme.cardBlack,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 6))],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
               child: Column(
                 children: [
                   Container(
                     width: 64,
                     height: 64,
-                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.15))),
-                    child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.qr_code_scanner,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                   ),
                   const SizedBox(height: 14),
-                  Text(LanguageService.instance.t('scan_qr'), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text(
+                    LanguageService.instance.t('scan_qr'),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 6),
-                  Text(LanguageService.instance.t('scan_qr_desc'), textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
+                  Text(
+                    LanguageService.instance.t('scan_qr_desc'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -744,66 +1188,176 @@ class _PassagerViewState extends State<_PassagerView> {
           const SizedBox(height: 14),
           // PRÉDICTION a remplacé SOS URGENCE ici (le SOS d'urgence reste
           // accessible via le bouton flottant rouge en bas de l'accueil).
-          Row(children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () => Navigator.pushNamed(context, '/prediction'),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFF0F62FE), Color(0xFF1B2F6B)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                    borderRadius: BorderRadius.circular(16),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/prediction'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF0F62FE), Color(0xFF1B2F6B)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.insights,
+                            color: Colors.white,
+                            size: 19,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              FittedBox(
+                                child: Text(
+                                  LanguageService.instance.t('prediction'),
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                LanguageService.instance.t('prediction_sub'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.8),
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Row(children: [
-                    Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.insights, color: Colors.white, size: 19)),
-                    const SizedBox(width: 8),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))),
-                      const SizedBox(height: 2),
-                      Text(LanguageService.instance.t('prediction_sub'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 10)),
-                    ])),
-                  ]),
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: GestureDetector(
-                onTap: () => Navigator.pushNamed(context, '/ai'),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF312E81)], begin: Alignment.topLeft, end: Alignment.centerRight),
-                    borderRadius: BorderRadius.circular(16),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/ai'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF7C3AED), Color(0xFF312E81)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.centerRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.smart_toy,
+                            color: Colors.white,
+                            size: 19,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FittedBox(
+                            child: Text(
+                              LanguageService.instance.t('assistant_ia'),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Row(children: [
-                    Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.smart_toy, color: Colors.white, size: 19)),
-                    const SizedBox(width: 8),
-                    Expanded(child: FittedBox(child: Text(LanguageService.instance.t('assistant_ia'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)))),
-                  ]),
                 ),
               ),
-            ),
-          ]),
+            ],
+          ),
           const SizedBox(height: 18),
           // Section ordonnÃ©e : Mes services en grille 2x2
-          Text(LanguageService.instance.t('services'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text(
+            LanguageService.instance.t('services'),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.textDark,
+            ),
+          ),
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: _serviceCard(Icons.trip_origin, LanguageService.instance.t('trip'), LanguageService.instance.t('trip_tracking'), () => Navigator.pushNamed(context, '/trip-active'))),
+              Expanded(
+                child: _serviceCard(
+                  Icons.trip_origin,
+                  LanguageService.instance.t('trip'),
+                  LanguageService.instance.t('trip_tracking'),
+                  () => Navigator.pushNamed(context, '/trip-active'),
+                ),
+              ),
               const SizedBox(width: 10),
-              Expanded(child: _serviceCard(Icons.gavel_outlined, LanguageService.instance.t('dispute'), LanguageService.instance.t('dispute_sub'), () => Navigator.pushNamed(context, '/dispute'))),
+              Expanded(
+                child: _serviceCard(
+                  Icons.gavel_outlined,
+                  LanguageService.instance.t('dispute'),
+                  LanguageService.instance.t('dispute_sub'),
+                  () => Navigator.pushNamed(context, '/dispute'),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 10),
-          _serviceCard(Icons.verified_user, LanguageService.instance.t('identity'), LanguageService.instance.t('identity_sub'), () => Navigator.pushNamed(context, '/identity'), color: AppTheme.primaryBlue),
+          _serviceCard(
+            Icons.verified_user,
+            LanguageService.instance.t('identity'),
+            LanguageService.instance.t('identity_sub'),
+            () => Navigator.pushNamed(context, '/identity'),
+            color: AppTheme.primaryBlue,
+          ),
         ],
       ),
     );
   }
 
-  Widget _serviceCard(IconData icon, String title, String subtitle, VoidCallback onTap, {Color? color}) {
+  Widget _serviceCard(
+    IconData icon,
+    String title,
+    String subtitle,
+    VoidCallback onTap, {
+    Color? color,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -818,7 +1372,10 @@ class _PassagerViewState extends State<_PassagerView> {
             Container(
               width: 38,
               height: 38,
-              decoration: BoxDecoration(color: (color ?? AppTheme.primaryBlue).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(
+                color: (color ?? AppTheme.primaryBlue).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: Icon(icon, size: 20, color: color ?? AppTheme.primaryBlue),
             ),
             const SizedBox(width: 10),
@@ -827,8 +1384,21 @@ class _PassagerViewState extends State<_PassagerView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
-                  Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.textGrey)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textDark,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textGrey,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -890,24 +1460,38 @@ class _TransporteurViewState extends State<_TransporteurView> {
       if (accept) {
         final updated = await TripService().acceptCourse(_pendingTrip!.id);
         if (!mounted) return;
-        setState(() { _pendingTrip = null; _handling = false; });
-        Navigator.of(context).pushReplacementNamed('/trip-active', arguments: updated);
+        setState(() {
+          _pendingTrip = null;
+          _handling = false;
+        });
+        Navigator.of(
+          context,
+        ).pushReplacementNamed('/trip-active', arguments: updated);
       } else {
         await TripService().declineCourse(_pendingTrip!.id);
         if (!mounted) return;
-        setState(() { _pendingTrip = null; _handling = false; });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Course refusÃ©e')));
+        setState(() {
+          _pendingTrip = null;
+          _handling = false;
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Course refusÃ©e')));
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _handling = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
   }
 
   Widget _pendingRequestCard() {
     final trip = _pendingTrip!;
-    final name = '${trip.passager?['prenom'] ?? ''} ${trip.passager?['nom'] ?? ''}'.trim();
+    final name =
+        '${trip.passager?['prenom'] ?? ''} ${trip.passager?['nom'] ?? ''}'
+            .trim();
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -915,39 +1499,104 @@ class _TransporteurViewState extends State<_TransporteurView> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.primaryBlue, width: 1.5),
-        boxShadow: [BoxShadow(color: AppTheme.primaryBlue.withValues(alpha: 0.12), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryBlue.withValues(alpha: 0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(children: [
-            Container(width: 38, height: 38, decoration: BoxDecoration(color: AppTheme.lightBlueBadge, shape: BoxShape.circle), child: const Icon(Icons.notifications_active, color: AppTheme.primaryBlue, size: 20)),
-            const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Nouvelle course demandÃ©e', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
-              const Text('Le passager attend votre rÃ©ponse', style: TextStyle(fontSize: 11, color: AppTheme.textGrey)),
-            ])),
-          ]),
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppTheme.lightBlueBadge,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.notifications_active,
+                  color: AppTheme.primaryBlue,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Nouvelle course demandÃ©e',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textDark,
+                      ),
+                    ),
+                    const Text(
+                      'Le passager attend votre rÃ©ponse',
+                      style: TextStyle(fontSize: 11, color: AppTheme.textGrey),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
-          Text(name.isEmpty ? 'Un passager' : name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text(
+            name.isEmpty ? 'Un passager' : name,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.textDark,
+            ),
+          ),
           if (trip.vehicle != null)
-            Text('${trip.vehicle?['marque']} ${trip.vehicle?['modele']} â€¢ ${trip.vehicle?['immatriculation']}', style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+            Text(
+              '${trip.vehicle?['marque']} ${trip.vehicle?['modele']} â€¢ ${trip.vehicle?['immatriculation']}',
+              style: const TextStyle(fontSize: 12, color: AppTheme.textGrey),
+            ),
           const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: OutlinedButton.icon(
-              onPressed: _handling ? null : () => _respond(false),
-              icon: const Icon(Icons.close, size: 18),
-              label: const Text('Refuser'),
-              style: OutlinedButton.styleFrom(foregroundColor: AppTheme.sosRed, side: const BorderSide(color: AppTheme.sosRed)),
-            )),
-            const SizedBox(width: 10),
-            Expanded(child: FilledButton.icon(
-              onPressed: _handling ? null : () => _respond(true),
-              icon: _handling ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.check, size: 18),
-              label: const Text('Accepter'),
-              style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryBlue),
-            )),
-          ]),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _handling ? null : () => _respond(false),
+                  icon: const Icon(Icons.close, size: 18),
+                  label: const Text('Refuser'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.sosRed,
+                    side: const BorderSide(color: AppTheme.sosRed),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _handling ? null : () => _respond(true),
+                  icon: _handling
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.check, size: 18),
+                  label: const Text('Accepter'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.primaryBlue,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -955,12 +1604,14 @@ class _TransporteurViewState extends State<_TransporteurView> {
 
   Future<void> _loadWeather() async {
     try {
-      double lat = DoualaPlaces.centerLatitude, lng = DoualaPlaces.centerLongitude;
+      double lat = DoualaPlaces.centerLatitude,
+          lng = DoualaPlaces.centerLongitude;
       try {
         final permission = await Geolocator.checkPermission();
         if (permission == LocationPermission.denied) {
           final req = await Geolocator.requestPermission();
-          if (req == LocationPermission.denied || req == LocationPermission.deniedForever) {
+          if (req == LocationPermission.denied ||
+              req == LocationPermission.deniedForever) {
             if (mounted) setState(() => _weatherLoading = false);
             return;
           }
@@ -970,17 +1621,27 @@ class _TransporteurViewState extends State<_TransporteurView> {
         }
         try {
           final position = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(accuracy: LocationAccuracy.low, timeLimit: Duration(seconds: 8)),
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.low,
+              timeLimit: Duration(seconds: 8),
+            ),
           );
           lat = position.latitude;
           lng = position.longitude;
         } catch (_) {
           final last = await Geolocator.getLastKnownPosition();
-          if (last != null) { lat = last.latitude; lng = last.longitude; }
+          if (last != null) {
+            lat = last.latitude;
+            lng = last.longitude;
+          }
         }
       } catch (_) {}
       final weather = await WeatherService.instance.getCurrentWeather(lat, lng);
-      if (mounted) setState(() { _weather = weather; _weatherLoading = false; });
+      if (mounted)
+        setState(() {
+          _weather = weather;
+          _weatherLoading = false;
+        });
     } catch (_) {
       if (mounted) setState(() => _weatherLoading = false);
     }
@@ -994,16 +1655,43 @@ class _TransporteurViewState extends State<_TransporteurView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('${LanguageService.instance.t('hello')}, $name', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text(
+            '${LanguageService.instance.t('hello')}, $name',
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.textDark,
+            ),
+          ),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppTheme.lightBlueBorder)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.verified_user, size: 16, color: AppTheme.primaryBlue),
-              SizedBox(width: 6),
-              Expanded(child: Text(LanguageService.instance.t('verified_carrier'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primaryBlue))),
-            ]),
+            decoration: BoxDecoration(
+              color: AppTheme.lightBlueBadge,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppTheme.lightBlueBorder),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.verified_user,
+                  size: 16,
+                  color: AppTheme.primaryBlue,
+                ),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    LanguageService.instance.t('verified_carrier'),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.primaryBlue,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 10),
           // Demande de course en attente : carte persistante Accepter/Refuser
@@ -1011,14 +1699,41 @@ class _TransporteurViewState extends State<_TransporteurView> {
           if (_weatherLoading)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade200)),
-              child: Row(children: [SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 10), Expanded(child: Text('Chargement de la mÃ©tÃ©oâ€¦', maxLines: 1, overflow: TextOverflow.ellipsis))]),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Chargement de la mÃ©tÃ©oâ€¦',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             )
           else if (_weather != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [AppTheme.primaryBlue.withValues(alpha: 0.06), AppTheme.primaryBlue.withValues(alpha: 0.02)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                gradient: LinearGradient(
+                  colors: [
+                    AppTheme.primaryBlue.withValues(alpha: 0.06),
+                    AppTheme.primaryBlue.withValues(alpha: 0.02),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppTheme.lightBlueBorder),
               ),
@@ -1027,16 +1742,84 @@ class _TransporteurViewState extends State<_TransporteurView> {
                   Icon(_weather!.icon, size: 32, color: AppTheme.primaryBlue),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [Text(_weather!.tempDisplay, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppTheme.textDark)), if (_weather!.feelsLike != null) Text(' (ressenti ${_weather!.feelsLike!.round()}Â°)', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))]),
-                      Text(_weather!.description, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textDark)),
-                    ]),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              _weather!.tempDisplay,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.textDark,
+                              ),
+                            ),
+                            if (_weather!.feelsLike != null)
+                              Text(
+                                ' (ressenti ${_weather!.feelsLike!.round()}Â°)',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.textGrey,
+                                ),
+                              ),
+                          ],
+                        ),
+                        Text(
+                          _weather!.description,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textDark,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    if (_weather!.precipitationProbability != null && _weather!.precipitationProbability! > 0)
-                      Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.water_drop, size: 14, color: Colors.blue.shade400), const SizedBox(width: 3), Text('${_weather!.precipitationProbability}%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue.shade700))]),
-                    Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.air, size: 14, color: AppTheme.textGrey), const SizedBox(width: 3), Text('${_weather!.windDisplay} ${_weather!.windDirectionText}', style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))]),
-                  ]),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (_weather!.precipitationProbability != null &&
+                          _weather!.precipitationProbability! > 0)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.water_drop,
+                              size: 14,
+                              color: Colors.blue.shade400,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '${_weather!.precipitationProbability}%',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blue.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.air,
+                            size: 14,
+                            color: AppTheme.textGrey,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${_weather!.windDisplay} ${_weather!.windDirectionText}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textGrey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -1045,70 +1828,237 @@ class _TransporteurViewState extends State<_TransporteurView> {
           const SizedBox(height: 14),
           // PRÉDICTION a remplacé le bouton SOS URGENCE de la rangée (SOS
           // d'urgence reste via le bouton flottant rouge).
-          Row(children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () => Navigator.pushNamed(context, '/prediction'),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFF0F62FE), Color(0xFF1B2F6B)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                    borderRadius: BorderRadius.circular(16),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/prediction'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF0F62FE), Color(0xFF1B2F6B)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.insights,
+                            color: Colors.white,
+                            size: 19,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              FittedBox(
+                                child: Text(
+                                  LanguageService.instance.t('prediction'),
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                LanguageService.instance.t('prediction_sub'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.8),
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Row(children: [
-                    Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.insights, color: Colors.white, size: 19)),
-                    const SizedBox(width: 8),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      FittedBox(child: Text(LanguageService.instance.t('prediction'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))),
-                      const SizedBox(height: 2),
-                      Text(LanguageService.instance.t('prediction_sub'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 10)),
-                    ])),
-                  ]),
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: GestureDetector(
-                onTap: () => Navigator.pushNamed(context, '/ai'),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [Color(0xFF7C3AED), Color(0xFF312E81)], begin: Alignment.topLeft, end: Alignment.centerRight),
-                    borderRadius: BorderRadius.circular(16),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/ai'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF7C3AED), Color(0xFF312E81)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.centerRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.smart_toy,
+                            color: Colors.white,
+                            size: 19,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FittedBox(
+                            child: Text(
+                              LanguageService.instance.t('assistant_ia'),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Row(children: [
-                    Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.smart_toy, color: Colors.white, size: 19)),
-                    const SizedBox(width: 8),
-                    Expanded(child: FittedBox(child: Text(LanguageService.instance.t('assistant_ia'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)))),
-                  ]),
                 ),
               ),
-            ),
-          ]),
+            ],
+          ),
           const SizedBox(height: 18),
-          Text(LanguageService.instance.t('services'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text(
+            LanguageService.instance.t('services'),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.textDark,
+            ),
+          ),
           const SizedBox(height: 10),
-          Row(children: [Expanded(child: _serviceCard(Icons.dashboard, LanguageService.instance.t('dashboard'), LanguageService.instance.t('stats_notes'), '/transporteur-dashboard')), SizedBox(width: 10), Expanded(child: _serviceCard(Icons.directions_car, LanguageService.instance.t('vehicle'), LanguageService.instance.t('vehicle_qr'), '/vehicles'))]),
+          Row(
+            children: [
+              Expanded(
+                child: _serviceCard(
+                  Icons.dashboard,
+                  LanguageService.instance.t('dashboard'),
+                  LanguageService.instance.t('stats_notes'),
+                  '/transporteur-dashboard',
+                ),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: _serviceCard(
+                  Icons.directions_car,
+                  LanguageService.instance.t('vehicle'),
+                  LanguageService.instance.t('vehicle_qr'),
+                  '/vehicles',
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
-          Row(children: [Expanded(child: _serviceCard(Icons.hearing, LanguageService.instance.t('hearing_course'), LanguageService.instance.t('auto_listening'), '/trip-active')), SizedBox(width: 10), Expanded(child: _serviceCard(Icons.verified_user, LanguageService.instance.t('identity'), LanguageService.instance.t('identity_sub'), '/identity', color: AppTheme.primaryBlue))]),
+          Row(
+            children: [
+              Expanded(
+                child: _serviceCard(
+                  Icons.hearing,
+                  LanguageService.instance.t('hearing_course'),
+                  LanguageService.instance.t('auto_listening'),
+                  '/trip-active',
+                ),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: _serviceCard(
+                  Icons.verified_user,
+                  LanguageService.instance.t('identity'),
+                  LanguageService.instance.t('identity_sub'),
+                  '/identity',
+                  color: AppTheme.primaryBlue,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _serviceCard(IconData icon, String title, String subtitle, String route, {Color? color}) {
+  Widget _serviceCard(
+    IconData icon,
+    String title,
+    String subtitle,
+    String route, {
+    Color? color,
+  }) {
     return GestureDetector(
       onTap: () => Navigator.pushNamed(context, route),
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
-        child: Row(children: [
-          Container(width: 38, height: 38, decoration: BoxDecoration(color: (color ?? AppTheme.primaryBlue).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)), child: Icon(icon, size: 20, color: color ?? AppTheme.primaryBlue)),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)), Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])),
-          const Icon(Icons.chevron_right, size: 16, color: AppTheme.textGrey),
-        ]),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: (color ?? AppTheme.primaryBlue).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 20, color: color ?? AppTheme.primaryBlue),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textDark,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textGrey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 16, color: AppTheme.textGrey),
+          ],
+        ),
       ),
     );
   }
@@ -1123,7 +2073,8 @@ class _TransporteurQrCard extends StatefulWidget {
   State<_TransporteurQrCard> createState() => _TransporteurQrCardState();
 }
 
-class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBindingObserver {
+class _TransporteurQrCardState extends State<_TransporteurQrCard>
+    with WidgetsBindingObserver {
   final _api = ApiService();
   String? _token;
   String? _immat;
@@ -1132,6 +2083,38 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
   String? _error;
   Timer? _pollTimer;
   int _refreshFailures = 0;
+  Timer? _countdownTimer;
+
+  // P1-15: Suivi de l'état du QR avec latence de 15 secondes après scan
+  String? _pendingToken; // Token du QR en attente d'activation (après scan)
+  bool _qrActive = true; // Si le QR affiché est actuellement actif
+  DateTime? _qrExpiresAt; // Date/heure d'expiration du QR inactif
+
+  int _remainingSeconds() {
+    if (_qrExpiresAt == null) return 0;
+    final s = _qrExpiresAt!.difference(DateTime.now()).inSeconds;
+    return s > 0 ? s : 0;
+  }
+
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    if (_qrActive || _qrExpiresAt == null) return;
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      if (_remainingSeconds() == 0) {
+        _countdownTimer?.cancel();
+        _qrExpiresAt = null;
+        _checkRefresh();
+        return;
+      }
+      setState(() {});
+    });
+  }
+
+  void _stopCountdown() {
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+  }
 
   @override
   void initState() {
@@ -1147,6 +2130,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
+    _stopCountdown();
     super.dispose();
   }
 
@@ -1161,7 +2145,10 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
 
   void _startPolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 6), (_) => _checkRefresh());
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 6),
+      (_) => _checkRefresh(),
+    );
   }
 
   Future<void> _checkRefresh() async {
@@ -1172,12 +2159,58 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
       return;
     }
     try {
-      final data = await _api.post('/vehicles/$_vehicleId/qr/refresh', {});
+      // Utiliser GET pour lire l'état actuel sans forcer la régénération (P1-15 latence 15s).
+      final data = await _api.get('/vehicles/$_vehicleId/qr');
       final qr = data['qr'] as Map<String, dynamic>?;
-      final newToken = qr?['token'] as String?;
       _refreshFailures = 0;
-      if (newToken != null && newToken != _token && mounted) {
-        setState(() => _token = newToken);
+      if (qr != null && mounted) {
+        final newToken = qr['token'] as String?;
+        final isActive = qr['actif'] as bool? ?? false;
+        final expiresAt = qr['expires_at'] as String?;
+
+        // Un QR est actif : on bascule l'affichage (directement ou depuis la
+        // file d'attente pending) et on arrête le compte à rebours.
+        if (isActive && newToken != null && newToken.isNotEmpty) {
+          if (newToken != _token || _pendingToken != null) {
+            setState(() {
+              _token = newToken;
+              _pendingToken = null;
+              _qrActive = true;
+              _qrExpiresAt = null;
+            });
+            _stopCountdown();
+          }
+          return;
+        }
+
+        // QR inactif : on mémorise le nouveau token en attente SANS l'afficher
+        // (latence 15s). On conserve l'ancien QR affiché pendant le décompte.
+        if (newToken != null && newToken != _token) {
+          if (_pendingToken == null || _pendingToken != newToken) {
+            setState(() {
+              _pendingToken = newToken;
+              _qrActive = false;
+              _qrExpiresAt = expiresAt != null
+                  ? DateTime.tryParse(expiresAt)
+                  : null;
+            });
+            _startCountdown();
+          } else {
+            setState(() {
+              _qrExpiresAt = expiresAt != null
+                  ? DateTime.tryParse(expiresAt)
+                  : null;
+            });
+            _startCountdown();
+          }
+        } else if (_pendingToken != null && newToken == _token) {
+          setState(() {
+            _pendingToken = null;
+            _qrActive = true;
+            _qrExpiresAt = null;
+          });
+          _stopCountdown();
+        }
       }
     } catch (_) {
       // Erreur rÃ©seau/401 : aprÃ¨s 5 Ã©checs consÃ©cutifs (â‰ˆ15 s), on recharge
@@ -1205,9 +2238,19 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
       final qr = data['qr'] as Map<String, dynamic>?;
       final newToken = qr?['token'] as String?;
       if (newToken != null && newToken.isNotEmpty && mounted) {
-        setState(() => _token = newToken);
+        setState(() {
+          _token = newToken;
+          _pendingToken = null;
+          _qrActive = true;
+          _qrExpiresAt = null;
+        });
+        _stopCountdown();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(LanguageService.instance.t('qr_regenerated_simple')), backgroundColor: Colors.green, duration: const Duration(seconds: 2)),
+          SnackBar(
+            content: Text(LanguageService.instance.t('qr_regenerated_simple')),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
         );
       }
     } catch (e) {
@@ -1229,7 +2272,11 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
       final data = await _api.get('/vehicles');
       final vehicles = data['vehicles'] as List<dynamic>? ?? [];
       if (vehicles.isEmpty) {
-        if (mounted) setState(() { _loading = false; _error = 'Aucun vÃ©hicule'; });
+        if (mounted)
+          setState(() {
+            _loading = false;
+            _error = 'Aucun vÃ©hicule';
+          });
         return;
       }
       // Un seul vÃ©hicule autorisÃ© â€” prendre le premier
@@ -1241,13 +2288,30 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
       final token = qr?['token'] as String?;
       if (!mounted) return;
       if (token == null || token.isEmpty) {
-        setState(() { _loading = false; _error = 'QR indisponible'; _immat = immat; _vehicleId = vehicleId; });
+        setState(() {
+          _loading = false;
+          _error = 'QR indisponible';
+          _immat = immat;
+          _vehicleId = vehicleId;
+        });
       } else {
-        setState(() { _token = token; _immat = immat; _vehicleId = vehicleId; _loading = false; });
+        setState(() {
+          _token = token;
+          _immat = immat;
+          _vehicleId = vehicleId;
+          _loading = false;
+          _pendingToken = null;
+          _qrActive = true;
+          _qrExpiresAt = null;
+        });
+        _stopCountdown();
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() { _loading = false; _error = friendlyError(e); });
+      setState(() {
+        _loading = false;
+        _error = friendlyError(e);
+      });
     }
   }
 
@@ -1257,8 +2321,20 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
     if (_loading) {
       return Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: AppTheme.cardBlack, borderRadius: BorderRadius.circular(20)),
-        child: Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))),
+        decoration: BoxDecoration(
+          color: AppTheme.cardBlack,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              color: Colors.white,
+              strokeWidth: 2,
+            ),
+          ),
+        ),
       );
     }
     if (_error != null && _token == null) {
@@ -1269,22 +2345,60 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
           decoration: BoxDecoration(
             color: AppTheme.cardBlack,
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 6))],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: Column(
             children: [
               Container(
                 width: 64,
                 height: 64,
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.15))),
-                child: const Icon(Icons.qr_code_2, color: Colors.white, size: 28),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.qr_code_2,
+                  color: Colors.white,
+                  size: 28,
+                ),
               ),
               const SizedBox(height: 14),
-              Text(_error == 'Aucun vÃ©hicule' ? LanguageService.instance.t('no_vehicle') : LanguageService.instance.t('qr_unavailable'), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              Text(
+                _error == 'Aucun vÃ©hicule'
+                    ? LanguageService.instance.t('no_vehicle')
+                    : LanguageService.instance.t('qr_unavailable'),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(height: 6),
-              Text(_error == 'Aucun vÃ©hicule' ? LanguageService.instance.t('add_vehicle_hint') : 'Erreur: $_error', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
+              Text(
+                _error == 'Aucun vÃ©hicule'
+                    ? LanguageService.instance.t('add_vehicle_hint')
+                    : 'Erreur: $_error',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontSize: 12,
+                ),
+              ),
               const SizedBox(height: 12),
-              FilledButton.icon(onPressed: () => Navigator.pushNamed(context, '/vehicles'), icon: Icon(Icons.add), label: Text(LanguageService.instance.t('add_vehicle'))),
+              FilledButton.icon(
+                onPressed: () => Navigator.pushNamed(context, '/vehicles'),
+                icon: Icon(Icons.add),
+                label: Text(LanguageService.instance.t('add_vehicle')),
+              ),
             ],
           ),
         ),
@@ -1295,45 +2409,146 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
       decoration: BoxDecoration(
         color: AppTheme.cardBlack,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 12, offset: const Offset(0, 6))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(LanguageService.instance.t('my_qr'), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+              Text(
+                LanguageService.instance.t('my_qr'),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-                child: Text(_immat ?? '', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _immat ?? '',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-            child: QrImageView(
-              data: _token!,
-              version: QrVersions.auto,
-              size: 180,
-              backgroundColor: Colors.white,
-              eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Colors.black),
-              dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: Colors.black),
+          if (_qrActive)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: QrImageView(
+                data: _token!,
+                version: QrVersions.auto,
+                size: 180,
+                backgroundColor: Colors.white,
+                eyeStyle: const QrEyeStyle(
+                  eyeShape: QrEyeShape.square,
+                  color: Colors.black,
+                ),
+                dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: Colors.black,
+                ),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.lock_clock, color: Colors.grey.shade500, size: 40),
+                  const SizedBox(height: 8),
+                  Text(
+                    LanguageService.instance.t('qr_new_pending'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_remainingSeconds()} s',
+                    style: TextStyle(
+                      color: AppTheme.primaryBlue,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 10),
+          Text(
+            LanguageService.instance.t(
+              _qrActive ? 'present_qr' : 'qr_refresh_after_countdown',
+            ),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.7),
+              fontSize: 12,
             ),
           ),
-          const SizedBox(height: 10),
-          Text(LanguageService.instance.t('present_qr'), textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withValues(alpha: 0.15))),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle)),
-              const SizedBox(width: 6),
-              Text(LanguageService.instance.t('qr_active'), style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 11, fontWeight: FontWeight.w600)),
-            ]),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Color(
+                  _qrActive ? 0xFF22C55E : 0xFFF59E0B,
+                ).withValues(alpha: 0.4),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: Color(_qrActive ? 0xFF22C55E : 0xFFF59E0B),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  _qrActive
+                      ? LanguageService.instance.t('qr_active')
+                      : LanguageService.instance.t('qr_regenerating'),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 10),
           SizedBox(
@@ -1347,7 +2562,10 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard> with WidgetsBi
                 padding: const EdgeInsets.symmetric(vertical: 10),
               ),
               icon: const Icon(Icons.qr_code_2, size: 18),
-              label: Text(LanguageService.instance.t('regenerate_qr'), style: const TextStyle(fontWeight: FontWeight.w700)),
+              label: Text(
+                LanguageService.instance.t('regenerate_qr'),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
           ),
         ],
@@ -1368,15 +2586,53 @@ class _GuestView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 12),
-          Text(LanguageService.instance.t('welcome'), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text(
+            LanguageService.instance.t('welcome'),
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.textDark,
+            ),
+          ),
           const SizedBox(height: 6),
-          Text(LanguageService.instance.t('guest_consult_text'), style: TextStyle(fontSize: 12, color: AppTheme.textGrey)),
+          Text(
+            LanguageService.instance.t('guest_consult_text'),
+            style: TextStyle(fontSize: 12, color: AppTheme.textGrey),
+          ),
           const SizedBox(height: 14),
           // AperÃ§u carte
           Container(
             height: 140,
-            decoration: BoxDecoration(color: const Color(0xFFEAF0FF), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.lightBlueBorder)),
-            child: Stack(children: [Center(child: Icon(Icons.map, size: 48, color: AppTheme.primaryBlue)), Positioned(top: 8, right: 8, child: Container(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)), child: Text(LanguageService.instance.t('yaounde_map'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700))))]),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEAF0FF),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.lightBlueBorder),
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Icon(Icons.map, size: 48, color: AppTheme.primaryBlue),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      LanguageService.instance.t('yaounde_map'),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 14),
           // Scanner verrouillÃ©
@@ -1384,40 +2640,248 @@ class _GuestView extends StatelessWidget {
             onTap: onAction,
             child: Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: AppTheme.cardBlack, borderRadius: BorderRadius.circular(20)),
-              child: Column(children: [Container(width: 64, height: 64, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.08), shape: BoxShape.circle, border: Border.all(color: Colors.white.withValues(alpha: 0.15))), child: Icon(Icons.qr_code_scanner, color: Colors.white, size: 28)), SizedBox(height: 12), Text(LanguageService.instance.t('scan_qr'), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)), SizedBox(height: 6), Text(LanguageService.instance.t('guest_locked'), textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)), SizedBox(height: 8), Container(padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.lock, size: 12, color: Colors.white), SizedBox(width: 4), Text('InvitÃ©', style: TextStyle(color: Colors.white, fontSize: 11))]))]),
+              decoration: BoxDecoration(
+                color: AppTheme.cardBlack,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.08),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.qr_code_scanner,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    LanguageService.instance.t('scan_qr'),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    LanguageService.instance.t('guest_locked'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 12,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.lock, size: 12, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text(
+                          'InvitÃ©',
+                          style: TextStyle(color: Colors.white, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 14),
-          Row(children: [Expanded(child: GestureDetector(onTap: onAction, child: Container(padding: EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade300)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.insights, size: 16, color: AppTheme.textGrey), SizedBox(width: 6), Text(LanguageService.instance.t('prediction'), style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)), SizedBox(width: 4), Icon(Icons.lock, size: 12, color: AppTheme.textGrey)]))))]),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: onAction,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.insights,
+                          size: 16,
+                          color: AppTheme.textGrey,
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          LanguageService.instance.t('prediction'),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(Icons.lock, size: 12, color: AppTheme.textGrey),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 18),
-          Text(LanguageService.instance.t('services_preview'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          Text(
+            LanguageService.instance.t('services_preview'),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.textDark,
+            ),
+          ),
           const SizedBox(height: 10),
-          _guestCard(Icons.trip_origin, LanguageService.instance.t('trip'), '${LanguageService.instance.t('trip_tracking')} + SOS', onAction),
+          _guestCard(
+            Icons.trip_origin,
+            LanguageService.instance.t('trip'),
+            '${LanguageService.instance.t('trip_tracking')} + SOS',
+            onAction,
+          ),
           const SizedBox(height: 8),
-          _guestCard(Icons.gavel_outlined, LanguageService.instance.t('dispute'), LanguageService.instance.t('lost_and_sos'), onAction),
+          _guestCard(
+            Icons.gavel_outlined,
+            LanguageService.instance.t('dispute'),
+            LanguageService.instance.t('lost_and_sos'),
+            onAction,
+          ),
           const SizedBox(height: 8),
-          _guestCard(Icons.verified_user, LanguageService.instance.t('identity'), LanguageService.instance.t('cni_passport'), onAction),
+          _guestCard(
+            Icons.verified_user,
+            LanguageService.instance.t('identity'),
+            LanguageService.instance.t('cni_passport'),
+            onAction,
+          ),
           const SizedBox(height: 8),
-          _guestCard(Icons.directions_car, LanguageService.instance.t('vehicles'), LanguageService.instance.t('vehicle_qr_label'), onAction),
+          _guestCard(
+            Icons.directions_car,
+            LanguageService.instance.t('vehicles'),
+            LanguageService.instance.t('vehicle_qr_label'),
+            onAction,
+          ),
           const SizedBox(height: 8),
-          _guestCard(Icons.dashboard, LanguageService.instance.t('dashboard'), LanguageService.instance.t('stats_carrier'), onAction),
+          _guestCard(
+            Icons.dashboard,
+            LanguageService.instance.t('dashboard'),
+            LanguageService.instance.t('stats_carrier'),
+            onAction,
+          ),
           const SizedBox(height: 14),
-          FilledButton.icon(onPressed: () => Navigator.pushNamed(context, '/register'), icon: Icon(Icons.person_add), label: Text(LanguageService.instance.t('create_account_interact'))),
+          FilledButton.icon(
+            onPressed: () => Navigator.pushNamed(context, '/register'),
+            icon: Icon(Icons.person_add),
+            label: Text(LanguageService.instance.t('create_account_interact')),
+          ),
           const SizedBox(height: 6),
-          TextButton(onPressed: () => Navigator.pushNamed(context, '/login'), child: Text(LanguageService.instance.t('has_account'))),
+          TextButton(
+            onPressed: () => Navigator.pushNamed(context, '/login'),
+            child: Text(LanguageService.instance.t('has_account')),
+          ),
         ],
       ),
     );
   }
 
-  static Widget _guestCard(IconData icon, String title, String subtitle, VoidCallback onTap) {
+  static Widget _guestCard(
+    IconData icon,
+    String title,
+    String subtitle,
+    VoidCallback onTap,
+  ) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
-        child: Row(children: [Container(width: 38, height: 38, decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)), child: Icon(icon, size: 20, color: Colors.grey)), const SizedBox(width: 10), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)), const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.lock, size: 10, color: Colors.grey), SizedBox(width: 3), Text('InvitÃ©', style: TextStyle(fontSize: 10, color: Colors.grey))]))]), Text(subtitle, style: const TextStyle(fontSize: 11, color: AppTheme.textGrey))])), const Icon(Icons.chevron_right, size: 16, color: Colors.grey)]),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 20, color: Colors.grey),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textDark,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.lock, size: 10, color: Colors.grey),
+                            SizedBox(width: 3),
+                            Text(
+                              'InvitÃ©',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textGrey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+          ],
+        ),
       ),
     );
   }
@@ -1433,7 +2897,33 @@ class _GuestBlockedCard extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.lock, size: 48, color: Colors.grey.shade400), const SizedBox(height: 12), Text('$label â€” mode invitÃ©', style: const TextStyle(fontWeight: FontWeight.w700)), const SizedBox(height: 6), const Text('Inscrivez-vous pour accÃ©der Ã  cette section', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.textGrey, fontSize: 12)), const SizedBox(height: 16), FilledButton.icon(onPressed: () => Navigator.pushNamed(context, '/register'), icon: const Icon(Icons.person_add), label: const Text('S\'inscrire')), TextButton(onPressed: () => Navigator.pushNamed(context, '/login'), child: const Text('Se connecter'))]),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.lock, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
+            Text(
+              '$label â€” mode invitÃ©',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Inscrivez-vous pour accÃ©der Ã  cette section',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppTheme.textGrey, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => Navigator.pushNamed(context, '/register'),
+              icon: const Icon(Icons.person_add),
+              label: const Text('S\'inscrire'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pushNamed(context, '/login'),
+              child: const Text('Se connecter'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1478,7 +2968,9 @@ class _AdminView extends StatelessWidget {
             child: ListTile(
               leading: const Icon(Icons.admin_panel_settings, size: 32),
               title: const Text('Administration'),
-              subtitle: const Text('Tableau de bord, utilisateurs, gestionnaires'),
+              subtitle: const Text(
+                'Tableau de bord, utilisateurs, gestionnaires',
+              ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.pushNamed(context, '/admin'),
             ),

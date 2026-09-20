@@ -57,7 +57,11 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(hasExisting ? LanguageService.instance.t('replace_vehicle') : LanguageService.instance.t('add_vehicle_title')),
+        title: Text(
+          hasExisting
+              ? LanguageService.instance.t('replace_vehicle')
+              : LanguageService.instance.t('add_vehicle_title'),
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -66,31 +70,73 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
-                  child: Row(children: [Icon(Icons.warning_amber, color: Colors.orange.shade700, size: 18), SizedBox(width: 8), Expanded(child: Text(LanguageService.instance.t('single_vehicle_warning'), style: TextStyle(fontSize: 12, color: Colors.orange.shade800)))]),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.warning_amber,
+                        color: Colors.orange.shade700,
+                        size: 18,
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          LanguageService.instance.t('single_vehicle_warning'),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange.shade800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               TextField(
                 controller: marque,
-                decoration: InputDecoration(labelText: LanguageService.instance.t('brand')),
+                decoration: InputDecoration(
+                  labelText: LanguageService.instance.t('brand'),
+                ),
               ),
               TextField(
                 controller: modele,
-                decoration: InputDecoration(labelText: LanguageService.instance.t('model')),
+                decoration: InputDecoration(
+                  labelText: LanguageService.instance.t('model'),
+                ),
               ),
               TextField(
                 controller: immatriculation,
-                decoration: InputDecoration(labelText: LanguageService.instance.t('registration')),
+                decoration: InputDecoration(
+                  labelText: LanguageService.instance.t('registration'),
+                ),
               ),
               DropdownButtonFormField<String>(
                 initialValue: type,
                 items: [
-                  DropdownMenuItem(value: 'MOTO', child: Text(LanguageService.instance.t('moto'))),
-                  DropdownMenuItem(value: 'VOITURE', child: Text(LanguageService.instance.t('car'))),
-                  DropdownMenuItem(value: 'MINIBUS', child: Text(LanguageService.instance.t('minibus'))),
-                  DropdownMenuItem(value: 'BUS', child: Text(LanguageService.instance.t('bus'))),
+                  DropdownMenuItem(
+                    value: 'MOTO',
+                    child: Text(LanguageService.instance.t('moto')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'VOITURE',
+                    child: Text(LanguageService.instance.t('car')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'MINIBUS',
+                    child: Text(LanguageService.instance.t('minibus')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'BUS',
+                    child: Text(LanguageService.instance.t('bus')),
+                  ),
                 ],
                 onChanged: (v) => type = v ?? 'VOITURE',
-                decoration: InputDecoration(labelText: LanguageService.instance.t('type')),
+                decoration: InputDecoration(
+                  labelText: LanguageService.instance.t('type'),
+                ),
               ),
             ],
           ),
@@ -102,7 +148,11 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(hasExisting ? LanguageService.instance.t('replace') : LanguageService.instance.t('add')),
+            child: Text(
+              hasExisting
+                  ? LanguageService.instance.t('replace')
+                  : LanguageService.instance.t('add'),
+            ),
           ),
         ],
       ),
@@ -120,14 +170,18 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(res['message'] as String? ?? 'Véhicule enregistré avec son QR code associé')),
+          content: Text(
+            res['message'] as String? ??
+                'Véhicule enregistré avec son QR code associé',
+          ),
+        ),
       );
       _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
   }
 
@@ -140,9 +194,9 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
       qrData = data['qr'];
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyError(e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       return;
     }
 
@@ -176,8 +230,14 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
         title: Text(LanguageService.instance.t('delete_vehicle_confirm')),
         content: Text(LanguageService.instance.t('delete_vehicle_msg')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(LanguageService.instance.t('cancel'))),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(LanguageService.instance.t('delete'))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(LanguageService.instance.t('cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(LanguageService.instance.t('delete')),
+          ),
         ],
       ),
     );
@@ -185,11 +245,15 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     try {
       await _api.delete('/vehicles/$id');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LanguageService.instance.t('vehicle_deleted'))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(LanguageService.instance.t('vehicle_deleted'))),
+      );
       _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -198,11 +262,17 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     final hasVehicle = _vehicles.isNotEmpty;
     return Scaffold(
       appBar: AppBar(
-        title: Text(hasVehicle ? LanguageService.instance.t('my_unique_vehicle') : LanguageService.instance.t('my_vehicle')),
+        title: Text(
+          hasVehicle
+              ? LanguageService.instance.t('my_unique_vehicle')
+              : LanguageService.instance.t('my_vehicle'),
+        ),
         actions: [
           IconButton(
             icon: Icon(hasVehicle ? Icons.swap_horiz : Icons.add),
-            tooltip: hasVehicle ? LanguageService.instance.t('replace_vehicle') : LanguageService.instance.t('add_vehicle_title'),
+            tooltip: hasVehicle
+                ? LanguageService.instance.t('replace_vehicle')
+                : LanguageService.instance.t('add_vehicle_title'),
             onPressed: _addVehicle,
           ),
         ],
@@ -216,47 +286,103 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
       body: _loading
           ? Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(child: Text(_error!))
-              : _vehicles.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          const Icon(Icons.directions_car, size: 48, color: Colors.grey),
-                          const SizedBox(height: 12),
-                          Text(LanguageService.instance.t('no_vehicle_add_unique'), textAlign: TextAlign.center),
-                          const SizedBox(height: 16),
-                          FilledButton.icon(onPressed: _addVehicle, icon: Icon(Icons.add), label: Text(LanguageService.instance.t('add_vehicle'))),
-                        ]),
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView(
-                        padding: const EdgeInsets.all(12),
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
-                            child: Row(children: [Icon(Icons.info_outline, color: Colors.blue.shade700, size: 18), const SizedBox(width: 8), const Expanded(child: Text('Un seul véhicule autorisé par transporteur. Ajouter un nouveau véhicule remplacera l\'ancien.', style: TextStyle(fontSize: 12)))]),
+          ? Center(child: Text(_error!))
+          : _vehicles.isEmpty
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.directions_car,
+                      size: 48,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      LanguageService.instance.t('no_vehicle_add_unique'),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _addVehicle,
+                      icon: Icon(Icons.add),
+                      label: Text(LanguageService.instance.t('add_vehicle')),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                padding: const EdgeInsets.all(12),
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.blue.shade700,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Un seul véhicule autorisé par transporteur. Ajouter un nouveau véhicule remplacera l\'ancien.',
+                            style: TextStyle(fontSize: 12),
                           ),
-                          const SizedBox(height: 12),
-                          ..._vehicles.map((v) => Card(
-                                margin: const EdgeInsets.symmetric(vertical: 6),
-                                child: ListTile(
-                                  leading: CircleAvatar(child: Icon(_typeIcon(v['type'] ?? 'VOITURE'))),
-                                  title: Text('${v['marque']} ${v['modele']} — ${v['immatriculation']}'),
-                                  subtitle: Text('${v['type']}${v['couleur'] != null ? ' · ${v['couleur']}' : ''} · ${v['statut']}'),
-                                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                                    IconButton(icon: Icon(Icons.qr_code_2), tooltip: LanguageService.instance.t('show_qr'), onPressed: () => _showQr(v['id'], v['immatriculation'])),
-                                    if (_vehicles.length > 1)
-                                      IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), tooltip: 'Supprimer (bloqué si seul)', onPressed: () => _deleteVehicle(v['id'])),
-                                  ]),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ..._vehicles.map(
+                    (v) => Card(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          child: Icon(_typeIcon(v['type'] ?? 'VOITURE')),
+                        ),
+                        title: Text(
+                          '${v['marque']} ${v['modele']} — ${v['immatriculation']}',
+                        ),
+                        subtitle: Text(
+                          '${v['type']}${v['couleur'] != null ? ' · ${v['couleur']}' : ''} · ${v['statut']}',
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: Icon(Icons.qr_code_2),
+                              tooltip: LanguageService.instance.t('show_qr'),
+                              onPressed: () =>
+                                  _showQr(v['id'], v['immatriculation']),
+                            ),
+                            if (_vehicles.length > 1)
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.red,
                                 ),
-                              )),
-                        ],
+                                tooltip: 'Supprimer (bloqué si seul)',
+                                onPressed: () => _deleteVehicle(v['id']),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -293,13 +419,31 @@ class _QrDialogState extends State<_QrDialog> {
   late String _token;
   Timer? _pollTimer;
   final _api = ApiService();
+  bool _isActive = true;
+  DateTime? _expiresAt;
 
   @override
   void initState() {
     super.initState();
     _token = widget.initialToken;
+    _isActive = true;
+    _expiresAt = null;
     // Poller toutes les 3 secondes pour détecter un scan (token changé)
-    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) => _checkRefresh());
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _checkRefresh(),
+    );
+  }
+
+  String _diff(DateTime target) {
+    final now = DateTime.now();
+    if (now.isAfter(target)) {
+      return '00:00';
+    }
+    final diff = target.difference(now);
+    final minutes = diff.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = diff.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   @override
@@ -312,17 +456,27 @@ class _QrDialogState extends State<_QrDialog> {
   Future<void> _checkRefresh() async {
     try {
       final data = await _api.get('/vehicles/${widget.vehicleId}/qr');
-      final qr = data['qr'];
-      if (qr != null && qr['token'] != _token && mounted) {
-        setState(() => _token = qr['token']);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(                  content: Text('QR régénéré après scan !'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
+      final qr = data['qr'] as Map<String, dynamic>?;
+      if (qr == null || !mounted) return;
+      final newToken = qr['token'] as String?;
+      final isActive = qr['actif'] as bool? ?? false;
+      final expiresAt = qr['expires_at'] as String?;
+      if (newToken == null || newToken == _token) return;
+      // Nouveau token détecté : mettre à jour uniquement s'il est actif.
+      // S'il est inactif (attente de la latence 15s), on garde l'ancien.
+      setState(() {
+        _token = newToken;
+        _isActive = isActive;
+        _expiresAt = expiresAt != null ? DateTime.tryParse(expiresAt) : null;
+      });
+      if (isActive && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('QR régénéré après scan !'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
     } catch (_) {}
   }
@@ -330,7 +484,10 @@ class _QrDialogState extends State<_QrDialog> {
   /// Régénérer manuellement le QR
   Future<void> _manualRefresh() async {
     try {
-      final data = await _api.post('/vehicles/${widget.vehicleId}/qr/refresh', {});
+      final data = await _api.post(
+        '/vehicles/${widget.vehicleId}/qr/refresh',
+        {},
+      );
       final qr = data['qr'];
       if (qr != null && mounted) {
         setState(() => _token = qr['token']);
@@ -343,9 +500,9 @@ class _QrDialogState extends State<_QrDialog> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(friendlyError(e))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     }
   }
@@ -382,19 +539,25 @@ class _QrDialogState extends State<_QrDialog> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.orange.shade50,
+              color: _isActive ? Colors.orange.shade50 : Colors.grey.shade200,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.orange.shade700, size: 18),
+                Icon(
+                  _isActive ? Icons.info_outline : Icons.lock_outline,
+                  color: _isActive ? Colors.orange.shade700 : Colors.grey,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    LanguageService.instance.t('qr_auto_regen'),
+                    _isActive
+                        ? LanguageService.instance.t('qr_auto_regen')
+                        : 'QR inactif — activation dans ${_expiresAt != null ? _diff(_expiresAt!) : ''}',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.orange.shade800,
+                      color: _isActive ? Colors.orange.shade800 : Colors.grey,
                     ),
                   ),
                 ),
@@ -409,9 +572,7 @@ class _QrDialogState extends State<_QrDialog> {
           onPressed: _manualRefresh,
           icon: const Icon(Icons.refresh),
           tooltip: LanguageService.instance.t('regenerate_qr'),
-          style: IconButton.styleFrom(
-            backgroundColor: Colors.blue.shade50,
-          ),
+          style: IconButton.styleFrom(backgroundColor: Colors.blue.shade50),
         ),
         TextButton(
           onPressed: () => Navigator.pop(context),
