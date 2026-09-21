@@ -21,6 +21,7 @@ import '../services/osrm_service.dart';
 import '../services/permission_service.dart';
 import '../services/voiceprint_service.dart';
 import '../services/sos_service.dart';
+import '../services/alert_counter_service.dart';
 import '../services/whatsapp_service.dart';
 import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
@@ -1082,6 +1083,76 @@ class _TripActiveScreenState extends State<TripActiveScreen>
     }
   }
 
+  /// SOS DIRECT depuis le trajet : un simple clic déclenche immédiatement
+  /// l'alerte (sans passer par l'écran SOS vocal) puis affiche "c'est fait".
+  /// Même séquence que le bouton SOS de l'accueil : gate contacts d'urgence,
+  /// position GPS, trigger bouton, WhatsApp best-effort, compteur, message.
+  Future<void> _triggerSosDirect() async {
+    final trip = _trip;
+    if (trip == null || _autoSosSending || _busy) return;
+    if (!mounted) return;
+    if (!await ensureEmergencyContacts(context)) return;
+    if (!mounted) return;
+    setState(() => _autoSosSending = true);
+    try {
+      final pos = await _autoPosition();
+      final data = await _sosService.triggerButton(
+        trip.id,
+        pos.latitude,
+        pos.longitude,
+      );
+      if (!mounted) return;
+      if (data['queued'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Alerte SOS enregistrée hors-ligne — sera transmise à la reconnexion.',
+            ),
+          ),
+        );
+        return;
+      }
+      // WhatsApp best-effort aux contacts d'urgence.
+      try {
+        final contacts = data['emergency_contacts'] as List<dynamic>? ?? [];
+        final sms = data['sms_message'] as String?;
+        if (contacts.isNotEmpty && sms != null && sms.isNotEmpty) {
+          final phones = contacts
+              .map(
+                (c) => ((c['whatsapp_telephone'] as String?)?.trim().isNotEmpty == true
+                        ? c['whatsapp_telephone'] as String
+                        : c['telephone'] as String?)
+                    ?.trim(),
+              )
+              .whereType<String>()
+              .where((p) => p.isNotEmpty)
+              .toList();
+          if (phones.isNotEmpty) {
+            await WhatsAppService.instance.sendBulk(phones, sms);
+          }
+        }
+      } catch (_) {}
+      try {
+        await AlertCounterService.increment();
+      } catch (_) {}
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_sosService.resultMessage(data, bouton: true)),
+          backgroundColor: Colors.green.shade700,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('SOS en attente de connexion : $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _autoSosSending = false);
+    }
+  }
+
   Future<({double latitude, double longitude})> _autoPosition() async {
     try {
       final p = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
@@ -1926,10 +1997,10 @@ class _TripActiveScreenState extends State<TripActiveScreen>
         const SizedBox(height: 10),
         SizedBox(
           height: 52,
+          // Clic direct = déclenchement immédiat de l'alerte (pas de détour
+          // par l'écran SOS vocal) + message de confirmation.
           child: ElevatedButton.icon(
-            onPressed: _autoSosSending || _busy
-                ? null
-                : () => Navigator.pushNamed(context, '/sos-button', arguments: trip),
+            onPressed: _autoSosSending || _busy ? null : _triggerSosDirect,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.sosRed,
               foregroundColor: Colors.white,
