@@ -466,19 +466,11 @@ class TripController extends Controller
 
         // Rotation auto du QR dès que le passager a CHOISI sa destination :
         // le QR scanné meurt, un QR frais attend les prochains passagers.
-        // Non bloquant (le trajet continue même si la rotation échoue).
+        // Non bloquant (le trajet continue même si la rotation échoue) avec
+        // 1 nouvel essai (le pooler Neon peut échouer de façon transitoire).
+        $qrRotation = ['rotated' => false, 'reason' => 'not_first_choice'];
         if ($firstChoice) {
-            try {
-                $choiceVehicle = $trip->vehicle;
-                if ($choiceVehicle) {
-                    app(VehicleController::class)->rotateForNewRide($choiceVehicle);
-                }
-            } catch (\Throwable $e) {
-                \Log::warning('Rotation QR auto après choix destination échouée', [
-                    'trip_id' => $id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
+            $qrRotation = $this->rotateTripQr($trip, 'destination_choisie');
         }
 
         return response()->json([
@@ -486,6 +478,7 @@ class TripController extends Controller
             'trip' => new TripResource($trip->fresh()->load('passager', 'transporteur', 'vehicle')),
             'next_step' => 'confirm_destination',
             'confirmation_required' => true,
+            'qr_rotation' => $qrRotation,
         ]);
     }
 
@@ -530,25 +523,7 @@ class TripController extends Controller
         // trajet (trip.qr_token) — inutile de tourner deux fois.
         // Non bloquant : un échec de rotation ne doit jamais empêcher le
         // démarrage du trajet.
-        try {
-            $rideVehicle = $trip->vehicle;
-            if ($rideVehicle) {
-                $currentActive = $rideVehicle->qrCodes()
-                    ->where('actif', true)
-                    ->orderByDesc('id')
-                    ->first();
-                if ($trip->qr_token === null
-                    || ($currentActive && $currentActive->token === $trip->qr_token)
-                ) {
-                    app(VehicleController::class)->rotateForNewRide($rideVehicle);
-                }
-            }
-        } catch (\Throwable $e) {
-            \Log::warning('Rotation QR auto après démarrage trajet échouée', [
-                'trip_id' => $id,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        $qrRotation = $this->rotateTripQr($trip, 'trajet_demarre', true);
 
         Notification::create([
             'user_id' => $trip->transporteur_id,
@@ -571,6 +546,7 @@ class TripController extends Controller
             'message' => 'Destination confirmée. Trajet en cours.',
             'trip' => new TripResource($trip->fresh()->load('passager', 'transporteur', 'vehicle')),
             'next_step' => 'trajet_en_cours',
+            'qr_rotation' => $qrRotation,
         ]);
     }
 
@@ -969,6 +945,70 @@ class TripController extends Controller
             'distance_m' => (int) round($distanceM),
             'max_distance_m' => $maxDistanceM,
         ];
+    }
+
+    /**
+     * Rotation auto du QR du véhicule d'un trajet (désactive les actifs,
+     * crée un actif 24h). JAMAIS bloquante : retourne ['rotated' => bool,
+     * 'reason' => string] pour traçabilité (visible dans les réponses
+     * setDestination/confirmDestination).
+     * - $onlyIfScannedActive = true : ne tourne que si le QR actif est
+     *   encore celui scanné (trip.qr_token) — évite les doubles rotations
+     *   (ex. déjà tourné au choix de destination).
+     * - Repli : si le véhicule du trajet a été remplacé entre-temps, on
+     *   tourne celui actuellement détenu par le transporteur.
+     * - 1 nouvel essai en cas d'échec transitoire (pooler Neon).
+     */
+    protected function rotateTripQr(Trip $trip, string $context, bool $onlyIfScannedActive = false): array
+    {
+        $vehicle = $trip->vehicle;
+        if (! $vehicle) {
+            $vehicle = Vehicle::where('transporteur_id', $trip->transporteur_id)->first();
+        }
+        if (! $vehicle) {
+            \Log::warning('Rotation QR auto impossible : véhicule introuvable', [
+                'trip_id' => $trip->id, 'context' => $context,
+            ]);
+
+            return ['rotated' => false, 'reason' => 'vehicule_introuvable'];
+        }
+
+        if ($onlyIfScannedActive && $trip->qr_token !== null) {
+            $currentActive = $vehicle->qrCodes()
+                ->where('actif', true)
+                ->orderByDesc('id')
+                ->first();
+            if (! $currentActive || $currentActive->token !== $trip->qr_token) {
+                return ['rotated' => false, 'reason' => 'deja_tourne'];
+            }
+        }
+
+        $lastError = null;
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            try {
+                app(VehicleController::class)->rotateForNewRide($vehicle);
+
+                \Log::info('Rotation QR auto OK', [
+                    'trip_id' => $trip->id,
+                    'vehicle_id' => $vehicle->id,
+                    'context' => $context,
+                    'attempt' => $attempt,
+                ]);
+
+                return ['rotated' => true, 'reason' => $context];
+            } catch (\Throwable $e) {
+                $lastError = $e->getMessage();
+            }
+        }
+
+        \Log::warning('Rotation QR auto échouée (2 essais)', [
+            'trip_id' => $trip->id,
+            'vehicle_id' => $vehicle->id,
+            'context' => $context,
+            'error' => $lastError,
+        ]);
+
+        return ['rotated' => false, 'reason' => 'echec_rotation'];
     }
 
     protected function resolveQr(string $token): ?QrCode
