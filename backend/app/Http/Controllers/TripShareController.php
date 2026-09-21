@@ -71,7 +71,7 @@ class TripShareController extends Controller
             'statut' => $trip->statut,
             'passager' => trim(($trip->passager->prenom ?? '') . ' ' . ($trip->passager->nom ?? '')),
             'transporteur' => trim(($trip->transporteur->prenom ?? '') . ' ' . ($trip->transporteur->nom ?? '')),
-            'vehicule' => $trip->vehicle?->plaque ?? '',
+            'vehicule' => $trip->vehicle?->immatriculation ?? '',
             'destination' => $trip->destination_address,
             'position' => $last ? [
                 'lat' => (float) $last->latitude,

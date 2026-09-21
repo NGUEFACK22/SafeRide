@@ -135,6 +135,16 @@ class TripShareTest extends TestCase
         $this->assertStringContainsString($trip->share_token, $res->json('url'));
     }
 
+    public function test_data_inclut_immatriculation_vehicule(): void
+    {
+        $trip = $this->trip($this->passager());
+        $immat = $trip->fresh()->vehicle->immatriculation;
+
+        $this->getJson('/api/v1/public/suivi/' . $trip->share_token . '/data')
+            ->assertOk()
+            ->assertJsonPath('vehicule', $immat);
+    }
+
     public function test_lien_partage_refuse_aux_tiers(): void
     {
         $trip = $this->trip($this->passager());

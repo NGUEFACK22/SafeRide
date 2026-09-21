@@ -41,15 +41,24 @@
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+// Secours si unpkg est injoignable (réseau opérateur) : second CDN.
+if (!window.L) {
+  document.write('<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"><\/script>');
+}
+</script>
+<script>
 (function () {
   var token = <?= json_encode($token) ?>;
   var actif = <?= json_encode($actif) ?>;
-  var map = L.map('carte', { zoomControl: true });
+  // Vue par défaut sur Douala : sans elle, Leaflet démarre à [0,0] (océan)
+  // tant qu'aucune position/itinéraire n'est reçu — "carte vide".
+  var map = L.map('carte', { zoomControl: true }).setView([4.05, 9.7679], 12);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19, attribution: '&copy; OpenStreetMap'
   }).addTo(map);
 
   var markerVoiture = null, polyPrevu = null, polyReel = null, centre = false;
+  var premierEchange = false;
 
   function temps(iso) {
     if (!iso) return '—';
@@ -76,6 +85,7 @@
       .then(function (r) { return r.status === 404 ? Promise.reject('404') : r.json(); })
       .then(function (d) {
         if (!d.actif) { finir('Ce trajet est terminé — le suivi en direct est clos.'); return; }
+        premierEchange = true;
         document.getElementById('pass').textContent = d.passager || '—';
         document.getElementById('trans').textContent = (d.transporteur || '—') + (d.vehicule ? ' • ' + d.vehicule : '');
         document.getElementById('dest').textContent = d.destination || '—';
@@ -107,6 +117,11 @@
         if (pts.length) {
           if (!centre) { map.fitBounds(L.latLngBounds(pts).pad(0.15)); centre = true; }
           else if (d.position) map.panTo([d.position.lat, d.position.lng], { animate: true, duration: .8 });
+        } else if (premierEchange && !d.position) {
+          // Trajet actif mais AUCUNE donnée (pas de destination, pas encore
+          // de point GPS : SOS déclenché au démarrage). On le dit au lieu
+          // d'une carte muette — la position apparaîtra dès le 1er fix.
+          document.getElementById('statutTexte').textContent = 'En attente de la première position GPS…';
         }
       })
       .catch(function () {
