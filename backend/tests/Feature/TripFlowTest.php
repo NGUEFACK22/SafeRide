@@ -162,8 +162,8 @@ class TripFlowTest extends TestCase
 
         // Deuxième scan : le SCANNE est un état de configuration, pas un vrai
         // trajet. Il est annulé automatiquement et le nouveau scan crée un
-        // trajet frais (QR régénéré consommé → le transporteur voit un QR
-        // nouveau sur son écran).
+        // trajet frais. Le QR est multi-usage (24h) : c'est le MÊME token
+        // qui reste actif et réutilisable.
         $newToken = QrCode::where('vehicle_id', $vehicle['id'])
             ->where('actif', true)
             ->value('token');
@@ -185,10 +185,11 @@ class TripFlowTest extends TestCase
             'statut' => 'ANNULE',
         ]);
 
-        // Le QR consommé est désactivé.
+        // Le QR est multi-usage : il RESTE actif après les scans
+        // (validité 24h, réutilisable pour d'autres trajets).
         $this->assertDatabaseHas('qr_codes', [
             'token' => $vehicle['qr_codes'][0]['token'],
-            'actif' => false,
+            'actif' => true,
         ]);
 
         // Un nouveau QR régénéré est actif.
@@ -454,5 +455,97 @@ class TripFlowTest extends TestCase
         $refused = $this->actingAs($passager)
             ->postJson("/api/v1/trips/{$trip['id']}/cancel");
         $refused->assertNotFound();
+    }
+
+    public function test_scan_auto_closes_abandoned_active_trip(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-779-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $this->actingAs($transporteur)->postJson("/api/v1/vehicles/{$vehicle['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
+        // Trajet EN_COURS abandonné (ex. app fermée) sans update depuis 7h.
+        $stale = Trip::create([
+            'passager_id' => $passager->id,
+            'transporteur_id' => $transporteur->id,
+            'vehicle_id' => $vehicle['id'],
+            'start_latitude' => 3.8480,
+            'start_longitude' => 11.5021,
+            'started_at' => now()->subHours(7),
+            'statut' => 'EN_COURS',
+        ]);
+        Trip::where('id', $stale->id)->update(['updated_at' => now()->subHours(7)]);
+
+        // Le scan ne doit PAS renvoyer 422 : le trajet abandonné est clôturé
+        // automatiquement et le nouveau scan crée un trajet frais.
+        $fresh = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertCreated()->json('trip');
+
+        $this->assertEquals('SCANNE', $fresh['statut']);
+        $this->assertDatabaseHas('trips', [
+            'id' => $stale->id,
+            'statut' => 'ANNULE',
+            'end_method' => 'AUTO_PURGE',
+        ]);
+    }
+
+    public function test_scan_is_rejected_while_trip_is_recently_active(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-780-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $this->actingAs($transporteur)->postJson("/api/v1/vehicles/{$vehicle['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
+        // Trajet EN_COURS récent (30 min) : le guard 422 s'applique toujours.
+        $active = Trip::create([
+            'passager_id' => $passager->id,
+            'transporteur_id' => $transporteur->id,
+            'vehicle_id' => $vehicle['id'],
+            'start_latitude' => 3.8480,
+            'start_longitude' => 11.5021,
+            'started_at' => now()->subMinutes(30),
+            'statut' => 'EN_COURS',
+        ]);
+
+        $this->actingAs($passager)->postJson('/api/v1/trips/start', [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertStatus(422);
+
+        // Le trajet récent n'est pas touché par l'auto-clôture.
+        $this->assertDatabaseHas('trips', [
+            'id' => $active->id,
+            'statut' => 'EN_COURS',
+        ]);
     }
 }

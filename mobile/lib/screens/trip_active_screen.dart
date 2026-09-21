@@ -469,6 +469,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
         _trip = trip;
         _busy = false;
         _placeSuggestions = [];
+        _editingDestination = false;
       });
     } catch (e) {
       if (!mounted) return;
@@ -701,11 +702,14 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
+      // Vitesse parfois négative quand indisponible (iOS : -1) : le backend
+      // exige min:0 — on borne pour ne jamais créer de ligne 422 empoisonnée.
+      final speedKmh = (position.speed * 3.6).clamp(0.0, double.infinity);
       await _offline.sendLocation(
         _trip!.id,
         position.latitude,
         position.longitude,
-        position.speed * 3.6,
+        speedKmh,
       );
       // Transporteur : publie aussi la position de son VÉHICULE (toutes les
       // ~30 s via le throttle) — indispensable pour que la vérification de
@@ -1108,7 +1112,14 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
         return _destinationStep(trip, editing: _editingDestination);
       case 'DESTINATION_PROPOSEE':
         if (_isTransporteur) return _transporteurWaitingStep(trip);
+        // Après un refus ("Non, corriger"), on réaffiche le formulaire
+        // d'édition au lieu de boucler sur l'écran de confirmation.
+        if (_editingDestination) return _destinationStep(trip, editing: true);
         return _destinationConfirmStep(trip);
+      case 'DESTINATION_CONFIRMEE':
+        // État transitoire (confirm_destination bascule aussitôt en
+        // EN_COURS) : afficher l'étape en cours plutôt que "cloturé".
+        return _enCoursStep(trip);
       case 'EN_COURS':
         return _enCoursStep(trip);
       default:

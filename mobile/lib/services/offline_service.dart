@@ -21,12 +21,17 @@ class OfflineService {
     });
     _init();
     // Garde-fou réseau faible : connectivity_plus ne voit pas toujours le
-    // retour d'un réseau dégradé (2G, portail captif). On re-tente la file
-    // SOS toutes les 30s tant qu'elle n'est pas vide, même sans changement
-    // d'état — garantit la reprise sous 2 à 5 min d'attente.
+    // retour d'un réseau dégradé (2G, portail captif). On re-tente les files
+    // toutes les 30s tant qu'elles ne sont pas vides, même sans changement
+    // d'état — garantit la reprise sous 2 à 5 min d'attente. Les positions
+    // GPS n'étaient rejouées que sur changement de connectivité (tunnel long
+    // = file qui gonfle) : on y ajoute le flush des positions.
     _sosRetryTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
       try {
         if (await pendingSosCount() > 0) await _flushQueue();
+      } catch (_) {}
+      try {
+        if (await pendingLocationCount() > 0) await flush();
       } catch (_) {}
     });
   }
