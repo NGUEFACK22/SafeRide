@@ -809,7 +809,9 @@ String _tripLabel(dynamic trip) {
 
 DateTime? _parseDate(String? iso) {
   if (iso == null || iso.isEmpty) return null;
-  return DateTime.tryParse(iso);
+  final d = DateTime.tryParse(iso);
+  if (d == null) return null;
+  return d.isUtc ? d.toLocal() : d;
 }
 
 (String, Color) _disputeStatus(String? statut) {
@@ -879,5 +881,8 @@ String _declenchementLabel(dynamic valeur) {
 
 String _dateOnly(String? iso) {
   if (iso == null || iso.isEmpty) return '';
-  return iso.split('T').first;
+  final d = DateTime.tryParse(iso);
+  if (d == null) return iso.split('T').first;
+  final l = d.isUtc ? d.toLocal() : d;
+  return '${l.year}-${l.month.toString().padLeft(2, '0')}-${l.day.toString().padLeft(2, '0')}';
 }

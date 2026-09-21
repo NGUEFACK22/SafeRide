@@ -1701,12 +1701,57 @@ class _TripActiveScreenState extends State<TripActiveScreen>
                               ),
                             ),
                           ),
+                        // Destination à son VRAI emplacement + NOM affiché :
+                        // à l'arrivée on voit où et comment s'appelle le lieu.
                         if (destination != null)
                           Marker(
                             point: destination,
-                            width: 34,
-                            height: 34,
-                            child: const Icon(Icons.flag, color: Colors.red, size: 30),
+                            width: 180,
+                            height: 72,
+                            alignment: Alignment.bottomCenter,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                Flexible(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.red.shade300),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          blurRadius: 4,
+                                          color: Colors.black26,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Text(
+                                      trip.destinationAddress?.isNotEmpty == true
+                                          ? trip.destinationAddress!
+                                          : 'Destination',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.textDark,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.flag,
+                                  color: Colors.red,
+                                  size: 30,
+                                ),
+                              ],
+                            ),
                           ),
                       ],
                     ),

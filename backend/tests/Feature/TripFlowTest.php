@@ -93,14 +93,26 @@ class TripFlowTest extends TestCase
         ])->assertOk()->json('trip');
         $this->assertEquals('DESTINATION_PROPOSEE', $dest['statut']);
 
+        // 4b. Le CHOIX de la destination fait déjà tourner le QR : le QR
+        // scanné est désactivé, un QR frais attend les prochains passagers.
+        $this->assertDatabaseHas('qr_codes', [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'actif' => false,
+        ]);
+        $afterChoiceQr = QrCode::where('vehicle_id', $vehicle['id'])
+            ->where('actif', true)
+            ->first();
+        $this->assertNotNull($afterChoiceQr);
+        $this->assertNotEquals($vehicle['qr_codes'][0]['token'], $afterChoiceQr->token);
+
         // 5. Destination confirmée → EN_COURS.
         $ongoing = $this->postJson("/api/v1/trips/{$start['id']}/confirm-destination", [
             'confirmed' => true,
         ])->assertOk()->json('trip');
         $this->assertEquals('EN_COURS', $ongoing['statut']);
 
-        // 5b. Le démarrage réel fait tourner le QR : le QR scanné est
-        // désactivé, un nouveau QR actif attend les prochains passagers.
+        // 5b. Le démarrage réel ne tourne PAS deux fois : le QR actif est
+        // déjà celui créé au choix de la destination (différent du scanné).
         $this->assertDatabaseHas('qr_codes', [
             'token' => $vehicle['qr_codes'][0]['token'],
             'actif' => false,
@@ -110,6 +122,7 @@ class TripFlowTest extends TestCase
             ->first();
         $this->assertNotNull($freshQr);
         $this->assertNotEquals($vehicle['qr_codes'][0]['token'], $freshQr->token);
+        $this->assertEquals($afterChoiceQr->token, $freshQr->token);
 
         // 6. Positions GPS pendant le trajet.
         $this->postJson("/api/v1/trips/{$start['id']}/locations", [

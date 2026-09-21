@@ -432,6 +432,10 @@ class TripController extends Controller
             return response()->json(['message' => 'Le trajet doit être confirmé avant de définir une destination'], 422);
         }
 
+        // Premier choix (CONFIRME → PROPOSEE) : les re-propositions suivantes
+        // ne refont pas tourner le QR.
+        $firstChoice = $trip->statut === 'CONFIRME';
+
         $data = $request->validate([
             'destination_address' => 'required|string|max:255',
             'latitude' => 'required|numeric|between:-90,90',
@@ -448,6 +452,23 @@ class TripController extends Controller
         // Itinéraire prévu (polyline OSRM, repli ligne droite)
         $trip->planned_route_polyline = $this->routeService->plannedRoute($trip);
         $trip->save();
+
+        // Rotation auto du QR dès que le passager a CHOISI sa destination :
+        // le QR scanné meurt, un QR frais attend les prochains passagers.
+        // Non bloquant (le trajet continue même si la rotation échoue).
+        if ($firstChoice) {
+            try {
+                $choiceVehicle = $trip->vehicle;
+                if ($choiceVehicle) {
+                    app(VehicleController::class)->rotateForNewRide($choiceVehicle);
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('Rotation QR auto après choix destination échouée', [
+                    'trip_id' => $id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         return response()->json([
             'message' => 'Destination proposée. Confirmez-vous cette destination ?',
@@ -493,12 +514,23 @@ class TripController extends Controller
 
         // Rotation auto du QR à l'engagement réel du trajet : le QR scanné
         // est désactivé, un QR frais (actif 24h) attend les prochains
-        // passagers. Non bloquant : un échec de rotation ne doit jamais
-        // empêcher le démarrage du trajet.
+        // passagers. Sauf si une rotation a déjà eu lieu depuis le scan
+        // (choix de destination) : le QR actif n'est alors plus celui du
+        // trajet (trip.qr_token) — inutile de tourner deux fois.
+        // Non bloquant : un échec de rotation ne doit jamais empêcher le
+        // démarrage du trajet.
         try {
             $rideVehicle = $trip->vehicle;
             if ($rideVehicle) {
-                app(VehicleController::class)->rotateForNewRide($rideVehicle);
+                $currentActive = $rideVehicle->qrCodes()
+                    ->where('actif', true)
+                    ->orderByDesc('id')
+                    ->first();
+                if ($trip->qr_token === null
+                    || ($currentActive && $currentActive->token === $trip->qr_token)
+                ) {
+                    app(VehicleController::class)->rotateForNewRide($rideVehicle);
+                }
             }
         } catch (\Throwable $e) {
             \Log::warning('Rotation QR auto après démarrage trajet échouée', [

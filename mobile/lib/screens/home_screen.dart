@@ -2108,6 +2108,17 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
     return '$s s';
   }
 
+  /// Parse une date API (ISO, ex. expires_at) en heure LOCALE.
+  /// L'API renvoie de l'UTC ("...Z") : sans toLocal(), .hour affiche
+  /// l'heure UTC = -1h (Cameroun UTC+1). Le compte à rebours (difference)
+  /// était juste, mais l'heure affichée "Valide jusqu'à" avait 1h de moins.
+  DateTime? _apiLocalDate(String? s) {
+    if (s == null || s.isEmpty) return null;
+    final d = DateTime.tryParse(s);
+    if (d == null) return null;
+    return d.isUtc ? d.toLocal() : d;
+  }
+
   /// Date/heure lisible de fin de validité du QR actif.
   String _fmtExpiry(DateTime d) {
     final hh = d.hour.toString().padLeft(2, '0');
@@ -2205,9 +2216,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
               _token = newToken;
               _pendingToken = null;
               _qrActive = true;
-              _qrExpiresAt = expiresAt != null
-                  ? DateTime.tryParse(expiresAt)
-                  : null;
+              _qrExpiresAt = _apiLocalDate(expiresAt);
             });
             _stopCountdown();
             if (rotated && mounted) {
@@ -2232,16 +2241,12 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
             setState(() {
               _pendingToken = newToken;
               _qrActive = false;
-              _qrExpiresAt = expiresAt != null
-                  ? DateTime.tryParse(expiresAt)
-                  : null;
+              _qrExpiresAt = _apiLocalDate(expiresAt);
             });
             _startCountdown();
           } else {
             setState(() {
-              _qrExpiresAt = expiresAt != null
-                  ? DateTime.tryParse(expiresAt)
-                  : null;
+              _qrExpiresAt = _apiLocalDate(expiresAt);
             });
             _startCountdown();
           }
@@ -2284,9 +2289,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
           _token = newToken;
           _pendingToken = null;
           _qrActive = qr?['actif'] as bool? ?? true;
-          _qrExpiresAt = qr?['expires_at'] != null
-              ? DateTime.tryParse(qr?['expires_at'] as String)
-              : null;
+          _qrExpiresAt = _apiLocalDate(qr?['expires_at'] as String?);
         });
         _stopCountdown();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2341,7 +2344,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
           _vehicleId = vehicleId;
         });
       } else {
-        final expires = qrExpiresAt != null ? DateTime.tryParse(qrExpiresAt) : null;
+        final expires = _apiLocalDate(qrExpiresAt);
         setState(() {
           _token = token;
           _immat = immat;

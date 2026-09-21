@@ -20,6 +20,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
   bool _loading = true;
   String? _error;
 
+  /// Heure locale HH:mm depuis un ISO API (UTC) — substring direct affichait
+  /// l'heure UTC = -1h.
+  String _localHm(String? iso) {
+    if (iso == null || iso.isEmpty) return '—';
+    final d = DateTime.tryParse(iso);
+    if (d == null) return '—';
+    final l = d.isUtc ? d.toLocal() : d;
+    return '${l.hour.toString().padLeft(2, '0')}:${l.minute.toString().padLeft(2, '0')}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -113,7 +123,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   const SizedBox(height: 10),
                   Text(trip.destinationAddress ?? LanguageService.instance.t('trip_no_destination'), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppTheme.textDark), maxLines: 1, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
-                  Row(children: [const Icon(Icons.person_outline, size: 14, color: AppTheme.textGrey), const SizedBox(width: 4), Text(trip.transporteurFullName.isEmpty ? '—' : trip.transporteurFullName, style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)), const SizedBox(width: 8), Container(width: 4, height: 4, decoration: const BoxDecoration(color: AppTheme.textGrey, shape: BoxShape.circle)), const SizedBox(width: 8), Text(trip.startedAt?.substring(11, 16) ?? '—', style: const TextStyle(fontSize: 12, color: AppTheme.textGrey))]),
+                  Row(children: [const Icon(Icons.person_outline, size: 14, color: AppTheme.textGrey), const SizedBox(width: 4), Text(trip.transporteurFullName.isEmpty ? '—' : trip.transporteurFullName, style: const TextStyle(fontSize: 12, color: AppTheme.textGrey)), const SizedBox(width: 8), Container(width: 4, height: 4, decoration: const BoxDecoration(color: AppTheme.textGrey, shape: BoxShape.circle)), const SizedBox(width: 8), Text(_localHm(trip.startedAt), style: const TextStyle(fontSize: 12, color: AppTheme.textGrey))]),
                   const Divider(height: 20),
                   Row(
                     children: [

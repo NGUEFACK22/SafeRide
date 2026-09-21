@@ -455,6 +455,14 @@ class _QrDialogState extends State<_QrDialog> {
     return '${d.day}/${d.month} $hh:$mm';
   }
 
+  /// Parse une date API (ISO UTC) en heure LOCALE (sinon -1h affichée).
+  DateTime? _apiLocalDate(String? s) {
+    if (s == null || s.isEmpty) return null;
+    final d = DateTime.tryParse(s);
+    if (d == null) return null;
+    return d.isUtc ? d.toLocal() : d;
+  }
+
   @override
   void dispose() {
     _pollTimer?.cancel();
@@ -475,7 +483,7 @@ class _QrDialogState extends State<_QrDialog> {
         if (expiresAt != null && mounted) {
           setState(() {
             _isActive = isActive;
-            _expiresAt = DateTime.tryParse(expiresAt);
+            _expiresAt = _apiLocalDate(expiresAt);
           });
         }
         return;
@@ -483,7 +491,7 @@ class _QrDialogState extends State<_QrDialog> {
       setState(() {
         _token = newToken;
         _isActive = isActive;
-        _expiresAt = expiresAt != null ? DateTime.tryParse(expiresAt) : null;
+        _expiresAt = _apiLocalDate(expiresAt);
       });
       if (isActive && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -509,9 +517,7 @@ class _QrDialogState extends State<_QrDialog> {
         setState(() {
           _token = qr['token'] as String;
           _isActive = qr['actif'] as bool? ?? true;
-          _expiresAt = qr['expires_at'] != null
-              ? DateTime.tryParse(qr['expires_at'] as String)
-              : null;
+          _expiresAt = _apiLocalDate(qr['expires_at'] as String?);
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
