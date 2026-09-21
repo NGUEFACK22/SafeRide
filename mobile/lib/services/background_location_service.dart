@@ -79,9 +79,13 @@ class BackgroundLocationService {
     service.startService();
   }
 
-  /// Arrête le suivi GPS en arrière-plan.
+  /// Arrête le suivi GPS en arrière-plan. Ne fait rien de grave si le
+  /// service n'a jamais démarré (démarrage paresseux) — sans crash.
+  /// (`invoke` est synchrone côté plugin : le try/catch suffit.)
   Future<void> stopTripTracking() async {
-    FlutterBackgroundService().invoke('stop');
+    try {
+      FlutterBackgroundService().invoke('stop');
+    } catch (_) {}
   }
 
   /// Exécuté dans l'isolat de fond.

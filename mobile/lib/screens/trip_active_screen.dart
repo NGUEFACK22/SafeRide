@@ -37,7 +37,8 @@ class TripActiveScreen extends StatefulWidget {
   State<TripActiveScreen> createState() => _TripActiveScreenState();
 }
 
-class _TripActiveScreenState extends State<TripActiveScreen> {
+class _TripActiveScreenState extends State<TripActiveScreen>
+    with WidgetsBindingObserver {
   final _tripService = TripService();
   final _offline = OfflineService.instance;
   final _speech = stt.SpeechToText();
@@ -95,9 +96,23 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     DoualaPlaces.centerLongitude,
   ); // Douala (Akwa)
 
+  // Service de fond : démarrage PARESSEUX (voir didChangeAppLifecycleState).
+  // Le démarrer en même temps que le GPS + la météo + la carte, à l'instant
+  // exact de la confirmation de destination, empilait un pic mémoire/CPU
+  // (nouvel isolate + startForeground) qui tuait le process — côté passager
+  // ET transporteur, au même moment. Le tracker in-app (10 s) couvre le
+  // premier plan ; le service ne démarre qu'au passage en arrière-plan.
+  bool _bgServiceStarted = false;
+
+  // Garde anti-chevauchement GPS : le timer 10 s ne doit jamais empiler des
+  // getCurrentPosition concurrents (sans timeLimit, un fix qui pendait
+  // accumulait les requêtes natives jusqu'à tuer le process).
+  bool _sendingLocation = false;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _trip = widget.initialTrip;
     _offline.onConnectivityChanged.listen((online) {
       if (!mounted) return;
@@ -110,6 +125,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tracker?.cancel();
     _waitingPoll?.cancel();
     _endPoll?.cancel();
@@ -118,6 +134,24 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     _speech.cancel();
     _destinationController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Trajet EN_COURS + app envoyée en arrière-plan → on démarre le service
+    // de fond ICI (et seulement ici) pour poursuivre le suivi GPS.
+    // `paused` = vraiment en arrière-plan (les dialogues système donnent
+    // `inactive`, pas `paused` : pas de démarrage prématuré).
+    if (state != AppLifecycleState.paused || !mounted) return;
+    if (_bgServiceStarted) return;
+    final trip = _trip;
+    if (trip == null || trip.statut != 'EN_COURS') return;
+    _bgServiceStarted = true;
+    try {
+      BackgroundLocationService().startTripTracking(trip.id).catchError((_) {});
+    } catch (_) {
+      _bgServiceStarted = false;
+    }
   }
 
   Future<void> _load() async {
@@ -177,6 +211,9 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       _waitingPoll?.cancel();
       _decodePlannedRoute(_trip!);
       _startEndPoll();
+      // Nouveau cycle EN_COURS : le service de fond (s'il démarre au
+      // backgrounding) devra prendre ce trajet-ci, pas le précédent.
+      _bgServiceStarted = false;
       // Différé après la 1re frame : la transition de route (teardown caméra
       // côté scan, animation) ne se chevauche plus avec le démarrage GPS /
       // service de fond / météo. Sur les appareils lents, ce chevauchement
@@ -225,19 +262,15 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
         _recordZoneFailure('gps', '$e');
       }
 
-      // Zone 2 — Foreground Service Android : la permission de notification
-      // est demandée AVANT startService (Android 13+ ; sans POST_NOTIFICATIONS,
-      // `startForeground` peut lever une SecurityException sur certains
-      // constructeurs et tuer le process).
+      // Zone 2 — permission de notification demandée MAINTENANT (Android 13+ :
+      // requise avant tout startForeground), mais service de fond démarré en
+      // DIFFÉRÉ (backgrounding, voir didChangeAppLifecycleState) : le lancer
+      // ici, en pleine transition EN_COURS (GPS + météo + carte), tuait le
+      // process des deux côtés au moment de la confirmation de destination.
       try {
         if (mounted) await PermissionService.notification(context);
       } catch (e) {
         _recordZoneFailure('notifications', '$e');
-      }
-      try {
-        await BackgroundLocationService().startTripTracking(_trip!.id);
-      } catch (e) {
-        _recordZoneFailure('service_de_fond', '$e');
       }
     } catch (e) {
       _recordZoneFailure('démarrage', '$e');
@@ -697,10 +730,18 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
 
   Future<void> _sendLocation() async {
     if (_trip == null) return;
+    // Single-flight : le timer 10 s ne doit jamais empiler des fix GPS
+    // concurrents (requêtes natives simultanées = crash sur appareils lents).
+    if (_sendingLocation) return;
+    _sendingLocation = true;
     try {
-      // Haute précision : permet au suivi de rester précis sur la route.
+      // Haute précision, avec borne : un fix qui pend ne doit pas bloquer
+      // les ticks suivants ni accumuler les requêtes natives.
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
       );
       // Vitesse parfois négative quand indisponible (iOS : -1) : le backend
       // exige min:0 — on borne pour ne jamais créer de ligne 422 empoisonnée.
@@ -718,6 +759,8 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       _updateLiveMap(LatLng(position.latitude, position.longitude));
     } catch (_) {
       // GPS indisponible : le service de fond réessaiera
+    } finally {
+      _sendingLocation = false;
     }
     await _refreshPending();
   }
