@@ -491,6 +491,22 @@ class TripController extends Controller
             'statut' => 'EN_COURS',
         ]);
 
+        // Rotation auto du QR à l'engagement réel du trajet : le QR scanné
+        // est désactivé, un QR frais (actif 24h) attend les prochains
+        // passagers. Non bloquant : un échec de rotation ne doit jamais
+        // empêcher le démarrage du trajet.
+        try {
+            $rideVehicle = $trip->vehicle;
+            if ($rideVehicle) {
+                app(VehicleController::class)->rotateForNewRide($rideVehicle);
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('Rotation QR auto après démarrage trajet échouée', [
+                'trip_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         Notification::create([
             'user_id' => $trip->transporteur_id,
             'type' => 'TRAJET',

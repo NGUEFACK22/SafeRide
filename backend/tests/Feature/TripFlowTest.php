@@ -99,6 +99,18 @@ class TripFlowTest extends TestCase
         ])->assertOk()->json('trip');
         $this->assertEquals('EN_COURS', $ongoing['statut']);
 
+        // 5b. Le démarrage réel fait tourner le QR : le QR scanné est
+        // désactivé, un nouveau QR actif attend les prochains passagers.
+        $this->assertDatabaseHas('qr_codes', [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'actif' => false,
+        ]);
+        $freshQr = QrCode::where('vehicle_id', $vehicle['id'])
+            ->where('actif', true)
+            ->first();
+        $this->assertNotNull($freshQr);
+        $this->assertNotEquals($vehicle['qr_codes'][0]['token'], $freshQr->token);
+
         // 6. Positions GPS pendant le trajet.
         $this->postJson("/api/v1/trips/{$start['id']}/locations", [
             'latitude' => 3.8520,

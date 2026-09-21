@@ -2197,6 +2197,10 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
         // file d'attente pending) et on arrête le compte à rebours.
         if (isActive && newToken != null && newToken.isNotEmpty) {
           if (newToken != _token || _pendingToken != null) {
+            // Rotation détectée (nouveau token différent de l'affiché) :
+            // trajet engagé ou régénération 24h — on prévient le transporteur.
+            final rotated =
+                _token != null && _token!.isNotEmpty && newToken != _token;
             setState(() {
               _token = newToken;
               _pendingToken = null;
@@ -2206,6 +2210,17 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
                   : null;
             });
             _stopCountdown();
+            if (rotated && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    LanguageService.instance.t('qr_regenerated_simple'),
+                  ),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
           }
           return;
         }

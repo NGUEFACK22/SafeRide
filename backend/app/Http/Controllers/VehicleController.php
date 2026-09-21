@@ -149,13 +149,7 @@ class VehicleController extends Controller
     {
         $vehicle = Vehicle::where('id', $id)->where('transporteur_id', $request->user()->id)->firstOrFail();
 
-        // Désactiver tous les anciens QR du véhicule, puis créer le nouveau.
-        $vehicle->qrCodes()->where('actif', true)->update(['actif' => false]);
-        $qr = $vehicle->qrCodes()->create([
-            'token' => $this->generateSignedToken($vehicle),
-            'actif' => true,
-            'expires_at' => now()->addHours(QrTokenService::ttlHours()),
-        ]);
+        $qr = $this->rotateForNewRide($vehicle);
 
         return response()->json([
             'message' => 'QR Code régénéré',
@@ -165,6 +159,26 @@ class VehicleController extends Controller
                 'expires_at' => $qr->expires_at,
                 'contenu' => $this->qrPayload($qr),
             ],
+        ]);
+    }
+
+    /**
+     * Rotation du QR (désactive les actifs, crée un actif 24h).
+     * Utilisée par :
+     * - refreshQr (manuelle, à la demande du transporteur) ;
+     * - TripController::confirmDestination (auto, quand le trajet démarre
+     *   réellement : le QR scanné meurt, un QR frais attend les prochains
+     *   passagers — le transporteur le voit via son poll /qr).
+     */
+    public function rotateForNewRide(Vehicle $vehicle): QrCode
+    {
+        // Désactiver tous les anciens QR du véhicule, puis créer le nouveau.
+        $vehicle->qrCodes()->where('actif', true)->update(['actif' => false]);
+
+        return $vehicle->qrCodes()->create([
+            'token' => $this->generateSignedToken($vehicle),
+            'actif' => true,
+            'expires_at' => now()->addHours(QrTokenService::ttlHours()),
         ]);
     }
 
