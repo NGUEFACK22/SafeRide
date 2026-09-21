@@ -463,7 +463,7 @@ class _QrDialogState extends State<_QrDialog> {
       final expiresAt = qr['expires_at'] as String?;
       if (newToken == null || newToken == _token) return;
       // Nouveau token détecté : mettre à jour uniquement s'il est actif.
-      // S'il est inactif (attente de la latence 15s), on garde l'ancien.
+      // S'il est inactif (attente de la latence 30s), on garde l'ancien.
       setState(() {
         _token = newToken;
         _isActive = isActive;

@@ -2085,7 +2085,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
   int _refreshFailures = 0;
   Timer? _countdownTimer;
 
-  // P1-15: Suivi de l'état du QR avec latence de 15 secondes après scan
+  // P1-15: Suivi de l'état du QR avec latence de 30 secondes après scan
   String? _pendingToken; // Token du QR en attente d'activation (après scan)
   bool _qrActive = true; // Si le QR affiché est actuellement actif
   DateTime? _qrExpiresAt; // Date/heure d'expiration du QR inactif
@@ -2162,7 +2162,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
       return;
     }
     try {
-      // Utiliser GET pour lire l'état actuel sans forcer la régénération (P1-15 latence 15s).
+      // Utiliser GET pour lire l'état actuel sans forcer la régénération (P1-15 latence 30s).
       final data = await _api.get('/vehicles/$_vehicleId/qr');
       final qr = data['qr'] as Map<String, dynamic>?;
       _refreshFailures = 0;
@@ -2187,7 +2187,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
         }
 
         // QR inactif : on mémorise le nouveau token en attente SANS l'afficher
-        // (latence 15s). On conserve l'ancien QR affiché pendant le décompte.
+        // (latence 30s). On conserve l'ancien QR affiché pendant le décompte.
         if (newToken != null && newToken != _token) {
           if (_pendingToken == null || _pendingToken != newToken) {
             setState(() {
@@ -2216,7 +2216,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
         }
       }
     } catch (_) {
-      // Erreur rÃ©seau/401 : aprÃ¨s 5 Ã©checs consÃ©cutifs (â‰ˆ15 s), on recharge
+      // Erreur rÃ©seau/401 : aprÃ¨s 5 Ã©checs consÃ©cutifs, on recharge
       // entiÃ¨rement le QR (rÃ©-authentification + nouvelle lecture) au lieu
       // d'abandonner silencieusement.
       _refreshFailures++;

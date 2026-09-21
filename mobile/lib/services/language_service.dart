@@ -112,7 +112,7 @@ class LanguageService extends ChangeNotifier {
     'qr_active': {'fr': 'QR actif • régénération auto après chaque scan', 'en': 'QR active • auto-regenerates after each scan'},
     'qr_new_pending': {'fr': 'Nouveau QR en préparation — un autre QR a été scanné. \nRégénération automatique dans :', 'en': 'New QR being prepared — another QR was scanned. \nAuto regeneration in:'},
     'qr_regenerating': {'fr': 'Régénération dans…', 'en': 'Regenerating in…'},
-    'qr_refresh_after_countdown': {'fr': 'Un autre QR n\'est PAS encore scannable — attente de 15 s avant le nouveau QR', 'en': 'New QR not scannable yet — 15 s wait before the new QR'},
+    'qr_refresh_after_countdown': {'fr': 'Un autre QR n\'est PAS encore scannable — attente de 30 s avant le nouveau QR', 'en': 'New QR not scannable yet — 30 s wait before the new QR'},
     'no_vehicle': {'fr': 'Aucun véhicule', 'en': 'No vehicle'},
     'add_vehicle': {'fr': 'Ajouter mon véhicule', 'en': 'Add my vehicle'},
     'dashboard': {'fr': 'Tableau de bord', 'en': 'Dashboard'},
