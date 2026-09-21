@@ -37,6 +37,7 @@
   <div class="ligne"><span class="cle">Transporteur</span><span class="val" id="trans">—</span></div>
   <div class="ligne"><span class="cle">Vitesse</span><span class="val" id="vit">—</span></div>
   <div class="ligne"><span class="cle">Dernière position</span><span class="val" id="maj">—</span></div>
+  <div class="ligne" id="ligneFrais" style="display:none"><span id="msgFrais" style="color:#b3261e;font-weight:700"></span></div>
   <div class="ligne" id="ligneFin" style="display:none"><span id="msgFin"></span></div>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -113,6 +114,19 @@ if (!window.L) {
           markerVoiture.setLatLng(pos);
           document.getElementById('vit').textContent = Math.round(d.position.vitesse || 0) + ' km/h';
           document.getElementById('maj').textContent = temps(d.position.captured_at);
+          // Fraîcheur : si le dernier point a plus de 2 min (téléphone hors
+          // ligne, app tuée, plus de GPS), on l'affiche clairement — le lien
+          // reste valable mais la position n'est plus du temps réel.
+          try {
+            var ageS = Math.round((new Date(d.serveur_now).getTime() - new Date(d.position.captured_at).getTime()) / 1000);
+            var lf2 = document.getElementById('ligneFrais'), mf2 = document.getElementById('msgFrais');
+            if (ageS > 120) {
+              lf2.style.display = 'block';
+              mf2.textContent = '⚠️ Position plus actualisée (téléphone hors ligne ?) — dernier point ' + temps(d.position.captured_at) + '.';
+            } else {
+              lf2.style.display = 'none'; mf2.textContent = '';
+            }
+          } catch (e) { /* affichage déjà à jour, pas bloquant */ }
         }
         if (pts.length) {
           if (!centre) { map.fitBounds(L.latLngBounds(pts).pad(0.15)); centre = true; }
