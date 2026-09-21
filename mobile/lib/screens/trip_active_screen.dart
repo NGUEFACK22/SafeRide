@@ -645,14 +645,14 @@ class _TripActiveScreenState extends State<TripActiveScreen>
               ),
             ),
             SizedBox(
-              height: 200,
+              height: 220,
               child: Stack(
                 children: [
                   FlutterMap(
                     mapController: _destinationMapController,
                     options: MapOptions(
                       initialCenter: origin ?? to ?? _mapFallback,
-                      initialZoom: 13,
+                      initialZoom: 15,
                     ),
                     children: [
                       TileLayer(
@@ -804,7 +804,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
   }
 
   /// Met à jour la carte live : position de l'utilisateur + itinéraire réel
-  /// accumulé. Recentre + zoom précis (17) sur la position pour que
+  /// accumulé. Recentre + zoom précis (18) sur la position pour que
   /// l'utilisateur se voie clairement sur la route.
   void _updateLiveMap(LatLng position) {
     if (!mounted) return;
@@ -1585,12 +1585,16 @@ class _TripActiveScreenState extends State<TripActiveScreen>
   }
 
   /// Carte live du trajet en cours : position GPS de l'utilisateur
-  /// superposée à l'itinéraire, zoom précis (17) pour se voir sur la route.
+  /// superposée à l'itinéraire, zoom précis (18) pour se voir sur la route.
   Widget _liveMapCard(Trip trip) {
     final center = _livePosition ?? _mapFallback;
     final destination = trip.destinationLatitude != null && trip.destinationLongitude != null
         ? LatLng(trip.destinationLatitude!, trip.destinationLongitude!)
         : null;
+    // Carte XXL : plus de la moitié de l'écran sur tout appareil (55 % de
+    // la hauteur, bornée 340–600 px pour très petits/grands écrans).
+    final mapHeight =
+        (MediaQuery.of(context).size.height * 0.55).clamp(340.0, 600.0).toDouble();
 
     return Card(
       elevation: 2,
@@ -1605,7 +1609,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
                 const Icon(Icons.my_location, size: 16, color: AppTheme.primaryBlue),
                 const SizedBox(width: 6),
                 Text(
-                  _livePosition != null ? 'Ma position — zoom 17' : 'Localisation…',
+                  _livePosition != null ? 'Ma position — zoom 18' : 'Localisation…',
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                 ),
                 const Spacer(),
@@ -1632,14 +1636,14 @@ class _TripActiveScreenState extends State<TripActiveScreen>
             ),
           ),
           SizedBox(
-            height: 220,
+            height: mapHeight,
             child: Stack(
               children: [
                 FlutterMap(
                   mapController: _mapController,
                   options: MapOptions(
                     initialCenter: center,
-                    initialZoom: 17,
+                    initialZoom: 18,
                   ),
                   children: [
                     TileLayer(

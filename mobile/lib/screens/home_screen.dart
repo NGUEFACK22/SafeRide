@@ -794,7 +794,7 @@ class _LocationPreviewState extends State<_LocationPreview> {
       final loc = LatLng(pos.latitude, pos.longitude);
       if (!mounted) return;
       setState(() => _userLocation = loc);
-      _mapController.move(loc, 17);
+      _mapController.move(loc, 18);
     } catch (_) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
@@ -827,7 +827,7 @@ class _LocationPreviewState extends State<_LocationPreview> {
           mapController: _mapController,
           options: MapOptions(
             initialCenter: _userLocation ?? _fallback,
-            initialZoom: _userLocation != null ? 18 : 12,
+            initialZoom: _userLocation != null ? 18 : 13,
           ),
           children: [
             TileLayer(
