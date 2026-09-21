@@ -164,12 +164,19 @@ class _ManagerScreenState extends State<ManagerScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: InkWell(
                     onTap: () => _openMaps(mapsLink),
-                    child: Text(
-                      '🗺️ Voir la position GPS',
-                      style: const TextStyle(
-                        color: AppTheme.primaryBlue,
-                        decoration: TextDecoration.underline,
-                      ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.map, size: 14, color: AppTheme.primaryBlue),
+                        SizedBox(width: 4),
+                        Text(
+                          'Voir la position GPS',
+                          style: TextStyle(
+                            color: AppTheme.primaryBlue,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

@@ -1011,7 +1011,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
     if (word == null || _trip == null) return;
     if (!text.toLowerCase().contains(word.toLowerCase())) return;
     _lastAutoSosAt = DateTime.now();
-    if (mounted) setState(() => _voiceStatus = 'Mot détecté "$word" → vérification vocale…');
+      if (mounted) setState(() => _voiceStatus = 'Mot détecté "$word" : vérification vocale…');
     await _autoVerifyAndSend(word);
   }
 
@@ -1461,7 +1461,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
               if (ctx.mounted) Navigator.of(ctx).pop();
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Lien copié ✓')),
+                  const SnackBar(content: Text('Lien copié')),
                 );
               }
             },

@@ -80,7 +80,7 @@ class GoogleAuthService {
     final idToken = auth.idToken;
 
     if (idToken == null || idToken.isEmpty) {
-      developer.log('⚠️ GoogleSignIn: auth.idToken est NULL — vérifiez la configuration OAuth dans Google Cloud Console');
+      developer.log('GoogleSignIn: auth.idToken est NULL — vérifiez la configuration OAuth dans Google Cloud Console');
       throw Exception(
         'Google a retourné un token vide. '
         'Vérifiez que l\'API "Google+ ID" ou "Google Identity" est activée '

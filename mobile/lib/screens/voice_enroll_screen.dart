@@ -218,7 +218,7 @@ class _VoiceEnrollScreenState extends State<VoiceEnrollScreen>
     // Petite pause entre les prises.
     setState(() {
       _micLevel = 0;
-      _statusText = 'Prise $_currentTake/$_takes validée ✓ — préparez-vous…';
+      _statusText = 'Prise $_currentTake/$_takes validée — préparez-vous…';
     });
     await Future<void>.delayed(const Duration(milliseconds: 900));
     if (!mounted) return;

@@ -122,7 +122,7 @@ if (!window.L) {
             var lf2 = document.getElementById('ligneFrais'), mf2 = document.getElementById('msgFrais');
             if (ageS > 120) {
               lf2.style.display = 'block';
-              mf2.textContent = '⚠️ Position plus actualisée (téléphone hors ligne ?) — dernier point ' + temps(d.position.captured_at) + '.';
+              mf2.textContent = 'Position plus actualisée (téléphone hors ligne ?) — dernier point ' + temps(d.position.captured_at) + '.';
             } else {
               lf2.style.display = 'none'; mf2.textContent = '';
             }

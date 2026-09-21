@@ -219,9 +219,16 @@ class _MinContactsDialogState extends State<_MinContactsDialog> {
                 ],
                 if (_saved > 0) ...[
                   const SizedBox(height: 8),
-                  Text(
-                    '$_saved contact(s) ajouté(s) ✓',
-                    style: const TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.w700),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.check_circle, color: Colors.green, size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$_saved contact(s) ajouté(s)',
+                        style: const TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.w700),
+                      ),
+                    ],
                   ),
                 ],
               ],

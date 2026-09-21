@@ -86,7 +86,7 @@ class AiAskTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('hors_domaine', false)
-            ->assertJsonPath('reponse', 'Avec plaisir ! Bonne route avec SafeRide. 🚗');
+            ->assertJsonPath('reponse', 'Avec plaisir ! Bonne route avec SafeRide.');
     }
 
     public function test_question_qr_repond_le_qr(): void

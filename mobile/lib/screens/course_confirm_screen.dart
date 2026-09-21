@@ -113,8 +113,14 @@ class _CourseConfirmScreenState extends State<CourseConfirmScreen> {
       case 'CONFIRME':
         _statusPoll?.cancel();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('⭐ Transporteur a accepté la course'),
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(child: Text('Transporteur a accepté la course')),
+              ],
+            ),
             backgroundColor: AppTheme.primaryBlue,
           ),
         );

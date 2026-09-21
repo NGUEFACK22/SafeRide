@@ -323,7 +323,14 @@ class _PredictionScreenState extends State<PredictionScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(color: AppTheme.lightBlueBadge, borderRadius: BorderRadius.circular(10)),
-                      child: Text('💧 ${climats[i]['pluie_prob']}%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.primaryBlue)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.water_drop, size: 12, color: AppTheme.primaryBlue),
+                          const SizedBox(width: 3),
+                          Text('${climats[i]['pluie_prob']}%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.primaryBlue)),
+                        ],
+                      ),
                     ),
                   if (climats[i]['description'] != null && climats[i]['description'] != '')
                     Text('${climats[i]['description']}', style: const TextStyle(fontSize: 10, color: AppTheme.textGrey)),

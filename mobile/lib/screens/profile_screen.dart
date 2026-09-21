@@ -205,7 +205,16 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       try { final p = await SharedPreferences.getInstance(); await p.setString('voice_last_embedding', emb.join(',')); } catch (_) {}
       if (!mounted) return;
       setState(() { _voiceEnrolled = true; _voiceActive = true; _voiceEnrolling = false; _voiceProgress = ''; });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Voix importée depuis ${picked.name} ✓'), backgroundColor: AppTheme.successText));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text('Voix importée depuis ${picked.name}')),
+          ],
+        ),
+        backgroundColor: AppTheme.successText,
+      ));
     } catch (e) {
       if (!mounted) return;
       setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
@@ -242,7 +251,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       // Hybride : si ambigu 0,45-0,55 et réseau OK, propose vérif cloud
       final isAmbiguous = cos > 0.45 && cos < 0.55;
       if (isAmbiguous) {
-        setState(() => _voiceProgress = 'Score ambigu ${cos.toStringAsFixed(3)} → vérif cloud…');
+        setState(() => _voiceProgress = 'Score ambigu ${cos.toStringAsFixed(3)} : vérif cloud…');
         try {
           final cloud = await _api.post('/voice/verify-cloud', {'empreinte': ref, 'test_empreinte': await _voiceprint.embeddingForWindow(pcm) ?? ref});
           final cloudScore = (cloud['cosine'] as num?)?.toDouble() ?? cos;
@@ -250,7 +259,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           if (!mounted) return;
           setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(cloudPassed ? 'Hybride OK ✓ local $cos → cloud $cloudScore' : 'Ambigu ✗ local $cos cloud $cloudScore — réessayez au calme'),
+            content: Text(cloudPassed ? 'Hybride OK : local $cos / cloud $cloudScore' : 'Ambigu : local $cos cloud $cloudScore — réessayez au calme'),
             backgroundColor: cloudPassed ? AppTheme.successText : Colors.orange.shade700,
             duration: const Duration(seconds: 5),
           ));
@@ -262,7 +271,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       if (!mounted) return;
       setState(() { _voiceEnrolling = false; _voiceProgress = ''; });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(passed ? 'Voix reconnue ✓ cos=${cos.toStringAsFixed(3)} (seuil 0,5)' : 'Voix différente ✗ cos=${cos.toStringAsFixed(3)} — bruit ou autre locuteur'),
+        content: Text(passed ? 'Voix reconnue : cos=${cos.toStringAsFixed(3)} (seuil 0,5)' : 'Voix différente : cos=${cos.toStringAsFixed(3)} — bruit ou autre locuteur'),
         backgroundColor: passed ? AppTheme.successText : Colors.orange.shade700,
         duration: const Duration(seconds: 4),
       ));

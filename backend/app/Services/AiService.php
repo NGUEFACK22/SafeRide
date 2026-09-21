@@ -228,11 +228,11 @@ class AiService
      * Détection d'anomalies globales (pour gestionnaire / admin).
      * Analyse en temps réel le comportement du trajet et recherche des
      * situations anormales à partir de plusieurs indicateurs :
-     *  - 📍 Écarts d'itinéraire répétés par un même transporteur
-     *  - 🎙️ SOS vocaux non vérifiés
-     *  - 🚗 Vitesse excessive / arrêts inhabituels (GPS locations)
-     *  - 📵 Perte prolongée de mouvement (trajets actifs sans update)
-     *  - 🔄 Déviations d'itinéraire améliorées (comparaison polyline)
+     *  - Écarts d'itinéraire répétés par un même transporteur
+     *  - SOS vocaux non vérifiés
+     *  - Vitesse excessive / arrêts inhabituels (GPS locations)
+     *  - Perte prolongée de mouvement (trajets actifs sans update)
+     *  - Déviations d'itinéraire améliorées (comparaison polyline)
      */
     public function detectAnomalies(): array
     {
@@ -300,7 +300,7 @@ class AiService
     }
 
     /**
-     * 🚗 Vitesse excessive : repère les locations où la vitesse > 120 km/h
+     * Vitesse excessive : repère les locations où la vitesse > 120 km/h
      * (seuil adapté aux routes urbaines / nationales camerounaises).
      */
     protected function detectSpeedAnomalies(): array
@@ -335,7 +335,7 @@ class AiService
     }
 
     /**
-     * 🚗 Arrêts inhabituels : repère les trajets avec des phases d'arrêt prolongé
+     * Arrêts inhabituels : repère les trajets avec des phases d'arrêt prolongé
      * (> 5 minutes à vitesse < 2 km/h en plein trajet), signe possible
      * de problème mécanique, d'incident ou de comportement suspect.
      */
@@ -382,7 +382,7 @@ class AiService
     }
 
     /**
-     * 📵 Perte prolongée de mouvement : les trajets actifs dont la dernière
+     * Perte prolongée de mouvement : les trajets actifs dont la dernière
      * mise à jour GPS date de > 10 minutes — le téléphone est tombé en
      * panne, l'appareil est éteint, ou le transporteur a coupé le suivi.
      */
@@ -422,7 +422,7 @@ class AiService
     }
 
     /**
-     * 🔄 Déviations d'itinéraire améliorées : compare le tracé réel
+     * Déviations d'itinéraire améliorées : compare le tracé réel
      * (actual_route_polyline) au tracé prévu (planned_route_polyline)
      * point par point et calcule la distance maximale de déviation.
      * Seuil : > 1 km de déviation maximale par rapport au trajet prévu.
@@ -933,7 +933,7 @@ class AiService
         // Remerciements : réponse courte et chaleureuse.
         if (preg_match('/merci|remerc/', $qFold) && mb_strlen($qFold) < 40) {
             return [
-                'reponse' => 'Avec plaisir ! Bonne route avec SafeRide. 🚗',
+                'reponse' => 'Avec plaisir ! Bonne route avec SafeRide.',
                 'hors_domaine' => false,
                 'generateur' => 'REGLE',
             ];
@@ -1244,7 +1244,7 @@ class AiService
             $lines[] = "- Climat zone {$c['zone']} : {$c['description']}, " . ($c['temperature_c'] ?? '—') . "°C{$pluie}.";
         }
         foreach ($p['conseils'] as $conseil) {
-            $lines[] = "- 💡 $conseil";
+            $lines[] = "- $conseil";
         }
 
         return implode("\n", $lines);

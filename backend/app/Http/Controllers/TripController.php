@@ -187,7 +187,7 @@ class TripController extends Controller
                 Notification::create([
                     'user_id' => $vehicle->transporteur_id,
                     'type' => 'TRAJET',
-                    'titre' => '🔔 Un passager a scanné votre QR',
+                    'titre' => 'Un passager a scanné votre QR',
                     'message' => $request->user()->prenom . ' ' . $request->user()->nom . ' a scanné votre véhicule. Il va vous demander d\'accepter la course.',
                     'push' => false,
                 ]);
@@ -285,7 +285,7 @@ class TripController extends Controller
         Notification::create([
             'user_id' => $trip->transporteur_id,
             'type' => 'TRAJET',
-            'titre' => '🛎️ Nouvelle course à accepter',
+                    'titre' => 'Nouvelle course à accepter',
             'message' => 'Le passager ' . $request->user()->prenom . ' ' . $request->user()->nom . ' souhaite commencer une course avec vous. Acceptez-vous la course ?',
             'push' => true,
         ]);
@@ -327,7 +327,7 @@ class TripController extends Controller
         Notification::create([
             'user_id' => $trip->passager_id,
             'type' => 'TRAJET',
-            'titre' => '✅ Transporteur a accepté la course',
+                    'titre' => 'Transporteur a accepté la course',
             'message' => 'Le transporteur a accepté de commencer la course. Définissez votre destination — écoute automatique activée des deux côtés.',
             'push' => false,
         ]);
@@ -389,7 +389,7 @@ class TripController extends Controller
         Notification::create([
             'user_id' => $trip->passager_id,
             'type' => 'TRAJET',
-            'titre' => '❌ Course refusée par le transporteur',
+                    'titre' => 'Course refusée par le transporteur',
             'message' => 'Le transporteur a refusé la course. Vous pouvez scanner un autre véhicule.',
             'push' => false,
         ]);
