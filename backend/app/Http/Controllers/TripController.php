@@ -19,6 +19,14 @@ use Illuminate\Http\Request;
 
 class TripController extends Controller
 {
+    /**
+     * Nombre maximum de trajets simultanément actifs par personne
+     * (passager comme transporteur). Au-delà, scan/acceptation refusés (422).
+     */
+    public const MAX_CONCURRENT_TRIPS = 7;
+
+    /** Statuts comptant comme "trajet réellement actif". */
+    public const ACTIVE_TRIP_STATUTS = ['CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'];
     public function __construct(
         private readonly RouteService $routeService,
         private readonly AiService $aiService,
@@ -85,13 +93,13 @@ class TripController extends Controller
                 return response()->json(['message' => 'Le transporteur est suspendu. Trajet impossible.'], 403);
             }
 
-        // Un seul trajet RÉELLEMENT actif par passager. Un trajet n'est
-        // comptabilisé/définitif qu'une fois la configuration terminée
-        // (destination confirmée puis course démarrée : EN_COURS).
+        // Plusieurs trajets RÉELLEMENT actifs autorisés (plafond
+        // MAX_CONCURRENT_TRIPS = 7). Un trajet est comptabilisé/définitif
+        // une fois la configuration terminée (CONFIRME et suivants).
         // Les étapes de configuration (SCANNE, EN_ATTENTE_TRANSPORTEUR)
         // ne sont pas un vrai trajet : on les annule automatiquement pour
-        // que le passager puisse rescanter (le QR est alors régénéré).
-        $activeStatuts = ['CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'];
+        // que le passager puisse rescanter.
+        $activeStatuts = self::ACTIVE_TRIP_STATUTS;
 
         // Auto-réparation : le scheduler (trips:auto-end-inactive) ne tourne
         // pas forcément en production (ex. Render sans cron) — un trajet
@@ -113,16 +121,20 @@ class TripController extends Controller
             ]);
         }
 
-        $existingTrip = Trip::where('passager_id', $request->user()->id)
+        $activeCount = Trip::where('passager_id', $request->user()->id)
             ->whereIn('statut', $activeStatuts)
-            ->orderByDesc('id')
-            ->with('passager', 'transporteur', 'vehicle')
-            ->first();
+            ->count();
 
-        if ($existingTrip) {
+        if ($activeCount >= self::MAX_CONCURRENT_TRIPS) {
+            $existingTrip = Trip::where('passager_id', $request->user()->id)
+                ->whereIn('statut', $activeStatuts)
+                ->orderByDesc('id')
+                ->with('passager', 'transporteur', 'vehicle')
+                ->first();
+
             return response()->json([
-                'message' => 'Vous avez déjà un trajet en cours. Terminez-le ou annulez-le avant de scanner un nouveau véhicule.',
-                'trip' => new TripResource($existingTrip),
+                'message' => 'Vous avez déjà ' . self::MAX_CONCURRENT_TRIPS . ' trajets en cours (maximum). Terminez-en un avant de scanner un nouveau véhicule.',
+                'trip' => $existingTrip ? new TripResource($existingTrip) : null,
                 'active_trip' => true,
             ], 422);
         }
@@ -286,18 +298,17 @@ class TripController extends Controller
      */
     public function acceptCourse(Request $request, int $id): JsonResponse
     {
-        // Un transporteur ne peut pas mener deux courses simultanément :
-        // s'il a déjà un trajet actif (CONFIRME → EN_COURS), il doit le
-        // terminer avant d'en accepter un autre.
-        $activeStatuts = ['CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'];
-        $busy = Trip::where('transporteur_id', $request->user()->id)
+        // Un transporteur peut mener jusqu'à MAX_CONCURRENT_TRIPS courses
+        // simultanées : au-delà, il doit en terminer une avant d'accepter.
+        $activeStatuts = self::ACTIVE_TRIP_STATUTS;
+        $busyCount = Trip::where('transporteur_id', $request->user()->id)
             ->whereIn('statut', $activeStatuts)
             ->where('id', '!=', $id)
-            ->exists();
+            ->count();
 
-        if ($busy) {
+        if ($busyCount >= self::MAX_CONCURRENT_TRIPS) {
             return response()->json([
-                'message' => 'Vous avez déjà une course en cours. Terminez-la avant d\'en accepter une autre.',
+                'message' => 'Vous avez déjà ' . self::MAX_CONCURRENT_TRIPS . ' courses en cours (maximum). Terminez-en une avant d\'en accepter une autre.',
             ], 422);
         }
 
@@ -759,8 +770,17 @@ class TripController extends Controller
     {
         $role = $request->user()->roles()->first()?->slug;
 
-        $query = Trip::with('passager', 'transporteur', 'vehicle', 'ratings')
-            ->where('statut', 'TERMINE');
+        // Deux vues : ?scope=en_cours (tout sauf clôturé) ou ?scope=fini
+        // (TERMINE, défaut — comportement historique inchangé).
+        $scope = $request->query('scope', 'fini');
+
+        $query = Trip::with('passager', 'transporteur', 'vehicle', 'ratings');
+
+        if ($scope === 'en_cours') {
+            $query->whereNotIn('statut', ['TERMINE', 'ANNULE']);
+        } else {
+            $query->where('statut', 'TERMINE');
+        }
 
         if ($role === 'transporteur') {
             $query->where('transporteur_id', $request->user()->id);
@@ -779,9 +799,17 @@ class TripController extends Controller
         if ($request->filled('vehicle_id')) $query->where('vehicle_id', $request->query('vehicle_id'));
         if ($request->filled('statut')) $query->where('statut', $request->query('statut'));
 
-        $trips = $query->latest('ended_at')->paginate(15);
+        // En cours : triés par démarrage récent (ended_at est null).
+        $trips = $scope === 'en_cours'
+            ? $query->latest('started_at')->paginate(15)
+            : $query->latest('ended_at')->paginate(15);
 
-        return response()->json(['trips' => TripResource::collection($trips)]);
+        // Enveloppe data/links/meta explicite : une ResourceCollection
+        // NICHÉE dans response()->json perd son enveloppe (liste nue) —
+        // le mobile lit trips['data']. ->response()->getData(true) la restaure.
+        return response()->json([
+            'trips' => TripResource::collection($trips)->response()->getData(true),
+        ]);
     }
 
     /**

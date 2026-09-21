@@ -223,7 +223,7 @@ class TripFlowTest extends TestCase
             ->count());
     }
 
-    public function test_scan_is_rejected_while_trip_is_confirmed(): void
+    public function test_scan_allowed_while_trip_is_confirmed(): void
     {
         Http::fake(['*' => Http::response('', 500)]);
         config(['services.ai.enabled' => false]);
@@ -255,7 +255,7 @@ class TripFlowTest extends TestCase
             ->postJson("/api/v1/trips/{$trip['id']}/accept-course")
             ->assertOk();
 
-        // Nouveau scan interdit : le trajet est CONFIRME (vrai trajet en cours).
+        // Nouveau scan autorisé : un trajet CONFIRME ne bloque plus (plafond 7).
         $newToken = QrCode::where('vehicle_id', $vehicle['id'])
             ->where('actif', true)
             ->value('token');
@@ -266,9 +266,8 @@ class TripFlowTest extends TestCase
             'longitude' => 11.5021,
         ]);
 
-        $this->assertEquals(422, $second->status());
-        $this->assertTrue($second->json('active_trip'));
-        $this->assertEquals($trip['id'], $second->json('trip.id'));
+        $second->assertCreated();
+        $this->assertEquals('SCANNE', $second->json('trip.statut'));
     }
 
     public function test_current_returns_trip_in_any_active_status(): void
@@ -304,7 +303,7 @@ class TripFlowTest extends TestCase
         $this->assertEquals('SCANNE', $current['statut']);
     }
 
-    public function test_transporteur_cannot_accept_two_courses(): void
+    public function test_transporteur_can_accept_up_to_seven_courses(): void
     {
         Http::fake(['*' => Http::response('', 500)]);
         config(['services.ai.enabled' => false]);
@@ -364,8 +363,8 @@ class TripFlowTest extends TestCase
             ->assertOk();
         $this->assertEquals('CONFIRME', $ok->json('trip.statut'));
 
-        // Un troisième passager propose une course au transporteur2 (occupé) :
-        // refus 422 car il a déjà une course active.
+        // Un troisième passager propose une course au transporteur2 qui n'a
+        // qu'une course active : accepté (multi-courses autorisées).
         $passager3 = $this->user('passager3@example.com', '690000014', 'passager');
         $trip3 = Trip::create([
             'passager_id' => $passager3->id,
@@ -378,8 +377,36 @@ class TripFlowTest extends TestCase
             'statut' => 'EN_ATTENTE_TRANSPORTEUR',
         ]);
 
+        $this->actingAs($transporteur2)
+            ->postJson("/api/v1/trips/{$trip3->id}/accept-course")
+            ->assertOk();
+
+        // On monte à 7 courses actives : la 8e est refusée (422).
+        for ($i = 0; $i < 5; $i++) {
+            Trip::create([
+                'passager_id' => $passager3->id,
+                'transporteur_id' => $transporteur2->id,
+                'vehicle_id' => $vehicle2['id'],
+                'qr_token' => 'tok-test-bulk-' . $i,
+                'start_latitude' => 3.8480,
+                'start_longitude' => 11.5021,
+                'started_at' => now()->subMinutes(10 + $i),
+                'statut' => 'EN_COURS',
+            ]);
+        }
+        $trip8 = Trip::create([
+            'passager_id' => $passager3->id,
+            'transporteur_id' => $transporteur2->id,
+            'vehicle_id' => $vehicle2['id'],
+            'qr_token' => 'tok-test-8',
+            'start_latitude' => 3.8480,
+            'start_longitude' => 11.5021,
+            'started_at' => now(),
+            'statut' => 'EN_ATTENTE_TRANSPORTEUR',
+        ]);
+
         $refused = $this->actingAs($transporteur2)
-            ->postJson("/api/v1/trips/{$trip3->id}/accept-course");
+            ->postJson("/api/v1/trips/{$trip8->id}/accept-course");
         $this->assertEquals(422, $refused->status());
     }
 
@@ -530,7 +557,7 @@ class TripFlowTest extends TestCase
         ]);
     }
 
-    public function test_scan_is_rejected_while_trip_is_recently_active(): void
+    public function test_scan_allows_up_to_seven_concurrent_trips(): void
     {
         Http::fake(['*' => Http::response('', 500)]);
         config(['services.ai.enabled' => false]);
@@ -550,7 +577,13 @@ class TripFlowTest extends TestCase
             'longitude' => 11.5021,
         ])->assertOk();
 
-        // Trajet EN_COURS récent (30 min) : le guard 422 s'applique toujours.
+        $scanPayload = [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ];
+
+        // 1 trajet EN_COURS récent : le scan passe (multi-trajets autorisés).
         $active = Trip::create([
             'passager_id' => $passager->id,
             'transporteur_id' => $transporteur->id,
@@ -561,16 +594,84 @@ class TripFlowTest extends TestCase
             'statut' => 'EN_COURS',
         ]);
 
-        $this->actingAs($passager)->postJson('/api/v1/trips/start', [
-            'token' => $vehicle['qr_codes'][0]['token'],
-            'latitude' => 3.8480,
-            'longitude' => 11.5021,
-        ])->assertStatus(422);
+        $this->actingAs($passager)->postJson('/api/v1/trips/start', $scanPayload)
+            ->assertCreated();
 
-        // Le trajet récent n'est pas touché par l'auto-clôture.
+        // Le trajet récent n'est pas touché.
         $this->assertDatabaseHas('trips', [
             'id' => $active->id,
             'statut' => 'EN_COURS',
         ]);
+
+        // On monte à 7 trajets actifs : le 8e scan est refusé (422 + reprise).
+        for ($i = 0; $i < 6; $i++) {
+            Trip::create([
+                'passager_id' => $passager->id,
+                'transporteur_id' => $transporteur->id,
+                'vehicle_id' => $vehicle['id'],
+                'start_latitude' => 3.8480,
+                'start_longitude' => 11.5021,
+                'started_at' => now()->subMinutes(20 - $i),
+                'statut' => 'EN_COURS',
+            ]);
+        }
+
+        $refused = $this->actingAs($passager)->postJson('/api/v1/trips/start', $scanPayload);
+        $refused->assertStatus(422);
+        $this->assertTrue($refused->json('active_trip'));
+        $this->assertNotNull($refused->json('trip'));
+        $this->assertStringContainsString('7', $refused->json('message'));
+    }
+
+    public function test_history_scopes_en_cours_and_fini(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-786-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $ongoing = Trip::create([
+            'passager_id' => $passager->id,
+            'transporteur_id' => $transporteur->id,
+            'vehicle_id' => $vehicle['id'],
+            'start_latitude' => 3.8480,
+            'start_longitude' => 11.5021,
+            'started_at' => now()->subHour(),
+            'statut' => 'EN_COURS',
+        ]);
+        $finished = Trip::create([
+            'passager_id' => $passager->id,
+            'transporteur_id' => $transporteur->id,
+            'vehicle_id' => $vehicle['id'],
+            'start_latitude' => 3.8480,
+            'start_longitude' => 11.5021,
+            'started_at' => now()->subHours(3),
+            'ended_at' => now()->subHours(2),
+            'statut' => 'TERMINE',
+        ]);
+
+        // Vue "en cours" : que le trajet actif.
+        $enCours = $this->actingAs($transporteur)
+            ->getJson('/api/v1/trips/history?scope=en_cours')
+            ->assertOk()
+            ->json('trips.data');
+        $this->assertCount(1, $enCours);
+        $this->assertEquals($ongoing->id, $enCours[0]['id']);
+
+        // Vue "fini" (défaut) : que le trajet terminé.
+        $fini = $this->actingAs($transporteur)
+            ->getJson('/api/v1/trips/history')
+            ->assertOk()
+            ->json('trips.data');
+        $this->assertCount(1, $fini);
+        $this->assertEquals($finished->id, $fini[0]['id']);
     }
 }

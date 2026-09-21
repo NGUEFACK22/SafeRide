@@ -97,15 +97,26 @@ class TripService {
     return Trip.fromJson(data['trip']);
   }
 
-  Future<List<Trip>> history({int page = 1}) async {
+  /// scope: 'fini' (TERMINE, défaut) ou 'en_cours' (tout sauf clôturé).
+  /// Parse tolérant : l'API renvoie trips={data:[...]} (enveloppe pagination)
+  /// mais on accepte aussi une liste nue (dérive de format côté serveur).
+  Future<List<Trip>> history({int page = 1, String scope = 'fini'}) async {
     try {
-      final data = await _api.get('/trips/history?page=$page');
-      final items = data['trips']['data'] as List<dynamic>? ?? [];
+      final data = await _api.get('/trips/history?page=$page&scope=$scope');
+      final rawTrips = data['trips'];
+      List<dynamic> items;
+      if (rawTrips is Map<String, dynamic>) {
+        items = rawTrips['data'] as List<dynamic>? ?? [];
+      } else if (rawTrips is List) {
+        items = rawTrips;
+      } else {
+        items = [];
+      }
       // Cache offline (I.31g) — sauvegardé uniquement pour la première page
       if (page == 1) {
         try {
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('cached_history', jsonEncode(items));
+          await prefs.setString('cached_history_$scope', jsonEncode(items));
         } catch (_) {}
       }
       return items.map((e) => Trip.fromJson(e as Map<String, dynamic>)).toList();
@@ -113,7 +124,7 @@ class TripService {
       // Hors-ligne : charger cache
       try {
         final prefs = await SharedPreferences.getInstance();
-        final raw = prefs.getString('cached_history');
+        final raw = prefs.getString('cached_history_$scope');
         if (raw != null) {
           final items = jsonDecode(raw) as List<dynamic>;
           return items.map((e) => Trip.fromJson(e as Map<String, dynamic>)).toList();
