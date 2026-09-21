@@ -91,6 +91,14 @@ class _TripActiveScreenState extends State<TripActiveScreen>
   LatLng? _livePosition;
   List<LatLng> _liveRoute = [];
   List<LatLng> _plannedRoute = [];
+  // Itinéraire RESTANT recalculé (position live → destination) via OSRM :
+  // suit toujours les vraies routes, contrairement au fil brut GPS qui coupe
+  // à travers les îlots. Recalcul throttlé (45 s / 100 m) dans
+  // _maybeRecalcRemainingRoute. Exige > 2 points (le repli OSRM hors-ligne
+  // renvoie juste [from, to], qu'on n'affiche pas comme itinéraire routier).
+  List<LatLng> _remainingRoute = [];
+  DateTime _lastRouteRecalcAt = DateTime.fromMillisecondsSinceEpoch(0);
+  LatLng? _lastRouteRecalcPos;
   static const LatLng _mapFallback = LatLng(
     DoualaPlaces.centerLatitude,
     DoualaPlaces.centerLongitude,
@@ -211,6 +219,13 @@ class _TripActiveScreenState extends State<TripActiveScreen>
       _waitingPoll?.cancel();
       _decodePlannedRoute(_trip!);
       _startEndPoll();
+      // Nouveau cycle EN_COURS : on repart d'une carte vierge (sinon le fil
+      // GPS et l'itinéraire restant du trajet PRÉCÉDENT resteraient affichés).
+      _liveRoute = [];
+      _remainingRoute = [];
+      _livePosition = null;
+      _lastRouteRecalcPos = null;
+      _lastRouteRecalcAt = DateTime.fromMillisecondsSinceEpoch(0);
       // Nouveau cycle EN_COURS : le service de fond (s'il démarre au
       // backgrounding) devra prendre ce trajet-ci, pas le précédent.
       _bgServiceStarted = false;
@@ -804,9 +819,59 @@ class _TripActiveScreenState extends State<TripActiveScreen>
     } catch (_) {
       // caméra non encore attachée — le initialZoom s'occupe du premier affichage
     }
+    // Recalcule l'itinéraire restant (collé aux routes) de façon throttlée.
+    _maybeRecalcRemainingRoute(position);
+  }
+
+  /// Recalcule l'itinéraire restant position → destination via OSRM (routes
+  /// réelles). Throttle : 45 s minimum ET 100 m de déplacement — évite de
+  /// spammer le serveur public à chaque fix GPS (10 s).
+  Future<void> _maybeRecalcRemainingRoute(LatLng position) async {
+    final trip = _trip;
+    if (trip == null || trip.statut != 'EN_COURS') return;
+    final destLat = trip.destinationLatitude;
+    final destLng = trip.destinationLongitude;
+    if (destLat == null || destLng == null) return;
+    final now = DateTime.now();
+    final lastPos = _lastRouteRecalcPos;
+    if (lastPos != null) {
+      final movedM = const Distance()(lastPos, position);
+      if (now.difference(_lastRouteRecalcAt).inSeconds < 45 && movedM < 100) {
+        return;
+      }
+    }
+    _lastRouteRecalcAt = now;
+    _lastRouteRecalcPos = position;
+    try {
+      final pts = await OsrmService.route(
+        position,
+        LatLng(destLat, destLng),
+      );
+      if (!mounted) return;
+      // > 2 points = vrai itinéraire routier (le repli hors-ligne [from, to]
+      // ne compte pas : on garde l'ancien tracé plutôt qu'une ligne droite).
+      if (pts.length > 2) setState(() => _remainingRoute = pts);
+    } catch (_) {}
   }
 
   /// Centre la carte sur la position courante de l'utilisateur (zoom précis).
+  static Widget _mapLegendDot(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 14,
+          height: 4,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 10, color: AppTheme.textGrey)),
+      ],
+    );
+  }
   void _centerMapOnUser() {
     final pos = _livePosition;
     if (pos == null) {
@@ -1552,6 +1617,20 @@ class _TripActiveScreenState extends State<TripActiveScreen>
               ],
             ),
           ),
+          // Légende : bleu = déjà parcouru (GPS), vert = reste à parcourir
+          // (routes réelles), orange = itinéraire prévu au départ.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 2,
+              children: [
+                _mapLegendDot(Colors.blue, 'Parcouru'),
+                _mapLegendDot(Colors.green.shade700, 'Reste (routes)'),
+                _mapLegendDot(Colors.orange, 'Prévu'),
+              ],
+            ),
+          ),
           SizedBox(
             height: 220,
             child: Stack(
@@ -1588,14 +1667,16 @@ class _TripActiveScreenState extends State<TripActiveScreen>
                           ),
                         ],
                       ),
-                    if (destination != null)
+                    // Itinéraire RESTANT (position → destination) recalculé via
+                    // OSRM : suit toujours les vraies routes. Remplace l'ancien
+                    // trait pointillé droit qui coupait à travers les îlots.
+                    if (_remainingRoute.length > 2)
                       PolylineLayer(
                         polylines: [
                           Polyline(
-                            points: [center, destination],
-                            color: Colors.grey.withValues(alpha: 0.5),
-                            strokeWidth: 2,
-                            pattern: const StrokePattern.dotted(),
+                            points: _remainingRoute,
+                            color: Colors.green.shade700,
+                            strokeWidth: 5,
                           ),
                         ],
                       ),
@@ -1645,10 +1726,14 @@ class _TripActiveScreenState extends State<TripActiveScreen>
   }
 
   Widget _enCoursStep(Trip trip) {
-    // E.23 : hiérarchie priorité — destination + SOS toujours visibles
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
+    // E.23 : hiérarchie priorité — destination + SOS toujours visibles.
+    // Scrollable : la carte + les cartes + les boutons dépassent la hauteur
+    // utile sur la plupart des téléphones (les boutons Terminer/SOS étaient
+    // coupés — "on ne voit pas toutes les informations").
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
         // Header priorité 1 : destination + statut
         Card(
           color: Colors.white,
@@ -1810,7 +1895,9 @@ class _TripActiveScreenState extends State<TripActiveScreen>
               : const Icon(Icons.share_location_outlined),
           label: Text(LanguageService.instance.t('share_position'), style: const TextStyle(fontWeight: FontWeight.w700)),
         ),
+        const SizedBox(height: 8),
       ],
+      ),
     );
   }
 }
