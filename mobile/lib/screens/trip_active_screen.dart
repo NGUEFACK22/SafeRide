@@ -235,6 +235,12 @@ class _TripActiveScreenState extends State<TripActiveScreen>
       _livePosition = null;
       _lastRouteRecalcPos = null;
       _lastRouteRecalcAt = DateTime.fromMillisecondsSinceEpoch(0);
+      // Premier tracé routier immédiat (départ → destination) : la carte
+      // affiche l'itinéraire sur routes avant même le 1er fix GPS.
+      final seedPos = _trip!.startLatitude != null && _trip!.startLongitude != null
+          ? LatLng(_trip!.startLatitude!, _trip!.startLongitude!)
+          : null;
+      if (seedPos != null) _maybeRecalcRemainingRoute(seedPos);
       // Nouveau cycle EN_COURS : le service de fond (s'il démarre au
       // backgrounding) devra prendre ce trajet-ci, pas le précédent.
       _bgServiceStarted = false;
@@ -1667,7 +1673,13 @@ class _TripActiveScreenState extends State<TripActiveScreen>
   /// Carte live du trajet en cours : position GPS de l'utilisateur
   /// superposée à l'itinéraire, zoom précis (18) pour se voir sur la route.
   Widget _liveMapCard(Trip trip) {
-    final center = _livePosition ?? _mapFallback;
+    // Centre : position live, sinon point de DÉPART du trajet (le passager
+    // voit sa zone même avant le 1er fix GPS), sinon Douala. Avant, le repli
+    // générique affichait une carte "vide" côté passager sans fix.
+    final tripStart = trip.startLatitude != null && trip.startLongitude != null
+        ? LatLng(trip.startLatitude!, trip.startLongitude!)
+        : null;
+    final center = _livePosition ?? tripStart ?? _mapFallback;
     final destination = trip.destinationLatitude != null && trip.destinationLongitude != null
         ? LatLng(trip.destinationLatitude!, trip.destinationLongitude!)
         : null;
@@ -1728,7 +1740,12 @@ class _TripActiveScreenState extends State<TripActiveScreen>
                   children: [
                     TileLayer(
                       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      // Secours si les tuiles OSM sont bloquées/rates (réseau
+                      // opérateur) : fond Carto Voyager, même système de tuiles.
+                      fallbackUrl:
+                          'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
                       userAgentPackageName: 'com.tech.saveride',
+                      maxZoom: 19,
                     ),
                     if (_liveRoute.length >= 2)
                       PolylineLayer(

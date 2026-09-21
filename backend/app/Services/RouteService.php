@@ -56,9 +56,10 @@ class RouteService
         $url = "$base/route/v1/driving/$fromLng,$fromLat;$toLng,$toLat";
 
         try {
-            $response = Http::timeout(3)->get($url, [
+            $response = Http::timeout(5)->get($url, [
                 'overview' => 'full',
                 'geometries' => 'polyline',
+                'alternatives' => 'true',
             ]);
 
             if (! $response->successful()) {
@@ -66,9 +67,33 @@ class RouteService
             }
 
             $data = $response->json();
-            $geometry = $data['routes'][0]['geometry'] ?? null;
+            $routes = $data['routes'] ?? null;
 
-            return is_string($geometry) ? $geometry : null;
+            if (! is_array($routes) || $routes === []) {
+                return null;
+            }
+
+            // Itinéraire le plus COURT en distance parmi les alternatives
+            // (le profil driving optimise sinon le temps).
+            $bestGeometry = null;
+            $bestDist = INF;
+            foreach ($routes as $route) {
+                $geometry = is_array($route) ? ($route['geometry'] ?? null) : null;
+                if (! is_string($geometry) || $geometry === '') {
+                    continue;
+                }
+                $dist = isset($route['distance']) ? (float) $route['distance'] : INF;
+                if ($dist < $bestDist) {
+                    $bestDist = $dist;
+                    $bestGeometry = $geometry;
+                }
+            }
+            if ($bestGeometry === null) {
+                $first = $routes[0];
+                $bestGeometry = is_array($first) ? ($first['geometry'] ?? null) : null;
+            }
+
+            return is_string($bestGeometry) && $bestGeometry !== '' ? $bestGeometry : null;
         } catch (\Throwable $e) {
             return null;
         }
