@@ -53,6 +53,7 @@ class VehicleController extends Controller
         $vehicle->qrCodes()->save(new QrCode([
             'token' => $this->generateSignedToken($vehicle),
             'actif' => true,
+            'expires_at' => now()->addHours(QrTokenService::ttlHours()),
         ]));
 
         return response()->json([
@@ -112,14 +113,9 @@ class VehicleController extends Controller
     public function qr(Request $request, int $id): JsonResponse
     {
         $vehicle = Vehicle::where('id', $id)->where('transporteur_id', $request->user()->id)->firstOrFail();
-        $qr = $vehicle->qrCodes()->orderByDesc('id')->first();
 
-        // P1-15 : si le QR est inactif mais que la latence de 15 secondes est écoulée,
-        // on l'active automatiquement pour que le transporteur voie le nouveau QR.
-        if ($qr !== null && ! $qr->actif && $qr->expires_at !== null && now()->getTimestamp() >= $qr->expires_at->getTimestamp()) {
-            $qr->update(['actif' => true]);
-            $qr = $vehicle->qrCodes()->orderByDesc('id')->first();
-        }
+        // Rotation auto (24h) : garantit un QR actif et renvoie l'état réel.
+        $qr = $this->ensureFreshQr($vehicle);
 
         return response()->json([
             'qr' => $qr ? [
@@ -145,17 +141,20 @@ class VehicleController extends Controller
     }
 
     /**
-     * Régénère le QR code du véhicule (nouveau token après chaque scan).
+     * Régénère MANUELLEMENT le QR code du véhicule (nouveau token immédiatement
+     * actif, validité 24h). Les anciens QR (imprimés ou encore affichés) sont
+     * désactivés : ils ne pourront plus lancer de trajet.
      */
     public function refreshQr(Request $request, int $id): JsonResponse
     {
         $vehicle = Vehicle::where('id', $id)->where('transporteur_id', $request->user()->id)->firstOrFail();
 
-        // Désactiver l'ancien QR
+        // Désactiver tous les anciens QR du véhicule, puis créer le nouveau.
         $vehicle->qrCodes()->where('actif', true)->update(['actif' => false]);
         $qr = $vehicle->qrCodes()->create([
             'token' => $this->generateSignedToken($vehicle),
             'actif' => true,
+            'expires_at' => now()->addHours(QrTokenService::ttlHours()),
         ]);
 
         return response()->json([
@@ -163,9 +162,65 @@ class VehicleController extends Controller
             'qr' => [
                 'token' => $qr->token,
                 'actif' => $qr->actif,
+                'expires_at' => $qr->expires_at,
                 'contenu' => $this->qrPayload($qr),
             ],
         ]);
+    }
+
+    /**
+     * Garantit un QR ACTIF pour le véhicule :
+     * - tant que le QR actuel a moins de QR_VALIDITY_HOURS (24h par défaut), il
+     *   est réutilisé (multi-usage) et réactivé s'il avait été désactivé ;
+     * - dès que 24h sont écoulées, un nouveau QR est généré automatiquement
+     *   et les précédents sont désactivés (rotation auto).
+     */
+    public function ensureFreshQr(Vehicle $vehicle): ?QrCode
+    {
+        $ttl = QrTokenService::ttlHours();
+        $now = now();
+        $qr = $vehicle->qrCodes()->orderByDesc('id')->first();
+
+        if ($qr !== null && $qr->created_at !== null && $qr->created_at->gte($now->copy()->subHours($ttl))) {
+            // QR encore dans la fenêtre de validité : réutilisable tel quel.
+            if (! $qr->actif) {
+                $qr->update([
+                    'actif' => true,
+                    'expires_at' => $qr->created_at->addHours($ttl),
+                ]);
+            }
+
+            return $qr;
+        }
+
+        // Rotation auto : QR périmé (>24h) → nouveau QR actif, anciens inactifs.
+        $new = $vehicle->qrCodes()->create([
+            'token' => $this->generateSignedToken($vehicle),
+            'actif' => true,
+            'expires_at' => $now->addHours($ttl),
+        ]);
+        $vehicle->qrCodes()
+            ->where('id', '!=', $new->id)
+            ->where('actif', true)
+            ->update(['actif' => false]);
+
+        return $new;
+    }
+
+    /**
+     * Rotation auto de TOUS les QR périmés (appelée par la tâche planifiée qr:rotate).
+     */
+    public function rotateAllExpired(): int
+    {
+        $rotated = 0;
+        Vehicle::chunk(100, function ($vehicles) use (&$rotated) {
+            foreach ($vehicles as $vehicle) {
+                $this->ensureFreshQr($vehicle);
+                $rotated++;
+            }
+        });
+
+        return $rotated;
     }
 
     /**

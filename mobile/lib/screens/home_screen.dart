@@ -2096,9 +2096,31 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
     return s > 0 ? s : 0;
   }
 
+  /// Temps restant lisible (heures/minutes pour la validité 24h, sinon secondes).
+  String _fmtRemaining() {
+    final s = _remainingSeconds();
+    if (s <= 0) return '0 s';
+    if (s >= 3600) {
+      final h = s ~/ 3600;
+      final m = (s % 3600) ~/ 60;
+      return '$h h $m min';
+    }
+    return '$s s';
+  }
+
+  /// Date/heure lisible de fin de validité du QR actif.
+  String _fmtExpiry(DateTime d) {
+    final hh = d.hour.toString().padLeft(2, '0');
+    final mm = d.minute.toString().padLeft(2, '0');
+    return '${d.day}/${d.month} $hh:$mm';
+  }
+
   void _startCountdown() {
     _countdownTimer?.cancel();
     if (_qrActive || _qrExpiresAt == null) return;
+    // Validité longue (24h) : l'affichage est en heures — le poll (6s) suffira
+    // à détecter la réactivation, pas besoin d'un tick par seconde.
+    if (_remainingSeconds() >= 3600) return;
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       // Compte à rebours terminé : on relance un check pour basculer sur le
@@ -2179,7 +2201,9 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
               _token = newToken;
               _pendingToken = null;
               _qrActive = true;
-              _qrExpiresAt = null;
+              _qrExpiresAt = expiresAt != null
+                  ? DateTime.tryParse(expiresAt)
+                  : null;
             });
             _stopCountdown();
           }
@@ -2244,8 +2268,10 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
         setState(() {
           _token = newToken;
           _pendingToken = null;
-          _qrActive = true;
-          _qrExpiresAt = null;
+          _qrActive = qr?['actif'] as bool? ?? true;
+          _qrExpiresAt = qr?['expires_at'] != null
+              ? DateTime.tryParse(qr?['expires_at'] as String)
+              : null;
         });
         _stopCountdown();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2300,6 +2326,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
           _vehicleId = vehicleId;
         });
       } else {
+        final expires = qrExpiresAt != null ? DateTime.tryParse(qrExpiresAt) : null;
         setState(() {
           _token = token;
           _immat = immat;
@@ -2307,7 +2334,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
           _loading = false;
           _pendingToken = isQrActive ? null : token;
           _qrActive = isQrActive;
-          _qrExpiresAt = isQrActive ? null : (qrExpiresAt != null ? DateTime.tryParse(qrExpiresAt) : null);
+          _qrExpiresAt = expires;
         });
         isQrActive ? _stopCountdown() : _startCountdown();
       }
@@ -2460,19 +2487,35 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: QrImageView(
-                data: _token!,
-                version: QrVersions.auto,
-                size: 180,
-                backgroundColor: Colors.white,
-                eyeStyle: const QrEyeStyle(
-                  eyeShape: QrEyeShape.square,
-                  color: Colors.black,
-                ),
-                dataModuleStyle: const QrDataModuleStyle(
-                  dataModuleShape: QrDataModuleShape.square,
-                  color: Colors.black,
-                ),
+              child: Column(
+                children: [
+                  QrImageView(
+                    data: _token!,
+                    version: QrVersions.auto,
+                    size: 180,
+                    backgroundColor: Colors.white,
+                    eyeStyle: const QrEyeStyle(
+                      eyeShape: QrEyeShape.square,
+                      color: Colors.black,
+                    ),
+                    dataModuleStyle: const QrDataModuleStyle(
+                      dataModuleShape: QrDataModuleShape.square,
+                      color: Colors.black,
+                    ),
+                  ),
+                  if (_qrExpiresAt != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      '${LanguageService.instance.t('qr_valid_until')} '
+                      '${_fmtExpiry(_qrExpiresAt!)}',
+                      style: const TextStyle(
+                        color: Colors.black54,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             )
           else
@@ -2497,7 +2540,7 @@ class _TransporteurQrCardState extends State<_TransporteurQrCard>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${_remainingSeconds()} s',
+                    _fmtRemaining(),
                     style: TextStyle(
                       color: AppTheme.primaryBlue,
                       fontSize: 22,

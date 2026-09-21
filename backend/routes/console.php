@@ -24,3 +24,7 @@ Schedule::command('trips:check-stale')->everyMinute();
 // en pré-statuts (>15 min) : sans ceci, un passager ayant scanné sans suite
 // reste bloqué indéfiniment (le guard start exige un statut clôturé).
 Schedule::command('trips:auto-end-inactive')->everyFiveMinutes();
+
+// Rotation auto des QR de plus de 24h : garantit la régénération automatique
+// même si le transporteur n'ouvre pas l'app à l'expiration.
+Schedule::command('qr:rotate')->everyThirtyMinutes();

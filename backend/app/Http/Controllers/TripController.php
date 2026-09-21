@@ -128,21 +128,12 @@ class TripController extends Controller
         }
 
         try {
-            \Log::info('Trip start autocommit v3');
+            \Log::info('Trip start multi-usage QR');
 
-            // Consommation atomique du QR en AUTOCONMIT (instruction unique).
-            // Pas de DB::transaction ni SELECT ... FOR UPDATE : le pooler Neon
-            // (PgBouncer en mode transaction) rend les transactions explicites
-            // instables (25P02 "current transaction is aborted" sur l'INSERT).
-            // Un seul appel peut faire passer actif=true → false, ce qui suffit
-            // à garantir l'anti double démarrage (P1-2).
-            $used = QrCode::where('id', $qr->id)
-                ->where('actif', true)
-                ->update(['actif' => false, 'last_used_at' => now()]);
-
-            if ($used !== 1) {
-                return response()->json(['message' => 'QR Code déjà utilisé — veuillez scanner le nouveau QR du véhicule'], 422);
-            }
+            // P1-24H : le QR n'est PAS consommé par le scan — il reste réutilisable
+            // plusieurs fois tant qu'il est actif (validité 24h). L'anti double
+            // démarrage est garanti par le guard "trajet réellement actif" ci-dessus.
+            $qr->update(['last_used_at' => now()]);
 
             try {
                 $trip = Trip::create([
@@ -154,17 +145,6 @@ class TripController extends Controller
                     'start_longitude' => $data['longitude'],
                     'started_at' => now(),
                     'statut' => 'SCANNE',
-                ]);
-
-                // Régénérer le QR avec une latence configurable (P1-15) :
-                // - Par défaut 30s : QR créé inactif, devient actif après 30s.
-                // - En test (QR_REGENERATION_DELAY=0) : QR actif immédiatement.
-                $delay = (int) env('QR_REGENERATION_DELAY', 30);
-                $isActive = $delay === 0;
-                $vehicle->qrCodes()->create([
-                    'token' => app(QrTokenService::class)->generate($vehicle),
-                    'actif' => $isActive,
-                    'expires_at' => $isActive ? null : now()->addSeconds($delay),
                 ]);
 
                 Notification::create([
@@ -183,9 +163,7 @@ class TripController extends Controller
                     'push' => false,
                 ]);
             } catch (\Throwable $e) {
-                // Ré-activer le QR si la création du trajet échoue après
-                // consommation, pour ne pas bloquer le transporteur.
-                QrCode::where('id', $qr->id)->update(['actif' => true]);
+                // Pas de QR à réactiver ici (il n'est jamais désactivé au scan).
                 throw $e;
             }
         } catch (\RuntimeException $e) {

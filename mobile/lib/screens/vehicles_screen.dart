@@ -441,9 +441,18 @@ class _QrDialogState extends State<_QrDialog> {
       return '00:00';
     }
     final diff = target.difference(now);
+    if (diff.inHours >= 1) {
+      return '${diff.inHours} h ${diff.inMinutes.remainder(60)} min';
+    }
     final minutes = diff.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = diff.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  String _fmtExpiry(DateTime d) {
+    final hh = d.hour.toString().padLeft(2, '0');
+    final mm = d.minute.toString().padLeft(2, '0');
+    return '${d.day}/${d.month} $hh:$mm';
   }
 
   @override
@@ -461,9 +470,16 @@ class _QrDialogState extends State<_QrDialog> {
       final newToken = qr['token'] as String?;
       final isActive = qr['actif'] as bool? ?? false;
       final expiresAt = qr['expires_at'] as String?;
-      if (newToken == null || newToken == _token) return;
-      // Nouveau token détecté : mettre à jour uniquement s'il est actif.
-      // S'il est inactif (attente de la latence 30s), on garde l'ancien.
+      if (newToken == null || newToken == _token) {
+        // Même QR : mettre à jour seulement l'état/expiration (rotation auto 24h).
+        if (expiresAt != null && mounted) {
+          setState(() {
+            _isActive = isActive;
+            _expiresAt = DateTime.tryParse(expiresAt);
+          });
+        }
+        return;
+      }
       setState(() {
         _token = newToken;
         _isActive = isActive;
@@ -472,7 +488,7 @@ class _QrDialogState extends State<_QrDialog> {
       if (isActive && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('QR régénéré après scan !'),
+            content: Text(LanguageService.instance.t('qr_regenerated_simple')),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           ),
@@ -490,7 +506,13 @@ class _QrDialogState extends State<_QrDialog> {
       );
       final qr = data['qr'];
       if (qr != null && mounted) {
-        setState(() => _token = qr['token']);
+        setState(() {
+          _token = qr['token'] as String;
+          _isActive = qr['actif'] as bool? ?? true;
+          _expiresAt = qr['expires_at'] != null
+              ? DateTime.tryParse(qr['expires_at'] as String)
+              : null;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(LanguageService.instance.t('qr_regenerated_simple')),
@@ -553,7 +575,8 @@ class _QrDialogState extends State<_QrDialog> {
                 Expanded(
                   child: Text(
                     _isActive
-                        ? LanguageService.instance.t('qr_auto_regen')
+                        ? '${LanguageService.instance.t('qr_auto_regen')}'
+                            '${_expiresAt != null ? '\nRégénéré automatiquement le ${_fmtExpiry(_expiresAt!)}' : ''}'
                         : 'QR inactif — activation dans ${_expiresAt != null ? _diff(_expiresAt!) : ''}',
                     style: TextStyle(
                       fontSize: 12,
