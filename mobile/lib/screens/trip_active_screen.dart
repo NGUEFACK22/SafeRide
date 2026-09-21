@@ -177,7 +177,14 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       _waitingPoll?.cancel();
       _decodePlannedRoute(_trip!);
       _startEndPoll();
-      _runEnCoursZones();
+      // Différé après la 1re frame : la transition de route (teardown caméra
+      // côté scan, animation) ne se chevauche plus avec le démarrage GPS /
+      // service de fond / météo. Sur les appareils lents, ce chevauchement
+      // (mémoire + sessions natives simultanées) tuait le process à
+      // l'ouverture — "l'app se ferme" juste après le scan.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _runEnCoursZones();
+      });
     } else if (statut == 'TERMINE' || statut == 'ANNULE') {
       // Le trajet est terminé ou annulé : arrêt du suivi et retour à l'accueil.
       _tracker?.cancel();

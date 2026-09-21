@@ -31,6 +31,12 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   // Empêche les démarrages concurrents de la caméra (ex : post-frame
   // callback pendant que _startCamera est encore en cours).
   bool _cameraStarting = false;
+  // La caméra est libérée (stop + dispose) AVANT chaque navigation sortante :
+  // quitter l'écran pendant que la session Camera2/analyseur tourne encore
+  // provoque un crash natif (l'app "se ferme seule"). Le dispose() du State
+  // devient alors un no-op (le double stop/dispose concurrent tue le process
+  // sur certains appareils).
+  bool _cameraReleased = false;
 
   // Contrôleur géré manuellement : autoStart désactivé pour contrôler
   // précisément le cycle de vie de la caméra (évite les doubles démarrages).
@@ -65,7 +71,13 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
 
   Future<void> _startCamera() async {
     // Protéger contre les appels concurrents et l'arrêt après dispose.
-    if (_cameraError != null || _cameraStarting || !mounted) return;
+    // Ne jamais redémarrer une caméra déjà libérée pour naviguer.
+    if (_cameraError != null ||
+        _cameraStarting ||
+        _cameraReleased ||
+        !mounted) {
+      return;
+    }
     _cameraStarting = true;
     try {
       await _scanner.start();
@@ -79,8 +91,24 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
 
   Future<void> _stopCamera() async {
     // Arrêter la caméra ouvertement, mais silencieusement si le contrôleur est déjà libéré.
+    if (_cameraReleased) return;
     try {
       await _scanner.stop();
+    } catch (_) {}
+  }
+
+  /// Libération DÉFINITIVE de la caméra avant toute navigation sortante :
+  /// stop + dispose en une seule séquence awaitée, exécutée une seule fois.
+  /// La navigation n'a lieu qu'après — plus aucun teardown caméra ne se
+  /// chevauche avec la transition de route, le GPS et le service de fond.
+  Future<void> _releaseCamera() async {
+    if (_cameraReleased) return;
+    _cameraReleased = true;
+    try {
+      await _scanner.stop();
+    } catch (_) {}
+    try {
+      await _scanner.dispose();
     } catch (_) {}
   }
 
@@ -97,6 +125,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       facing: CameraFacing.back,
       detectionSpeed: DetectionSpeed.normal,
     );
+    _cameraReleased = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _startCamera();
     });
@@ -223,13 +252,14 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       final transporteur =
           (data['transporteur'] as Map<String, dynamic>?) ?? {};
       final vehicle = (data['vehicle'] as Map<String, dynamic>?) ?? {};
-      // Stopper la caméra AVANT de naviguer : quitter l'écran pendant que
-      // la session Camera2/analyseur tourne encore provoque un crash natif
-      // (l'app "se ferme seule" à l'affichage des infos transporteur).
+      // Libérer la caméra AVANT de naviguer (stop + dispose awaités) puis
+      // laisser la session Camera2 retomber avant la transition : sur les
+      // appareils lents, le teardown caméra chevauchant le GPS / le rendu
+      // de l'écran suivant tuait le process ("l'app se ferme seule").
       _navigating = true;
-      try {
-        await _scanner.stop();
-      } catch (_) {}
+      await _releaseCamera();
+      if (!mounted) return;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
@@ -257,9 +287,9 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
             ),
           );
           _navigating = true;
-          try {
-            await _scanner.stop();
-          } catch (_) {}
+          await _releaseCamera();
+          if (!mounted) return;
+          await Future<void>.delayed(const Duration(milliseconds: 250));
           if (!mounted) return;
           Navigator.of(
             context,
@@ -340,14 +370,20 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    // Arrêter la caméra AVANT de disposer le contrôleur pour éviter les crashs.
-    // Nécessaire car dispose() sur un contrôleur en cours d'exécution peut planter l'app.
-    try {
-      _scanner.stop();
-    } catch (_) {}
-    try {
-      _scanner.dispose();
-    } catch (_) {}
+    // Caméra déjà libérée avant navigation → ne rien refaire : le double
+    // stop/dispose concurrent (2 Futures en vol) tue le process natif sur
+    // certains appareils. Sinon (retour arrière simple), stop PUIS dispose
+    // en séquence (jamais en concurrence).
+    if (!_cameraReleased) {
+      _cameraReleased = true;
+      try {
+        _scanner.stop().then((_) async {
+          try {
+            await _scanner.dispose();
+          } catch (_) {}
+        }).catchError((_) {});
+      } catch (_) {}
+    }
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

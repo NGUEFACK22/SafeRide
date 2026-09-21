@@ -92,6 +92,27 @@ class TripController extends Controller
         // ne sont pas un vrai trajet : on les annule automatiquement pour
         // que le passager puisse rescanter (le QR est alors régénéré).
         $activeStatuts = ['CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'];
+
+        // Auto-réparation : le scheduler (trips:auto-end-inactive) ne tourne
+        // pas forcément en production (ex. Render sans cron) — un trajet
+        // actif abandonné (app fermée en EN_COURS, sans update depuis des
+        // heures) bloquerait sinon le passager indéfiniment (422 à chaque
+        // scan, sans jamais voir les infos transporteur). On clôt en
+        // ANNULE/AUTO_PURGE tout trajet "actif" sans mise à jour depuis
+        // plus de 6h, AVANT le guard ci-dessous. Un vrai trajet en cours
+        // reçoit des mises à jour régulières : 6h sans update = abandonné.
+        $staleCutoff = now()->subHours(6);
+        $staleCount = Trip::where('passager_id', $request->user()->id)
+            ->whereIn('statut', $activeStatuts)
+            ->where('updated_at', '<', $staleCutoff)
+            ->update(['statut' => 'ANNULE', 'end_method' => 'AUTO_PURGE', 'ended_at' => now()]);
+        if ($staleCount > 0) {
+            \Log::warning('Scan : clôture auto de trajets actifs abandonnés', [
+                'passager_id' => $request->user()->id,
+                'count' => $staleCount,
+            ]);
+        }
+
         $existingTrip = Trip::where('passager_id', $request->user()->id)
             ->whereIn('statut', $activeStatuts)
             ->orderByDesc('id')
