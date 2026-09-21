@@ -157,9 +157,9 @@ class TripController extends Controller
                 ]);
 
                 // Régénérer le QR avec une latence configurable (P1-15) :
-                // - Par défaut 15s : QR créé inactif, devient actif après 15s.
+                // - Par défaut 30s : QR créé inactif, devient actif après 30s.
                 // - En test (QR_REGENERATION_DELAY=0) : QR actif immédiatement.
-                $delay = (int) env('QR_REGENERATION_DELAY', 15);
+                $delay = (int) env('QR_REGENERATION_DELAY', 30);
                 $isActive = $delay === 0;
                 $vehicle->qrCodes()->create([
                     'token' => app(QrTokenService::class)->generate($vehicle),
