@@ -22,6 +22,34 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
 
+    // ==== Version déployée (diagnostic public, sans secret) ====
+    // Permet de vérifier quel commit tourne réellement en production
+    // (Render) : GET /api/v1/version -> {sha, at}.
+    Route::get('version', function () {
+        $sha = 'unknown';
+        try {
+            $headFile = base_path('.git/HEAD');
+            if (is_file($headFile)) {
+                $head = trim((string) file_get_contents($headFile));
+                if (str_starts_with($head, 'ref: ')) {
+                    $refFile = base_path('.git/' . substr($head, 5));
+                    if (is_file($refFile)) {
+                        $sha = trim((string) file_get_contents($refFile));
+                    }
+                } elseif (preg_match('/^[0-9a-f]{40}$/', $head)) {
+                    $sha = $head; // HEAD détachée : le sha directement
+                }
+            }
+        } catch (\Throwable $e) {
+            // jamais bloquant
+        }
+
+        return response()->json([
+            'sha' => substr($sha, 0, 12),
+            'at' => now()->toIso8601String(),
+        ]);
+    });
+
     // ==== Auth public ====
 Route::post('auth/register', [AuthController::class, 'register']);
 Route::post('auth/login', [AuthController::class, 'login']);
