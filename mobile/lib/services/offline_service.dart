@@ -35,13 +35,20 @@ class OfflineService {
 
   final ApiService _api = ApiService();
   final Connectivity _connectivity = Connectivity();
+  Timer? _sosRetryTimer;
+
+  /// Libère le timer de reprise SOS (appelé lors d'un éventuel teardown).
+  void dispose() {
+    _sosRetryTimer?.cancel();
+    _sosRetryTimer = null;
+    _connectivityController.close();
+  }
 
   bool _online = true;
   bool get isOnline => _online;
 
   final _connectivityController = StreamController<bool>.broadcast();
   Stream<bool> get onConnectivityChanged => _connectivityController.stream;
-  Timer? _sosRetryTimer;
 
   Future<void> _init() async {
     final result = await _connectivity.checkConnectivity();

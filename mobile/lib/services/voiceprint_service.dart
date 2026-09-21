@@ -25,6 +25,9 @@ class VoiceprintService {
   ort.OrtSession? _vadSession;
   bool _vadLoaded = false;
   bool _vadLoading = false;
+  // Asset VAD absent/corrompu (retiré du bundle) : ne pas retenter
+  // rootBundle.load à chaque capture — le fallback énergie prend le relais.
+  bool _vadUnavailable = false;
   static const String vadAsset = 'assets/models/silero_vad.onnx';
 
   AudioRecorder? _recorder;
@@ -66,6 +69,8 @@ class VoiceprintService {
 
   Future<bool> ensureVadLoaded() async {
     if (_vadLoaded) return true;
+    // Asset définitivement indisponible : fallback énergie direct, sans retry.
+    if (_vadUnavailable) return false;
     if (_vadLoading) return false;
     _vadLoading = true;
     try {
@@ -76,8 +81,12 @@ class VoiceprintService {
       _vadLoaded = true;
       debugPrint('[VAD] silero_vad chargé: inputs=${_vadSession!.inputNames} outputs=${_vadSession!.outputNames}');
     } catch (e) {
-      debugPrint('[VAD] échec chargement silero: $e');
+      debugPrint('[VAD] échec chargement silero (fallback énergie actif): $e');
       _vadLoaded = false;
+      // Un échec de chargement d'asset est permanent (fichier absent du
+      // bundle) : on marque indisponible pour éviter de retenter à chaque
+      // capture audio — source de latence et d'erreurs console répétées.
+      _vadUnavailable = true;
     }
     _vadLoading = false;
     return _vadLoaded;

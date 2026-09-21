@@ -77,6 +77,10 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
   String _voiceStatus = '';
   bool _voiceConsentGiven = false;
 
+  // Séquençage EN_COURS : anti double-entrée + zones natives isolées
+  // (un échec local ne doit jamais faire fermer l'application).
+  bool _enterStateInProgress = false;
+
   // Météo pendant le trajet
   WeatherData? _weather;
   bool _weatherLoading = false;
@@ -164,21 +168,24 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
     final statut = _trip!.statut;
 
     if (statut == 'EN_COURS') {
-      _decodePlannedRoute(_trip!);
+      // Garde anti double-entrée : `_validateDestination`, le poll transporteur
+      // et `_load()` peuvent tous arriver au même instant. Une seule séquence
+      // de démarrage s'exécute à la fois — le crash venait du lancement
+      // SIMULTANÉ des zones natives (fire-and-forget, non isolées).
+      if (_enterStateInProgress) return;
+      _enterStateInProgress = true;
       _waitingPoll?.cancel();
-      _startTracking();
-      // Foreground Service Android : suivi GPS en arrière-plan
-      Geolocator.requestPermission().then((_) {}, onError: (_) {});
-      BackgroundLocationService().startTripTracking(_trip!.id);
-      _loadWeather();
-      _askVoiceConsent();
+      _decodePlannedRoute(_trip!);
       _startEndPoll();
+      _runEnCoursZones();
     } else if (statut == 'TERMINE' || statut == 'ANNULE') {
       // Le trajet est terminé ou annulé : arrêt du suivi et retour à l'accueil.
       _tracker?.cancel();
       _endPoll?.cancel();
       _stopVoiceMonitoring();
-      BackgroundLocationService().stopTripTracking();
+      try {
+        BackgroundLocationService().stopTripTracking();
+      } catch (_) {}
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(statut == 'TERMINE' ? 'Le trajet est terminé.' : 'Le trajet a été annulé.'), backgroundColor: AppTheme.sosRed),
@@ -190,6 +197,86 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
       _tracker?.cancel();
       _endPoll?.cancel();
       _stopVoiceMonitoring();
+    }
+  }
+
+  /// Démarrage SÉQUENCÉ et ISOLÉ des zones natives du trajet (GPS, service de
+  /// fond Android, micro/ONNX). Chaque zone est isolée dans son propre
+  /// try/catch : une défaillance locale (permission refusée, service
+  /// indisponible, mémoire insuffisante) s'affiche en SnackBar diagnostique et
+  /// est persistée — elle ne peut plus faire fermer l'application.
+  Future<void> _runEnCoursZones() async {
+    try {
+      // Zone 1 — permission de localisation puis tracking GPS (toutes les 10 s).
+      try {
+        if (await PermissionService.location(context)) {
+          _startTracking();
+        } else {
+          _recordZoneFailure('gps', 'Localisation refusée — suivi GPS désactivé');
+        }
+      } catch (e) {
+        _recordZoneFailure('gps', '$e');
+      }
+
+      // Zone 2 — Foreground Service Android : la permission de notification
+      // est demandée AVANT startService (Android 13+ ; sans POST_NOTIFICATIONS,
+      // `startForeground` peut lever une SecurityException sur certains
+      // constructeurs et tuer le process).
+      try {
+        if (mounted) await PermissionService.notification(context);
+      } catch (e) {
+        _recordZoneFailure('notifications', '$e');
+      }
+      try {
+        await BackgroundLocationService().startTripTracking(_trip!.id);
+      } catch (e) {
+        _recordZoneFailure('service_de_fond', '$e');
+      }
+    } catch (e) {
+      _recordZoneFailure('démarrage', '$e');
+    }
+
+    // Zone 3 — météo (simple HTTP, déjà défensive).
+    try {
+      await _loadWeather();
+    } catch (e) {
+      _recordZoneFailure('météo', '$e');
+    }
+
+    // Pause : laisse la carte live terminer son rendu avant d'ouvrir le micro
+    // + modèle ONNX (20 Mo) — évite le pic mémoire qui tue le process.
+    await Future<void>.delayed(const Duration(seconds: 1));
+
+    // Zone 4 — écoute vocale automatique (micro + ONNX). Jamais bloquant.
+    try {
+      await _askVoiceConsent();
+    } catch (e) {
+      _recordZoneFailure('vocal', '$e');
+    }
+
+    _enterStateInProgress = false;
+  }
+
+  /// Persiste une défaillance de zone dans SharedPreferences
+  /// (`trip_active_zone_errors`) et l'affiche en SnackBar : permet de tracer
+  /// la cause exacte du prochain échec sur l'appareil.
+  Future<void> _recordZoneFailure(String zone, String message) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final existing = prefs.getString('trip_active_zone_errors') ?? '';
+      final line = DateTime.now().toIso8601String();
+      await prefs.setString(
+        'trip_active_zone_errors',
+        '$existing\n$line [$zone] $message',
+      );
+    } catch (_) {}
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Zone « $zone » : $message', maxLines: 3),
+          duration: const Duration(seconds: 5),
+        ),
+      );
     }
   }
 
@@ -231,7 +318,7 @@ class _TripActiveScreenState extends State<TripActiveScreen> {
 
   /// Charge la météo pour la position actuelle du trajet.
   Future<void> _loadWeather() async {
-    if (_weatherLoading) return;
+    if (_weatherLoading || !mounted) return;
     setState(() => _weatherLoading = true);
     try {
       final position = await Geolocator.getCurrentPosition(

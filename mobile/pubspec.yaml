@@ -103,11 +103,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # Modèles voix : int8 quantifié 21Mo + VAD 0,3Mo (original 84Mo gardé hors bundle)
+  # Modèles voix : int8 quantifié 21Mo (original 84Mo gardé hors bundle)
   # + Vosk FR small 40Mo (STT offline SOS, Apache 2.0)
   assets:
     - assets/models/ecapa_tdnn_int8.onnx
-    - assets/models/silero_vad.onnx
     - assets/models/vosk-model-small-fr-0.22.zip
     - assets/models/README.md
     - assets/images/
