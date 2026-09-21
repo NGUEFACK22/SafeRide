@@ -197,7 +197,15 @@ class _TripActiveScreenState extends State<TripActiveScreen>
     _plannedRoute = OsrmService.decodePolyline(encoded);
   }
 
-    /// Déclenche les actions liées à l'état courant (suivi GPS + écoute vocale en EN_COURS).
+    /// Retour à l'accueil EN CONSERVANT la session : on dépile jusqu'à la
+  /// première route (le Home d'origine, avec son User) au lieu de recréer
+  /// un Home sans arguments (= mode invité, l'utilisateur se retrouve
+  /// "déconnecté" après notation / fin de trajet).
+  void _goHome() {
+    Navigator.of(context).popUntil((r) => r.isFirst);
+  }
+
+  /// Déclenche les actions liées à l'état courant (suivi GPS + écoute vocale en EN_COURS).
   void _enterState() {
     // Vérification défensive : si le trajet est null ou terminé, on nettoie avant de lire le statut.
     if (_trip == null) {
@@ -249,7 +257,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(statut == 'TERMINE' ? 'Le trajet est terminé.' : 'Le trajet a été annulé.'), backgroundColor: AppTheme.sosRed),
         );
-        Navigator.of(context).pushReplacementNamed('/home');
+        _goHome();
       }
     } else {
       // Autres états (SCANNE, EN_ATTENTE_TRANSPORTEUR, CONFIRME, DESTINATION_PROPOSEE) : on nettoie les timers mais on ne démarre pas le suivi
@@ -358,11 +366,11 @@ class _TripActiveScreenState extends State<TripActiveScreen>
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Le trajet a été annulé.'),
-                backgroundColor: AppTheme.sosRed,
-              ),
-            );
-            Navigator.of(context).pushReplacementNamed('/home');
+              content: Text('Le trajet a été annulé.'),
+              backgroundColor: AppTheme.sosRed,
+            ),
+          );
+          _goHome();
           }
         }
       } catch (_) {
@@ -1120,7 +1128,8 @@ class _TripActiveScreenState extends State<TripActiveScreen>
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              Navigator.of(context).pushReplacementNamed('/home');
+              if (!mounted) return;
+              _goHome();
             },
             child: Text(LanguageService.instance.t('rate_later')),
           ),
@@ -1135,7 +1144,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
                 ),
               ).then((_) {
                 if (!mounted) return;
-                Navigator.of(context).pushReplacementNamed('/home');
+                _goHome();
               });
             },
             icon: const Icon(Icons.star_rate),

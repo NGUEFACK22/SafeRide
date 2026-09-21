@@ -24,6 +24,7 @@ import '../widgets/anomaly_verification_dialog.dart';
 import '../widgets/emergency_contacts_gate.dart';
 import '../widgets/inline_destination_picker.dart';
 import 'profile_screen.dart';
+import 'history_screen.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -446,7 +447,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         return _GuestBlockedCard(onUnlock: _requireAuth, label: 'Profil');
       return _GuestView(onAction: _requireAuth);
     }
-    if (_selectedIndex == 1) return const _HistoryPreview();
+    if (_selectedIndex == 1) return const HistoryScreen(embedded: true);
     if (_selectedIndex == 2) return const _LocationPreview();
     if (_selectedIndex == 3) return ProfileScreen(user: _user, embedded: true);
 
@@ -678,32 +679,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 }
 
 // Petites vues pour bottom nav
-class _HistoryPreview extends StatelessWidget {
-  const _HistoryPreview();
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.history, size: 48, color: AppTheme.primaryBlue),
-          SizedBox(height: 12),
-          Text(
-            LanguageService.instance.t('history'),
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          SizedBox(height: 8),
-          FilledButton(
-            onPressed: () => Navigator.pushNamed(context, '/history'),
-            child: Text(LanguageService.instance.t('history_full')),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
 class _LocationPreview extends StatefulWidget {
   const _LocationPreview();
   @override

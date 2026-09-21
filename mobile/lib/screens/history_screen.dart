@@ -8,7 +8,10 @@ import '../services/language_service.dart';
 import '../widgets/rating_stars.dart';
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key});
+  /// embedded=true : contenu seul (onglet "Trajets" de l'accueil), sans
+  /// Scaffold/AppBar — même pattern que ProfileScreen(embedded:).
+  final bool embedded;
+  const HistoryScreen({super.key, this.embedded = false});
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -18,6 +21,43 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final lang = LanguageService.instance;
+    final content = DefaultTabController(
+      length: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text(lang.t('history_trips'), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+            child: Text(lang.t('view_recent_trips'), style: TextStyle(color: AppTheme.textGrey, fontSize: 13)),
+          ),
+          Container(
+            color: Colors.white,
+            child: TabBar(
+              labelColor: AppTheme.primaryBlue,
+              unselectedLabelColor: AppTheme.textGrey,
+              indicatorColor: AppTheme.primaryBlue,
+              tabs: [
+                Tab(text: lang.t('trips_ongoing')),
+                Tab(text: lang.t('trips_finished')),
+              ],
+            ),
+          ),
+          const Expanded(
+            child: TabBarView(
+              children: [
+                _HistoryList(scope: 'en_cours'),
+                _HistoryList(scope: 'fini'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    if (widget.embedded) return content;
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -28,42 +68,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         centerTitle: true,
         actions: const [Padding(padding: EdgeInsets.only(right: 12), child: CircleAvatar(radius: 16, backgroundColor: AppTheme.lightBlueBadge, child: Icon(Icons.person, size: 16, color: AppTheme.primaryBlue)))],
       ),
-      body: DefaultTabController(
-        length: 2,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Text(lang.t('history_trips'), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
-              child: Text(lang.t('view_recent_trips'), style: TextStyle(color: AppTheme.textGrey, fontSize: 13)),
-            ),
-            Container(
-              color: Colors.white,
-              child: TabBar(
-                labelColor: AppTheme.primaryBlue,
-                unselectedLabelColor: AppTheme.textGrey,
-                indicatorColor: AppTheme.primaryBlue,
-                tabs: [
-                  Tab(text: lang.t('trips_ongoing')),
-                  Tab(text: lang.t('trips_finished')),
-                ],
-              ),
-            ),
-            const Expanded(
-              child: TabBarView(
-                children: [
-                  _HistoryList(scope: 'en_cours'),
-                  _HistoryList(scope: 'fini'),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+      body: content,
     );
   }
 }

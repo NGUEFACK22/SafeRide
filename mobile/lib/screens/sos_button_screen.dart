@@ -42,6 +42,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
   bool _enrolled = false;
   bool _voiceAvailable = false;
   bool _voskAvailable = false;
+  bool _voiceLoading = false;
   String? _securityWord;
   final _wordController = TextEditingController();
   bool _listening = false;
@@ -54,7 +55,11 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     _trip = widget.trip;
     _loadActiveTrip();
     _loadProfile();
-    _initVoiceprint();
+    // PAS de chargement des modèles vocaux ici : ONNX (20 Mo) + Vosk (42 Mo)
+    // à l'ouverture tuaient le process sur les appareils modestes ("l'app se
+    // ferme" au clic SOS). Chargement PARESSEUX à l'activation du mode vocal
+    // (voir _toggleVocalMode) ; _startListening/_verifyVoiceAndSend assurent
+    // déjà le chargement via les services.
   }
 
   /// Charge le trajet actif si aucun trajet n'a été passé (accès depuis l'accueil).
@@ -84,6 +89,25 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     // Tenter Vosk en arrière-plan (ne bloque pas l'UI)
     final voskOk = await _vosk.ensureLoaded(securityWord: _securityWord);
     if (mounted) setState(() => _voskAvailable = voskOk);
+  }
+
+  /// Bascule en mode vocal (ou inversement). À l'activation, charge les
+  /// modèles vocaux si besoin — jamais à l'ouverture de l'écran.
+  Future<void> _toggleVocalMode([bool? enable]) async {
+    final next = enable ?? !_vocalMode;
+    if (!mounted) return;
+    setState(() => _vocalMode = next);
+    if (!next || _voiceAvailable || _voiceLoading) return;
+    _voiceLoading = true;
+    if (mounted) setState(() => _status = 'Chargement voix…');
+    try {
+      await _initVoiceprint();
+    } catch (_) {
+      // Repli : les services assurent le chargement à l'écoute.
+    } finally {
+      _voiceLoading = false;
+    }
+    if (mounted) setState(() => _status = '');
   }
 
   Future<void> _loadProfile() async {
@@ -339,7 +363,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
         actions: [
           if (_hasActiveTrip && _tripEnCours)
             TextButton(
-              onPressed: () => setState(() => _vocalMode = !_vocalMode),
+              onPressed: _toggleVocalMode,
               child: Text(
                 _vocalMode ? LanguageService.instance.t('sos') : LanguageService.instance.t('voice_trigger_title'),
                 style: const TextStyle(color: Colors.white),
@@ -506,7 +530,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
         ),
         const SizedBox(height: 16),
         TextButton(
-          onPressed: () => setState(() => _vocalMode = true),
+          onPressed: () => _toggleVocalMode(true),
           child: Text(LanguageService.instance.t('use_voice_trigger')),
         ),
       ],
