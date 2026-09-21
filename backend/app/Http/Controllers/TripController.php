@@ -20,10 +20,13 @@ use Illuminate\Http\Request;
 class TripController extends Controller
 {
     /**
-     * Nombre maximum de trajets simultanément actifs par personne
-     * (passager comme transporteur). Au-delà, scan/acceptation refusés (422).
+     * Nombre maximum de trajets simultanément actifs.
+     * - Passager : 1 seul (interdit de lancer un 2e trajet sans terminer
+     *   le premier — sinon spam de demandes vers les transporteurs).
+     * - Transporteur : jusqu'à 7 (véhicules multi-passagers : minibus…).
      */
-    public const MAX_CONCURRENT_TRIPS = 7;
+    public const MAX_CONCURRENT_TRIPS_PASSAGER = 1;
+    public const MAX_CONCURRENT_TRIPS_TRANSPORTEUR = 7;
 
     /** Statuts comptant comme "trajet réellement actif". */
     public const ACTIVE_TRIP_STATUTS = ['CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'];
@@ -93,9 +96,10 @@ class TripController extends Controller
                 return response()->json(['message' => 'Le transporteur est suspendu. Trajet impossible.'], 403);
             }
 
-        // Plusieurs trajets RÉELLEMENT actifs autorisés (plafond
-        // MAX_CONCURRENT_TRIPS = 7). Un trajet est comptabilisé/définitif
-        // une fois la configuration terminée (CONFIRME et suivants).
+        // UN SEUL trajet RÉELLEMENT actif par passager : impossible d'en
+        // lancer un second sans terminer le premier. Un trajet est
+        // comptabilisé/définitif une fois la configuration terminée
+        // (CONFIRME et suivants).
         // Les étapes de configuration (SCANNE, EN_ATTENTE_TRANSPORTEUR)
         // ne sont pas un vrai trajet : on les annule automatiquement pour
         // que le passager puisse rescanter.
@@ -125,7 +129,7 @@ class TripController extends Controller
             ->whereIn('statut', $activeStatuts)
             ->count();
 
-        if ($activeCount >= self::MAX_CONCURRENT_TRIPS) {
+        if ($activeCount >= self::MAX_CONCURRENT_TRIPS_PASSAGER) {
             $existingTrip = Trip::where('passager_id', $request->user()->id)
                 ->whereIn('statut', $activeStatuts)
                 ->orderByDesc('id')
@@ -133,7 +137,7 @@ class TripController extends Controller
                 ->first();
 
             return response()->json([
-                'message' => 'Vous avez déjà ' . self::MAX_CONCURRENT_TRIPS . ' trajets en cours (maximum). Terminez-en un avant de scanner un nouveau véhicule.',
+                'message' => 'Vous avez déjà un trajet en cours. Terminez-le avant de scanner un nouveau véhicule.',
                 'trip' => $existingTrip ? new TripResource($existingTrip) : null,
                 'active_trip' => true,
             ], 422);
@@ -298,17 +302,18 @@ class TripController extends Controller
      */
     public function acceptCourse(Request $request, int $id): JsonResponse
     {
-        // Un transporteur peut mener jusqu'à MAX_CONCURRENT_TRIPS courses
-        // simultanées : au-delà, il doit en terminer une avant d'accepter.
+        // Un transporteur peut mener jusqu'à MAX_CONCURRENT_TRIPS_TRANSPORTEUR
+        // courses simultanées (multi-passagers) : au-delà, il doit en
+        // terminer une avant d'accepter.
         $activeStatuts = self::ACTIVE_TRIP_STATUTS;
         $busyCount = Trip::where('transporteur_id', $request->user()->id)
             ->whereIn('statut', $activeStatuts)
             ->where('id', '!=', $id)
             ->count();
 
-        if ($busyCount >= self::MAX_CONCURRENT_TRIPS) {
+        if ($busyCount >= self::MAX_CONCURRENT_TRIPS_TRANSPORTEUR) {
             return response()->json([
-                'message' => 'Vous avez déjà ' . self::MAX_CONCURRENT_TRIPS . ' courses en cours (maximum). Terminez-en une avant d\'en accepter une autre.',
+                'message' => 'Vous avez déjà ' . self::MAX_CONCURRENT_TRIPS_TRANSPORTEUR . ' courses en cours (maximum). Terminez-en une avant d\'en accepter une autre.',
             ], 422);
         }
 

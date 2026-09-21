@@ -49,6 +49,7 @@ class SosAlertMail extends Mailable
             . '<tr><td style="border-bottom:1px solid #f0f0f0">🏁 <strong>Destination prévue :</strong></td><td style="border-bottom:1px solid #f0f0f0">' . e($data['destination']) . '</td></tr>'
             . '<tr><td style="border-bottom:1px solid #f0f0f0">📌 <strong>Localisation actuelle :</strong></td><td style="border-bottom:1px solid #f0f0f0">' . e($data['current_location']) . '</td></tr>'
             . '<tr><td style="border-bottom:1px solid #f0f0f0">🗺️ <strong>Position GPS :</strong></td><td style="border-bottom:1px solid #f0f0f0">' . $mapAnchor . '</td></tr>'
+            . $liveRow
             . '<tr><td style="border-bottom:1px solid #f0f0f0">🆔 <strong>Identifiant du trajet :</strong></td><td style="border-bottom:1px solid #f0f0f0">' . e($data['trip_id']) . '</td></tr>'
             . '</table>'
             . "<p>Cette alerte indique qu'une situation d'urgence pourrait être en cours. <strong>Veuillez intervenir rapidement ou contacter les services d'urgence si nécessaire.</strong></p>"

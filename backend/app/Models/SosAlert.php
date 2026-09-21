@@ -93,8 +93,14 @@ class SosAlert extends Model
      */
     protected function liveTrackingLink(?Trip $trip): ?string
     {
-        if (! $trip || ! $trip->share_token) {
+        if (! $trip) {
             return null;
+        }
+
+        // Filet : trajets créés avant l'introduction du share_token.
+        if (! $trip->share_token) {
+            $trip->share_token = bin2hex(random_bytes(16));
+            $trip->save();
         }
 
         $actifs = ['SCANNE', 'EN_ATTENTE_TRANSPORTEUR', 'CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'];

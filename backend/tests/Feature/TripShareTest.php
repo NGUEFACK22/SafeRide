@@ -178,4 +178,50 @@ class TripShareTest extends TestCase
 
         $this->assertSame('—', $sos->forNotification($trip->fresh())['live_link']);
     }
+
+    public function test_mail_sos_affiche_le_lien_suivi_direct(): void
+    {
+        $p = $this->passager();
+        $trip = $this->trip($p);
+        $sos = SosAlert::create([
+            'trip_id' => $trip->id,
+            'passager_id' => $p->id,
+            'latitude' => 3.85,
+            'longitude' => 11.51,
+            'declenchement' => 'BOUTON',
+            'heure_detection' => now(),
+            'statut' => 'DECLENCHE',
+        ]);
+
+        $html = (new \App\Mail\SosAlertMail($sos, $trip, 'Contact'))->render();
+
+        // La ligne "Suivi en direct" doit être PRÉSENTE dans le HTML
+        // (régression : elle était construite mais jamais insérée).
+        $this->assertStringContainsString('Suivi en direct', $html);
+        $this->assertStringContainsString($trip->share_token, $html);
+        $this->assertStringContainsString('/public/suivi/', $html);
+    }
+
+    public function test_lien_live_regenere_si_share_token_manquant(): void
+    {
+        $p = $this->passager();
+        $trip = $this->trip($p);
+        // Simule un trajet créé avant l'introduction du share_token.
+        $trip->forceFill(['share_token' => null])->save();
+
+        $sos = SosAlert::create([
+            'trip_id' => $trip->id,
+            'passager_id' => $p->id,
+            'latitude' => 3.85,
+            'longitude' => 11.51,
+            'declenchement' => 'BOUTON',
+            'heure_detection' => now(),
+            'statut' => 'DECLENCHE',
+        ]);
+
+        $data = $sos->forNotification($trip->fresh());
+
+        $this->assertNotSame('—', $data['live_link']);
+        $this->assertNotEmpty($trip->fresh()->share_token);
+    }
 }
