@@ -135,6 +135,28 @@ class TripShareTest extends TestCase
         $this->assertStringContainsString($trip->share_token, $res->json('url'));
     }
 
+    public function test_position_repliee_sur_sos_sans_points_gps(): void
+    {
+        $p = $this->passager();
+        $trip = $this->trip($p);
+        SosAlert::create([
+            'trip_id' => $trip->id,
+            'passager_id' => $p->id,
+            'latitude' => 3.8666,
+            'longitude' => 11.5222,
+            'declenchement' => 'BOUTON',
+            'heure_detection' => now(),
+            'statut' => 'DECLENCHE',
+        ]);
+
+        // Aucun point GPS de suivi : la position affichée vient du SOS.
+        $this->getJson('/api/v1/public/suivi/' . $trip->share_token . '/data')
+            ->assertOk()
+            ->assertJsonPath('actif', true)
+            ->assertJsonPath('position.lat', 3.8666)
+            ->assertJsonPath('position.lng', 11.5222);
+    }
+
     public function test_data_inclut_immatriculation_vehicule(): void
     {
         $trip = $this->trip($this->passager());

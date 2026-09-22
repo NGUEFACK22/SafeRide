@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Trip;
+use App\Models\SosAlert;
 use App\Services\RouteService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,6 +52,35 @@ class TripShareController extends Controller
 
         $last = $trip->locations()->orderByDesc('captured_at')->first();
 
+        // Position à afficher : dernier point GPS du trajet, SINON les
+        // coordonnées de la dernière alerte SOS du trajet (souvent le seul
+        // point connu : SOS déclenché avant le 1er fix de suivi, GPS
+        // indisponible ensuite). Sans ce repli, la carte s'affichait vide.
+        $position = null;
+        if ($last) {
+            $position = [
+                'lat' => (float) $last->latitude,
+                'lng' => (float) $last->longitude,
+                'vitesse' => (float) ($last->vitesse_km_h ?? 0),
+                'captured_at' => $last->captured_at->toIso8601String(),
+            ];
+        } else {
+            $sos = SosAlert::where('trip_id', $trip->id)
+                ->whereNotNull('latitude')
+                ->whereNotNull('longitude')
+                ->orderByDesc('id')
+                ->first();
+            if ($sos) {
+                $sosAt = $sos->heure_detection ?? $sos->created_at;
+                $position = [
+                    'lat' => (float) $sos->latitude,
+                    'lng' => (float) $sos->longitude,
+                    'vitesse' => 0,
+                    'captured_at' => $sosAt ? $sosAt->toIso8601String() : now()->toIso8601String(),
+                ];
+            }
+        }
+
         // Tracé réel recent (2 km max d'histoire, ~1 point/15 s) + itinéraire prévu
         $trail = $trip->locations()
             ->orderByDesc('captured_at')
@@ -73,12 +103,7 @@ class TripShareController extends Controller
             'transporteur' => trim(($trip->transporteur->prenom ?? '') . ' ' . ($trip->transporteur->nom ?? '')),
             'vehicule' => $trip->vehicle?->immatriculation ?? '',
             'destination' => $trip->destination_address,
-            'position' => $last ? [
-                'lat' => (float) $last->latitude,
-                'lng' => (float) $last->longitude,
-                'vitesse' => (float) ($last->vitesse_km_h ?? 0),
-                'captured_at' => $last->captured_at->toIso8601String(),
-            ] : null,
+            'position' => $position,
             'trail' => $trail->map(fn ($l): array => [(float) $l->latitude, (float) $l->longitude])->values(),
             'planned' => $planned,
             'serveur_now' => now()->toIso8601String(),

@@ -241,6 +241,9 @@ class _TripActiveScreenState extends State<TripActiveScreen>
           ? LatLng(_trip!.startLatitude!, _trip!.startLongitude!)
           : null;
       if (seedPos != null) _maybeRecalcRemainingRoute(seedPos);
+      // Position connue immédiate (cache GPS) : la carte se centre sur
+      // l'utilisateur sans attendre le 1er fix (fini le voile de chargement).
+      _seedLivePosition();
       // Nouveau cycle EN_COURS : le service de fond (s'il démarre au
       // backgrounding) devra prendre ce trajet-ci, pas le précédent.
       _bgServiceStarted = false;
@@ -816,6 +819,25 @@ class _TripActiveScreenState extends State<TripActiveScreen>
           'longitude': lng,
         })
         .then((_) {}, onError: (_) {});
+  }
+
+  /// Position GPS connue (cache) affichée aussitôt à l'entrée EN_COURS,
+  /// en attendant le 1er fix : la carte n'est jamais "en chargement".
+  Future<void> _seedLivePosition() async {
+    if (_livePosition != null || !mounted) return;
+    try {
+      final last = await Geolocator.getLastKnownPosition();
+      if (last == null || !mounted) return;
+      final pos = LatLng(last.latitude, last.longitude);
+      setState(() {
+        _livePosition = pos;
+        _liveRoute = [..._liveRoute, pos];
+      });
+      try {
+        _mapController.move(pos, 18);
+      } catch (_) {}
+      _maybeRecalcRemainingRoute(pos);
+    } catch (_) {}
   }
 
   /// Met à jour la carte live : position de l'utilisateur + itinéraire réel
@@ -1854,12 +1876,62 @@ class _TripActiveScreenState extends State<TripActiveScreen>
                     ),
                   ],
                 ),
+                // Pas de fix GPS : la carte RESTE visible et interactive (centrée
+                // sur le départ) + simple pastille d'attente avec bouton
+                // réessayer. Avant, un voile spinner bloquait toute la carte
+                // "sans fin" quand le GPS ne fixait pas.
                 if (_livePosition == null)
-                  Positioned.fill(
+                  Positioned(
+                    left: 8,
+                    right: 8,
+                    bottom: 8,
                     child: Container(
-                      color: Colors.black26,
-                      child: const Center(
-                        child: CircularProgressIndicator(color: Colors.white),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Position GPS en attente…',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _sendLocation,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              minimumSize: Size.zero,
+                              tapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              'Réessayer',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
