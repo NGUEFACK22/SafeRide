@@ -32,10 +32,12 @@ import 'screens/voice_enroll_screen.dart';
 import 'screens/admin_screen.dart';
 import 'screens/emergency_contacts_screen.dart';
 import 'theme/app_theme.dart';
+import 'utils/root_message.dart';
 import 'services/auth_service.dart';
 import 'services/language_service.dart';
 import 'services/push_service.dart';
 
+/// Messenger racine : voir utils/root_message.dart (showRootMessage).
 void main() {
   // Garde-fou global : en release, une exception async non catchée tue
   // l'isolate (= l'app "se ferme seule"). On la log, on ne meurt jamais.
@@ -80,6 +82,7 @@ class SafeRideApp extends StatelessWidget {
       builder: (ctx, _) => MaterialApp(
         title: 'SafeRide AI',
         debugShowCheckedModeBanner: false,
+        scaffoldMessengerKey: rootMessengerKey,
         theme: AppTheme.light,
         initialRoute: '/',
         routes: {

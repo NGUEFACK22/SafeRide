@@ -12,6 +12,7 @@ import '../services/sos_service.dart';
 import '../services/trip_service.dart';
 import '../widgets/inline_destination_picker.dart';
 import '../utils/safe_dialog.dart';
+import '../utils/root_message.dart';
 import '../services/permission_service.dart';
 import '../services/voiceprint_service.dart';
 import '../services/vosk_service.dart';
@@ -286,6 +287,15 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     }
   }
 
+  /// Retour accueil + message (l'écran SOS est dépilé : messenger racine).
+  void _goHomeWithMessage(String message, {Color? color}) {
+    if (!mounted) return;
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showRootMessage(message, backgroundColor: color ?? Colors.green);
+    });
+  }
+
   Future<void> _fallbackButton() async {
     // --- Gate : au moins 2 contacts d'urgence (formulaire intégré si manque) ---
     if (!await ensureEmergencyContacts(context)) return;
@@ -303,8 +313,9 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
 
       if (data['queued'] == true) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Alerte SOS enregistrée hors-ligne — sera transmise à la reconnexion.')),
+        _goHomeWithMessage(
+          'Alerte SOS enregistrée hors-ligne — sera transmise à la reconnexion.',
+          color: Colors.orange.shade800,
         );
         return;
       }
@@ -315,12 +326,7 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
       await AlertCounterService.increment();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_sosResultMessage(data, bouton: true)),
-          duration: const Duration(seconds: 4),
-        ),
-      );
+      _goHomeWithMessage('Alerte SOS envoyée. Vos contacts ont été notifiés.');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -25,6 +25,7 @@ import '../services/alert_counter_service.dart';
 import '../services/whatsapp_service.dart';
 import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/root_message.dart';
 import '../services/language_service.dart';
 import '../widgets/emergency_contacts_gate.dart';
 import 'rating_screen.dart';
@@ -204,6 +205,15 @@ class _TripActiveScreenState extends State<TripActiveScreen>
   /// "déconnecté" après notation / fin de trajet).
   void _goHome() {
     Navigator.of(context).popUntil((r) => r.isFirst);
+  }
+
+  /// Variante avec petit message affiché SUR l'accueil (le Scaffold du
+  /// trajet est détruit : on passe par le messenger racine, après la frame).
+  void _goHomeWithMessage(String message, {Color? color}) {
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showRootMessage(message, backgroundColor: color ?? Colors.green);
+    });
   }
 
   /// Déclenche les actions liées à l'état courant (suivi GPS + écoute vocale en EN_COURS).
@@ -1131,12 +1141,9 @@ class _TripActiveScreenState extends State<TripActiveScreen>
       );
       if (!mounted) return;
       if (data['queued'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Alerte SOS enregistrée hors-ligne — sera transmise à la reconnexion.',
-            ),
-          ),
+        _goHomeWithMessage(
+          'Alerte SOS enregistrée hors-ligne — sera transmise à la reconnexion.',
+          color: Colors.orange.shade800,
         );
         return;
       }
@@ -1164,13 +1171,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
         await AlertCounterService.increment();
       } catch (_) {}
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_sosService.resultMessage(data, bouton: true)),
-          backgroundColor: Colors.green.shade700,
-          duration: const Duration(seconds: 4),
-        ),
-      );
+      _goHomeWithMessage('Alerte SOS envoyée. Vos contacts ont été notifiés.');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1228,7 +1229,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
             onPressed: () {
               Navigator.pop(ctx);
               if (!mounted) return;
-              _goHome();
+              _goHomeWithMessage('Trajet terminé avec succès.');
             },
             child: Text(LanguageService.instance.t('rate_later')),
           ),
@@ -1243,7 +1244,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
                 ),
               ).then((_) {
                 if (!mounted) return;
-                _goHome();
+                _goHomeWithMessage('Merci pour votre avis. Trajet terminé.');
               });
             },
             icon: const Icon(Icons.star_rate),
