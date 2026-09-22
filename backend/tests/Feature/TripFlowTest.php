@@ -660,4 +660,55 @@ class TripFlowTest extends TestCase
         $this->assertCount(1, $fini);
         $this->assertEquals($finished->id, $fini[0]['id']);
     }
+
+    public function test_stationary_drift_does_not_inflate_distance(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-790-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        // Trajet EN_COURS immobile : 12 points GPS qui errent de ±5 m
+        // (dérive capteur à l'arrêt), sans destination.
+        $trip = Trip::create([
+            'passager_id' => $passager->id,
+            'transporteur_id' => $transporteur->id,
+            'vehicle_id' => $vehicle['id'],
+            'start_latitude' => 3.8480,
+            'start_longitude' => 11.5021,
+            'started_at' => now()->subMinutes(5),
+            'statut' => 'EN_COURS',
+        ]);
+
+        $jitter = [
+            [3.84801, 11.50211], [3.84799, 11.50209], [3.84802, 11.50212],
+            [3.84798, 11.50208], [3.84800, 11.50210], [3.84801, 11.50209],
+            [3.84799, 11.50212], [3.84802, 11.50208], [3.84800, 11.50211],
+            [3.84801, 11.50210], [3.84798, 11.50211], [3.84802, 11.50209],
+        ];
+        foreach ($jitter as $i => [$lat, $lng]) {
+            $this->actingAs($passager)->postJson("/api/v1/trips/{$trip->id}/locations", [
+                'latitude' => $lat,
+                'longitude' => $lng,
+                'vitesse_km_h' => 0,
+                'captured_at' => now()->subMinutes(5 - $i)->toIso8601String(),
+            ])->assertCreated();
+        }
+
+        $ended = $this->actingAs($passager)
+            ->postJson("/api/v1/trips/{$trip->id}/end")
+            ->assertOk()
+            ->json('trip');
+
+        // Tous les segments < 10 m : distance quasi nulle (pas de km fantômes).
+        $this->assertLessThan(0.05, (float) $ended['distance_km']);
+    }
 }

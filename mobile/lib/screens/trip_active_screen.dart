@@ -799,7 +799,10 @@ class _TripActiveScreenState extends State<TripActiveScreen>
       // ~30 s via le throttle) — indispensable pour que la vérification de
       // proximité ±50m au scan suivant soit réellement active.
       _publishVehiclePositionThrottled(position.latitude, position.longitude);
-      _updateLiveMap(LatLng(position.latitude, position.longitude));
+      _updateLiveMap(
+        LatLng(position.latitude, position.longitude),
+        speedKmh: speedKmh,
+      );
     } catch (_) {
       // GPS indisponible : le service de fond réessaiera
     } finally {
@@ -853,8 +856,25 @@ class _TripActiveScreenState extends State<TripActiveScreen>
   /// Met à jour la carte live : position de l'utilisateur + itinéraire réel
   /// accumulé. Recentre + zoom précis (18) sur la position pour que
   /// l'utilisateur se voie clairement sur la route.
-  void _updateLiveMap(LatLng position) {
+  ///
+  /// Filtre ANTI-DÉRIVE GPS : à l'arrêt, le capteur erre de ±15 m et chaque
+  /// tick dessinait un faux déplacement (spaghetti bleu + "il s'est déplacé
+  /// alors qu'il est sur place"). En dessous de 15 m ET sous 11 km/h, le
+  /// point est ignoré pour l'affichage (marqueur figé, pas de setState).
+  /// L'envoi serveur continue normalement (heartbeat pour la clôture auto).
+  static const double _driftThresholdM = 15;
+  static const double _movingSpeedKmh = 11;
+
+  void _updateLiveMap(LatLng position, {double speedKmh = 0}) {
     if (!mounted) return;
+    final reference =
+        _liveRoute.isNotEmpty ? _liveRoute.last : _livePosition;
+    if (reference != null && _liveRoute.isNotEmpty) {
+      final movedM = const Distance()(reference, position);
+      if (movedM < _driftThresholdM && speedKmh < _movingSpeedKmh) {
+        return; // bruit de capteur à l'arrêt : on fige l'affichage
+      }
+    }
     setState(() {
       _livePosition = position;
       _liveRoute = [..._liveRoute, position];

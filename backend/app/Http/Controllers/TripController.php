@@ -860,7 +860,13 @@ class TripController extends Controller
 
         $distance = 0;
         for ($i = 0; $i < count($coords) - 1; $i++) {
-            $distance += $this->haversine($coords[$i][0], $coords[$i][1], $coords[$i + 1][0], $coords[$i + 1][1]);
+            $seg = $this->haversine($coords[$i][0], $coords[$i][1], $coords[$i + 1][0], $coords[$i + 1][1]);
+            // Filtre anti-dérive GPS : les micro-segments (< 10 m) sont du
+            // bruit de capteur à l'arrêt, pas du roulage — sinon un trajet
+            // immobile accumule des "km" fantômes au récapitulatif.
+            if ($seg >= 0.010) {
+                $distance += $seg;
+            }
         }
 
         return $distance;
