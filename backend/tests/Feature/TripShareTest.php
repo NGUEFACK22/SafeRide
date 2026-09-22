@@ -135,6 +135,26 @@ class TripShareTest extends TestCase
         $this->assertStringContainsString($trip->share_token, $res->json('url'));
     }
 
+    public function test_heure_sos_affichee_en_heure_locale_douala(): void
+    {
+        $p = $this->passager();
+        $trip = $this->trip($p);
+        $sos = SosAlert::create([
+            'trip_id' => $trip->id,
+            'passager_id' => $p->id,
+            'latitude' => 3.85,
+            'longitude' => 11.51,
+            'declenchement' => 'BOUTON',
+            // 10h00 UTC stocké → 11h00 heure de Douala (UTC+1, pas -1h).
+            'heure_detection' => '2026-09-21 10:00:00',
+            'statut' => 'DECLENCHE',
+        ]);
+
+        $data = $sos->forNotification($trip);
+
+        $this->assertEquals('21/09/2026 à 11:00', $data['heure']);
+    }
+
     public function test_position_repliee_sur_sos_sans_points_gps(): void
     {
         $p = $this->passager();
