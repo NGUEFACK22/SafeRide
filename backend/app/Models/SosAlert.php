@@ -71,11 +71,19 @@ class SosAlert extends Model
         $hasPos = $this->latitude !== null && $this->longitude !== null
             && $this->latitude !== '' && $this->longitude !== '';
 
+        // Heure affichée en heure LOCALE (Africa/Douala, UTC+1) : la BDD
+        // stocke de l'UTC, format() brut affichait -1h dans le mail/SMS.
+        // (clone : ne jamais muter l'instance du modèle.)
+        $tz = (string) config('app.display_timezone', 'Africa/Douala');
+        $heureLocale = $this->heure_detection
+            ? (clone $this->heure_detection)->setTimezone($tz)->format('d/m/Y à H:i')
+            : null;
+
         return [
             'recipient' => $recipientName,
             'passager' => $fullName($passager) !== '—' ? $fullName($passager) : 'Passager SafeRide',
             'transporteur' => $fullName($transporteur),
-            'heure' => $this->heure_detection?->format('d/m/Y à H:i') ?? '—',
+            'heure' => $heureLocale ?? '—',
             'departure' => $departure,
             'destination' => $destination,
             'current_location' => $hasPos ? $this->latitude . ', ' . $this->longitude : '—',
