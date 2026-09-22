@@ -93,20 +93,15 @@ class TripFlowTest extends TestCase
         ])->assertOk();
         $dest = $destResp->json('trip');
         $this->assertEquals('DESTINATION_PROPOSEE', $dest['statut']);
-        $this->assertTrue($destResp->json('qr_rotation.rotated'));
-        $this->assertEquals('destination_choisie', $destResp->json('qr_rotation.reason'));
 
-        // 4b. Le CHOIX de la destination fait déjà tourner le QR : le QR
-        // scanné est désactivé, un QR frais attend les prochains passagers.
+        // 4b. Au CHOIX de la destination, le QR scanné RESTE valide et
+        // actif : pas de rotation tant que le trajet n'a pas démarré.
+        $this->assertFalse($destResp->json('qr_rotation.rotated'));
+        $this->assertEquals('attente_demarrage', $destResp->json('qr_rotation.reason'));
         $this->assertDatabaseHas('qr_codes', [
             'token' => $vehicle['qr_codes'][0]['token'],
-            'actif' => false,
+            'actif' => true,
         ]);
-        $afterChoiceQr = QrCode::where('vehicle_id', $vehicle['id'])
-            ->where('actif', true)
-            ->first();
-        $this->assertNotNull($afterChoiceQr);
-        $this->assertNotEquals($vehicle['qr_codes'][0]['token'], $afterChoiceQr->token);
 
         // 5. Destination confirmée → EN_COURS.
         $ongoingResp = $this->postJson("/api/v1/trips/{$start['id']}/confirm-destination", [
@@ -114,11 +109,11 @@ class TripFlowTest extends TestCase
         ])->assertOk();
         $ongoing = $ongoingResp->json('trip');
         $this->assertEquals('EN_COURS', $ongoing['statut']);
-        $this->assertFalse($ongoingResp->json('qr_rotation.rotated'));
-        $this->assertEquals('deja_tourne', $ongoingResp->json('qr_rotation.reason'));
 
-        // 5b. Le démarrage réel ne tourne PAS deux fois : le QR actif est
-        // déjà celui créé au choix de la destination (différent du scanné).
+        // 5b. Au DÉMARRAGE réel, le QR scanné est désactivé et un QR frais
+        // attend les prochains passagers.
+        $this->assertTrue($ongoingResp->json('qr_rotation.rotated'));
+        $this->assertEquals('trajet_demarre', $ongoingResp->json('qr_rotation.reason'));
         $this->assertDatabaseHas('qr_codes', [
             'token' => $vehicle['qr_codes'][0]['token'],
             'actif' => false,
@@ -128,7 +123,6 @@ class TripFlowTest extends TestCase
             ->first();
         $this->assertNotNull($freshQr);
         $this->assertNotEquals($vehicle['qr_codes'][0]['token'], $freshQr->token);
-        $this->assertEquals($afterChoiceQr->token, $freshQr->token);
 
         // 6. Positions GPS pendant le trajet.
         $this->postJson("/api/v1/trips/{$start['id']}/locations", [

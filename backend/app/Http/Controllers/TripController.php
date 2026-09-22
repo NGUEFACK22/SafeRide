@@ -448,10 +448,6 @@ class TripController extends Controller
             return response()->json(['message' => 'Le trajet doit être confirmé avant de définir une destination'], 422);
         }
 
-        // Premier choix (CONFIRME → PROPOSEE) : les re-propositions suivantes
-        // ne refont pas tourner le QR.
-        $firstChoice = $trip->statut === 'CONFIRME';
-
         $data = $request->validate([
             'destination_address' => 'required|string|max:255',
             'latitude' => 'required|numeric|between:-90,90',
@@ -469,14 +465,11 @@ class TripController extends Controller
         $trip->planned_route_polyline = $this->routeService->plannedRoute($trip);
         $trip->save();
 
-        // Rotation auto du QR dès que le passager a CHOISI sa destination :
-        // le QR scanné meurt, un QR frais attend les prochains passagers.
-        // Non bloquant (le trajet continue même si la rotation échoue) avec
-        // 1 nouvel essai (le pooler Neon peut échouer de façon transitoire).
-        $qrRotation = ['rotated' => false, 'reason' => 'not_first_choice'];
-        if ($firstChoice) {
-            $qrRotation = $this->rotateTripQr($trip, 'destination_choisie');
-        }
+        // PAS de rotation ici : tant que le trajet n'est pas démarré
+        // (destination seulement proposée), le QR scanné RESTE valide et
+        // réutilisable. La rotation a lieu uniquement au démarrage réel
+        // (confirmDestination → EN_COURS, voir rotateTripQr).
+        $qrRotation = ['rotated' => false, 'reason' => 'attente_demarrage'];
 
         return response()->json([
             'message' => 'Destination proposée. Confirmez-vous cette destination ?',
