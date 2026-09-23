@@ -30,6 +30,7 @@ class TripScanStatsTest extends TestCase
             'password' => Hash::make('password'),
         ]);
         $user->roles()->attach($role);
+        $this->verifyIdentity($user);
 
         return $user;
     }

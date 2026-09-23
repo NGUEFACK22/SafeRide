@@ -146,4 +146,13 @@ class User extends Authenticatable implements MustVerifyEmail
             ->latest()
             ->value('statut');
     }
+
+    /**
+     * Compte vérifié = dernière vérification d'identité KYC au statut VERIFIE.
+     * Gate de création/lancement de course (passager comme transporteur).
+     */
+    public function isIdentiteVerifiee(): bool
+    {
+        return $this->statutVerification() === 'VERIFIE';
+    }
 }

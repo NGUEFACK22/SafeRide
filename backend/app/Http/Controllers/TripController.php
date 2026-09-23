@@ -79,6 +79,11 @@ class TripController extends Controller
                 'longitude' => 'required|numeric|between:-180,180',
             ]);
 
+            // Compte passager vérifié (KYC) exigé pour lancer une course.
+            if (! $request->user()->isIdentiteVerifiee()) {
+                return response()->json(['message' => 'Compte non vérifié — vérifiez votre identité pour scanner un QR et lancer une course.'], 403);
+            }
+
             $qr = $this->resolveQr($data['token']);
 
             if ($qr === null || ! $qr->actif) {
@@ -95,6 +100,12 @@ class TripController extends Controller
 
             if ($vehicle->transporteur->statut === 'SUSPENDU') {
                 return response()->json(['message' => 'Le transporteur est suspendu. Trajet impossible.'], 403);
+            }
+
+            // Conducteur vérifié (KYC) exigé : neutralise aussi les véhicules
+            // créés avant cette règle.
+            if (! $vehicle->transporteur->isIdentiteVerifiee()) {
+                return response()->json(['message' => 'Conducteur non vérifié — ce véhicule ne peut pas lancer de course pour le moment.'], 403);
             }
 
         // UN SEUL trajet RÉELLEMENT actif par passager : impossible d'en
@@ -306,6 +317,11 @@ class TripController extends Controller
      */
     public function acceptCourse(Request $request, int $id): JsonResponse
     {
+        // Compte transporteur vérifié (KYC) exigé pour accepter une course.
+        if (! $request->user()->isIdentiteVerifiee()) {
+            return response()->json(['message' => 'Compte non vérifié — vérifiez votre identité pour accepter des courses.'], 403);
+        }
+
         // Un transporteur peut mener jusqu'à MAX_CONCURRENT_TRIPS_TRANSPORTEUR
         // courses simultanées (multi-passagers) : au-delà, il doit en
         // terminer une avant d'accepter.

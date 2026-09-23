@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../utils/error_helper.dart';
+import '../utils/verify_identity_gate.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../services/api_service.dart';
@@ -159,6 +160,10 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
     );
 
     if (result != true) return;
+
+    // Gate KYC : compte vérifié exigé pour créer un véhicule.
+    if (!await ensureIdentityVerified(context)) return;
+    if (!mounted) return;
 
     try {
       final res = await _api.post('/vehicles', {

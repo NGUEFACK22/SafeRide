@@ -34,6 +34,7 @@ class IntegrationGapTest extends TestCase
             'statut' => 'ACTIF',
         ], $overrides));
         $user->roles()->attach($this->role($roleSlug));
+        $this->verifyIdentity($user);
 
         return $user;
     }

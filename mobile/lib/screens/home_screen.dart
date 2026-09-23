@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../utils/error_helper.dart';
 import '../utils/safe_dialog.dart';
+import '../utils/verify_identity_gate.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -205,6 +206,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     _requestDialogOpen = false;
     if (accept == true) {
+      // Gate KYC : compte vérifié exigé pour accepter une course.
+      if (!await ensureIdentityVerified(context)) return;
       try {
         final updated = await TripService().acceptCourse(trip.id);
         if (!mounted) return;
@@ -1437,6 +1440,11 @@ class _TransporteurViewState extends State<_TransporteurView> {
     setState(() => _handling = true);
     try {
       if (accept) {
+        // Gate KYC : compte vérifié exigé pour accepter une course.
+        if (!await ensureIdentityVerified(context)) {
+          if (mounted) setState(() => _handling = false);
+          return;
+        }
         final updated = await TripService().acceptCourse(_pendingTrip!.id);
         if (!mounted) return;
         setState(() {

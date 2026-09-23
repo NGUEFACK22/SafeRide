@@ -6,6 +6,7 @@ use App\Models\QrCode;
 use App\Models\Role;
 use App\Models\Trip;
 use App\Models\User;
+use App\Models\IdentityVerification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -15,7 +16,7 @@ class TripFlowTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function user(string $email, string $telephone, string $roleSlug): User
+    private function user(string $email, string $telephone, string $roleSlug, bool $verified = true): User
     {
         $role = Role::firstOrCreate(['slug' => $roleSlug], ['nom' => ucfirst($roleSlug)]);
         $user = User::create([
@@ -26,6 +27,9 @@ class TripFlowTest extends TestCase
             'password' => Hash::make('password'),
         ]);
         $user->roles()->attach($role);
+        if ($verified) {
+            $this->verifyIdentity($user);
+        }
 
         return $user;
     }
@@ -855,5 +859,124 @@ class TripFlowTest extends TestCase
             'latitude' => 3.8480,
             'longitude' => 11.5021,
         ])->assertStatus(422);
+    }
+
+    public function test_scan_requires_verified_identity(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager', false);
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-794-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $this->actingAs($transporteur)->postJson("/api/v1/vehicles/{$vehicle['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
+        $scan = [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ];
+
+        // Sans KYC : 403.
+        $this->actingAs($passager)->postJson('/api/v1/trips/start', $scan)
+            ->assertForbidden();
+
+        // EN_ATTENTE puis ECHOUE : toujours 403.
+        foreach (['EN_ATTENTE', 'ECHOUE'] as $statut) {
+            IdentityVerification::updateOrCreate(
+                ['user_id' => $passager->id],
+                ['type' => 'CNI', 'statut' => $statut]
+            );
+            $this->actingAs($passager)->postJson('/api/v1/trips/start', $scan)
+                ->assertForbidden();
+        }
+
+        // VERIFIE : le scan passe.
+        IdentityVerification::updateOrCreate(
+            ['user_id' => $passager->id],
+            ['type' => 'CNI', 'statut' => 'VERIFIE', 'verifie_le' => now()]
+        );
+        $this->actingAs($passager)->postJson('/api/v1/trips/start', $scan)
+            ->assertCreated();
+    }
+
+    public function test_scan_rejected_when_transporteur_unverified(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-795-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $this->actingAs($transporteur)->postJson("/api/v1/vehicles/{$vehicle['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
+        // Transporteur dé-vérifié après création du véhicule (neutralise
+        // aussi les véhicules créés avant la règle).
+        IdentityVerification::where('user_id', $transporteur->id)->delete();
+
+        $refused = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ]);
+        $refused->assertForbidden();
+        $this->assertStringContainsString('Conducteur non vérifié', $refused->json('message'));
+    }
+
+    public function test_unverified_transporteur_cannot_accept_course(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-796-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $this->actingAs($transporteur)->postJson("/api/v1/vehicles/{$vehicle['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
+        $trip = $this->actingAs($passager)->postJson('/api/v1/trips/start', [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertCreated()->json('trip');
+
+        $this->actingAs($passager)
+            ->postJson("/api/v1/trips/{$trip['id']}/confirm-embarquement")
+            ->assertOk();
+
+        IdentityVerification::where('user_id', $transporteur->id)->delete();
+
+        $this->actingAs($transporteur)
+            ->postJson("/api/v1/trips/{$trip['id']}/accept-course")
+            ->assertForbidden();
     }
 }

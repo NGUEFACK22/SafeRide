@@ -8,6 +8,7 @@ import '../services/api_service.dart';
 import '../services/permission_service.dart';
 import '../theme/app_theme.dart';
 import '../services/language_service.dart';
+import '../utils/verify_identity_gate.dart';
 import 'course_confirm_screen.dart';
 
 class ScanScreen extends StatefulWidget {
@@ -202,6 +203,9 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       Navigator.of(context).pushNamed('/login');
       return;
     }
+    // Gate KYC : compte vérifié exigé pour lancer une course (le backend
+    // refuse en 403 sinon — le dialogue guide vers la vérification).
+    if (!await ensureIdentityVerified(context)) return;
     if (!mounted) return;
     setState(() => _loading = true);
     try {

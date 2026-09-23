@@ -21,6 +21,11 @@ class VehicleController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        // Compte transporteur vérifié (KYC) exigé pour créer un véhicule/QR.
+        if (! $request->user()->isIdentiteVerifiee()) {
+            return response()->json(['message' => 'Compte non vérifié — vérifiez votre identité pour ajouter un véhicule.'], 403);
+        }
+
         $data = $request->validate([
             'marque' => 'required|string|max:60',
             'modele' => 'required|string|max:60',

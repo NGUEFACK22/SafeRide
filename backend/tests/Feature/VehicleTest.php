@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Models\IdentityVerification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -23,6 +24,7 @@ class VehicleTest extends TestCase
             'password' => Hash::make('password'),
         ]);
         $user->roles()->attach($role);
+        $this->verifyIdentity($user);
 
         return $user;
     }
@@ -94,5 +96,20 @@ class VehicleTest extends TestCase
         $this->postJson("/api/v1/vehicles/{$vehicle['id']}/qr/toggle", ['actif' => true])
             ->assertOk();
         $this->assertDatabaseHas('qr_codes', ['id' => $qr['id'], 'actif' => true]);
+    }
+
+    public function test_unverified_transporteur_cannot_create_vehicle(): void
+    {
+        $transporteur = $this->transporteur('noverif@example.com', '690000039');
+        IdentityVerification::where('user_id', $transporteur->id)->delete();
+
+        $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-999-XX',
+            'type' => 'VOITURE',
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('vehicles', ['immatriculation' => 'LT-999-XX']);
     }
 }
