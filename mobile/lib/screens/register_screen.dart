@@ -189,6 +189,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     Navigator.of(context).pushReplacementNamed('/home', arguments: user);
                   },
                 ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(LanguageService.instance.t('already_have_account'), style: TextStyle(color: AppTheme.textGrey)),
+                    GestureDetector(onTap: () => Navigator.pushReplacementNamed(context, '/login'), child: Text(LanguageService.instance.t('login'), style: TextStyle(color: AppTheme.primaryBlue, fontWeight: FontWeight.w700))),
+                  ],
+                ),
+                const SizedBox(height: 12),
               ],
             ),
           ),

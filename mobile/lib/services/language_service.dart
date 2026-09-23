@@ -92,6 +92,7 @@ class LanguageService extends ChangeNotifier {
     'first_name': {'fr': 'Prénom', 'en': 'First name'},
     'or_continue': {'fr': 'OU CONTINUER AVEC', 'en': 'OR CONTINUE WITH'},
     'no_account': {'fr': 'Pas de compte ? ', 'en': 'No account? '},
+    'already_have_account': {'fr': 'Vous avez déjà un compte ? ', 'en': 'Already have an account? '},
     'has_account': {'fr': 'Déjà inscrit ? Se connecter', 'en': 'Already have an account? Sign in'},
     'continue_guest': {'fr': 'Continuer en tant qu\'invité — explorer', 'en': 'Continue as guest — explore'},
     'guest_info': {'fr': 'Visiteur : consultez toutes les fonctionnalités. L\'interaction nécessite une inscription.', 'en': 'Visitor: browse all features. Interaction requires sign up.'},
