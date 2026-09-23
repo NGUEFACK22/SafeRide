@@ -49,6 +49,14 @@ class TripObserver
             'DESTINATION_CONFIRMEE|EN_COURS' => ['trip_start', [
                 'destination_address' => $trip->destination_address,
             ]],
+            'EN_COURS|FIN_EN_ATTENTE' => ['fin_demandee', [
+                'fin_demandee_par' => $trip->fin_demandee_par,
+            ]],
+            'FIN_EN_ATTENTE|TERMINE' => ['trip_end', [
+                'distance_km' => $trip->distance_km,
+                'duration_seconds' => $trip->duration_seconds,
+                'end_method' => $trip->end_method,
+            ]],
             'EN_COURS|TERMINE' => ['trip_end', [
                 'distance_km' => $trip->distance_km,
                 'duration_seconds' => $trip->duration_seconds,

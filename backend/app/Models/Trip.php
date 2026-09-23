@@ -29,6 +29,8 @@ class Trip extends Model
         'deviation_km',
         'statut',
         'end_method',
+        'fin_demandee_par',
+        'fin_demandee_at',
     ];
 
     protected function casts(): array
@@ -36,6 +38,7 @@ class Trip extends Model
         return [
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
+            'fin_demandee_at' => 'datetime',
             'start_latitude' => 'decimal:7',
             'start_longitude' => 'decimal:7',
             'destination_latitude' => 'decimal:7',

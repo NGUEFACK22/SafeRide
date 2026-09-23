@@ -390,8 +390,8 @@ class AiService
     {
         $anomalies = [];
 
-        // Trajets EN_COURS sans mise à jour GPS depuis > 10 min
-        $staleTrips = Trip::where('statut', 'EN_COURS')
+        // Trajets EN_COURS ou FIN_EN_ATTENTE sans mise à jour GPS depuis > 10 min
+        $staleTrips = Trip::whereIn('statut', ['EN_COURS', 'FIN_EN_ATTENTE'])
             ->where('started_at', '<', now()->subMinutes(15))
             ->with('transporteur')
             ->get()
@@ -713,10 +713,10 @@ class AiService
     {
         $created = 0;
 
-        // Un trajet EN_COURS est suspect dès qu'aucune position n'est arrivée
+        // Un trajet EN_COURS ou FIN_EN_ATTENTE est suspect dès qu'aucune position n'est arrivée
         // depuis MOVEMENT_LOSS_MINUTES (référence : dernière position, à
         // défaut l'heure de départ si le GPS n'a jamais accroché).
-        Trip::where('statut', 'EN_COURS')
+        Trip::whereIn('statut', ['EN_COURS', 'FIN_EN_ATTENTE'])
             ->where('started_at', '<', now()->subMinutes(self::MOVEMENT_LOSS_MINUTES))
             ->chunkById(50, function ($trips) use (&$created) {
                 foreach ($trips as $trip) {

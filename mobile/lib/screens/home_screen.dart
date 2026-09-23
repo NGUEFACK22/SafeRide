@@ -301,11 +301,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!await ensureEmergencyContacts(context)) return;
     if (!mounted) return;
     final trip = await TripService().currentTrip();
-    // Ne lier le trajet au SOS que s'il est rÃ©ellement EN_COURS :
-    // un trajet SCANNE / EN_ATTENTE_TRANSPORTEUR serait rejetÃ© par le
+    // Ne lier le trajet au SOS que s'il est réellement actif (EN_COURS ou
+    // FIN_EN_ATTENTE : fin proposée mais pas encore confirmée) :
+    // un trajet SCANNE / EN_ATTENTE_TRANSPORTEUR serait rejeté par le
     // backend (422 "Aucun trajet actif"). Sans trajet en cours, l'alerte
     // part avec position + destination saisie (SOS hors trajet).
-    final linkable = (trip != null && trip.statut == 'EN_COURS') ? trip : null;
+    final linkable = (trip != null &&
+            (trip.statut == 'EN_COURS' || trip.statut == 'FIN_EN_ATTENTE'))
+        ? trip
+        : null;
     final controller = TextEditingController();
     // Dialog unique : confirmation + destination facultative (SOS hors trajet).
     // Un seul showDialog Ã©vite d'ouvrir un second dialog pendant la transition

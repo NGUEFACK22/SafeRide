@@ -15,6 +15,8 @@ class Trip {
   final double? deviationKm;
   final String statut;
   final String? endMethod;
+  final String? finDemandeePar;
+  final String? finDemandeeAt;
   final String? plannedRoutePolyline;
   final String? actualRoutePolyline;
   final String? transporteurNom;
@@ -44,6 +46,8 @@ class Trip {
     this.deviationKm,
     required this.statut,
     this.endMethod,
+    this.finDemandeePar,
+    this.finDemandeeAt,
     this.plannedRoutePolyline,
     this.actualRoutePolyline,
     this.transporteurNom,
@@ -78,6 +82,8 @@ class Trip {
       deviationKm: _toDouble(json['deviation_km']),
       statut: json['statut']?.toString() ?? '',
       endMethod: json['end_method']?.toString(),
+      finDemandeePar: json['fin_demandee_par']?.toString(),
+      finDemandeeAt: json['fin_demandee_at']?.toString(),
       plannedRoutePolyline: json['planned_route_polyline']?.toString(),
       actualRoutePolyline: json['actual_route_polyline']?.toString(),
       transporteurNom: transporteur?['nom']?.toString(),
@@ -99,7 +105,8 @@ class Trip {
     );
   }
 
-  bool get isActive => statut == 'EN_COURS';
+  bool get isActive =>
+      statut == 'EN_COURS' || statut == 'FIN_EN_ATTENTE';
   bool get hasDestination => destinationLatitude != null;
 
   String get transporteurFullName {

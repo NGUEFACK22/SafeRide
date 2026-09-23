@@ -83,6 +83,9 @@ class _TripActiveScreenState extends State<TripActiveScreen>
   // Séquençage EN_COURS : anti double-entrée + zones natives isolées
   // (un échec local ne doit jamais faire fermer l'application).
   bool _enterStateInProgress = false;
+  // Zones natives déjà démarrées pour le cycle en cours : passer de EN_COURS
+  // à FIN_EN_ATTENTE ne doit PAS relancer GPS/service/météo (pic mémoire).
+  bool _zonesStarted = false;
 
   // Météo pendant le trajet
   WeatherData? _weather;
@@ -148,14 +151,18 @@ class _TripActiveScreenState extends State<TripActiveScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Trajet EN_COURS + app envoyée en arrière-plan → on démarre le service
-    // de fond ICI (et seulement ici) pour poursuivre le suivi GPS.
+    // Trajet actif (EN_COURS ou FIN_EN_ATTENTE) + app envoyée en
+    // arrière-plan → on démarre le service de fond ICI (et seulement ici)
+    // pour poursuivre le suivi GPS.
     // `paused` = vraiment en arrière-plan (les dialogues système donnent
     // `inactive`, pas `paused` : pas de démarrage prématuré).
     if (state != AppLifecycleState.paused || !mounted) return;
     if (_bgServiceStarted) return;
     final trip = _trip;
-    if (trip == null || trip.statut != 'EN_COURS') return;
+    if (trip == null ||
+        (trip.statut != 'EN_COURS' && trip.statut != 'FIN_EN_ATTENTE')) {
+      return;
+    }
     _bgServiceStarted = true;
     try {
       BackgroundLocationService().startTripTracking(trip.id).catchError((_) {});
@@ -228,7 +235,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
 
     final statut = _trip!.statut;
 
-    if (statut == 'EN_COURS') {
+    if (statut == 'EN_COURS' || statut == 'FIN_EN_ATTENTE') {
       // Garde anti double-entrée : `_validateDestination`, le poll transporteur
       // et `_load()` peuvent tous arriver au même instant. Une seule séquence
       // de démarrage s'exécute à la fois — le crash venait du lancement
@@ -238,6 +245,13 @@ class _TripActiveScreenState extends State<TripActiveScreen>
       _waitingPoll?.cancel();
       _decodePlannedRoute(_trip!);
       _startEndPoll();
+      if (_zonesStarted) {
+        // EN_COURS → FIN_EN_ATTENTE : suivi déjà en route, on ne relance
+        // rien (relancer GPS + service + météo empilait un pic mémoire).
+        _enterStateInProgress = false;
+        return;
+      }
+      _zonesStarted = true;
       // Nouveau cycle EN_COURS : on repart d'une carte vierge (sinon le fil
       // GPS et l'itinéraire restant du trajet PRÉCÉDENT resteraient affichés).
       _liveRoute = [];
@@ -269,6 +283,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
       // Le trajet est terminé ou annulé : arrêt du suivi et retour à l'accueil.
       _tracker?.cancel();
       _endPoll?.cancel();
+      _zonesStarted = false;
       _stopVoiceMonitoring();
       try {
         BackgroundLocationService().stopTripTracking();
@@ -283,6 +298,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
       // Autres états (SCANNE, EN_ATTENTE_TRANSPORTEUR, CONFIRME, DESTINATION_PROPOSEE) : on nettoie les timers mais on ne démarre pas le suivi
       _tracker?.cancel();
       _endPoll?.cancel();
+      _zonesStarted = false;
       _stopVoiceMonitoring();
     }
   }
@@ -818,7 +834,11 @@ class _TripActiveScreenState extends State<TripActiveScreen>
   /// un trajet actif — active la vérification de proximité au scan QR.
   void _publishVehiclePositionThrottled(double lat, double lng) {
     if (!_isTransporteur) return;
-    if (_trip?.statut != 'EN_COURS') return;
+    // Suivi maintenu aussi pendant la négociation de fin (FIN_EN_ATTENTE) :
+    // la proximité du prochain scan en dépend.
+    if (_trip?.statut != 'EN_COURS' && _trip?.statut != 'FIN_EN_ATTENTE') {
+      return;
+    }
     if (_trip?.vehicleId == null) return;
 
     final now = DateTime.now();
@@ -895,7 +915,10 @@ class _TripActiveScreenState extends State<TripActiveScreen>
   /// spammer le serveur public à chaque fix GPS (10 s).
   Future<void> _maybeRecalcRemainingRoute(LatLng position) async {
     final trip = _trip;
-    if (trip == null || trip.statut != 'EN_COURS') return;
+    if (trip == null ||
+        (trip.statut != 'EN_COURS' && trip.statut != 'FIN_EN_ATTENTE')) {
+      return;
+    }
     final destLat = trip.destinationLatitude;
     final destLng = trip.destinationLongitude;
     if (destLat == null || destLng == null) return;
@@ -948,20 +971,39 @@ class _TripActiveScreenState extends State<TripActiveScreen>
     _mapController.move(pos, 18);
   }
 
+  /// Fin à DOUBLE confirmation : le 1er clic propose (on reste, le poll
+  /// détectera le TERMINE et ouvrira le récapitulatif), le 2e clic de
+  /// l'AUTRE partie termine réellement.
   Future<void> _endTrip() async {
     if (_trip == null) return;
     setState(() => _busy = true);
     try {
       final trip = await _tripService.endTrip(_trip!.id);
       if (!mounted) return;
-      _tracker?.cancel();
-      BackgroundLocationService().stopTripTracking();
-      await _stopVoiceMonitoring();
+      if (trip.statut == 'TERMINE') {
+        _tracker?.cancel();
+        BackgroundLocationService().stopTripTracking();
+        await _stopVoiceMonitoring();
+        setState(() {
+          _trip = trip;
+          _busy = false;
+        });
+        _showTripSummary(trip);
+        return;
+      }
+      // Fin proposée, en attente de l'autre partie : suivi maintenu.
       setState(() {
         _trip = trip;
         _busy = false;
       });
-      _showTripSummary(trip);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Fin proposée. En attente de confirmation de l\'autre partie (clôture auto après 24h sans réponse).',
+          ),
+        ),
+      );
+      _enterState();
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -1087,7 +1129,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
         if (!mounted) return;
         setState(() => _voiceStatus = 'SOS vocal enregistré hors-ligne — sera transmis à la reconnexion');
         await Future<void>.delayed(const Duration(seconds: 5));
-        if (mounted && _trip?.statut == 'EN_COURS') {
+        if (mounted && _trip?.statut == 'EN_COURS' || _trip?.statut == 'FIN_EN_ATTENTE') {
           _voiceMonitoring = false;
           await _startVoiceMonitoring();
         }
@@ -1121,7 +1163,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
       );
       // Relancer l'écoute après 5s
       await Future<void>.delayed(const Duration(seconds: 5));
-      if (mounted && _trip?.statut == 'EN_COURS') {
+      if (mounted && _trip?.statut == 'EN_COURS' || _trip?.statut == 'FIN_EN_ATTENTE') {
         _voiceMonitoring = false; // forcer restart
         await _startVoiceMonitoring();
       }
@@ -1132,7 +1174,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
       }
       // Relancer quand même après erreur
       await Future<void>.delayed(const Duration(seconds: 3));
-      if (mounted && _trip?.statut == 'EN_COURS') {
+      if (mounted && _trip?.statut == 'EN_COURS' || _trip?.statut == 'FIN_EN_ATTENTE') {
         _voiceMonitoring = false;
         await _startVoiceMonitoring();
       }
@@ -1294,7 +1336,7 @@ class _TripActiveScreenState extends State<TripActiveScreen>
       appBar: AppBar(
         title: Text(LanguageService.instance.t('trip_title')),
         actions: [
-          if (trip.statut == 'EN_COURS')
+          if (trip.statut == 'EN_COURS' || trip.statut == 'FIN_EN_ATTENTE')
             IconButton(
               icon: const Icon(Icons.location_on),
               tooltip: LanguageService.instance.t('send_location'),
@@ -1359,6 +1401,8 @@ class _TripActiveScreenState extends State<TripActiveScreen>
         return _enCoursStep(trip);
       case 'EN_COURS':
         return _enCoursStep(trip);
+      case 'FIN_EN_ATTENTE':
+        return _finEnAttenteStep(trip);
       default:
         return Center(child: Text('Trajet cloturé.'));
     }
@@ -1957,6 +2001,109 @@ class _TripActiveScreenState extends State<TripActiveScreen>
                     ),
                   ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Fin proposée, en attente de co-confirmation (FIN_EN_ATTENTE).
+  /// - Demandeur : "en attente de l'autre" (pas de bouton, la demande est faite).
+  /// - Autre partie : "X dit que la course est terminée, confirmez-vous ?"
+  ///   + bouton "Oui, terminer" (2e clic → TERMINE côté serveur).
+  Widget _finEnAttenteStep(Trip trip) {
+    final iAmTransporteur = _isTransporteur;
+    final askedBy = trip.finDemandeePar;
+    final iAsked = askedBy != null &&
+        ((askedBy == 'transporteur') == iAmTransporteur);
+    final otherName = iAmTransporteur
+        ? ((trip.passager?['prenom']?.toString() ?? '') +
+                ' ' +
+                (trip.passager?['nom']?.toString() ?? ''))
+            .trim()
+        : trip.transporteurFullName;
+    final otherLabel =
+        otherName.isNotEmpty ? otherName : 'l\'autre partie';
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Card(
+            color: Colors.orange.shade50,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.hourglass_top,
+                    size: 40,
+                    color: AppTheme.primaryBlue,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    iAsked
+                        ? 'Fin de course proposée'
+                        : '$otherLabel indique que la course est terminée',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    iAsked
+                        ? 'En attente de confirmation de $otherLabel.\nSans réponse sous 24h, le trajet sera clôturé automatiquement.'
+                        : 'Confirmez-vous que la course est bien terminée ?\nSans réponse sous 24h, le trajet sera clôturé automatiquement.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.textGrey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (!iAsked) ...[
+            FilledButton.icon(
+              onPressed: _busy ? null : _endTrip,
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.green.shade700,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: _busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.check_circle_outline),
+              label: const Text(
+                'Oui, terminer la course',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          const Text(
+            'Le suivi GPS reste actif jusqu\'à la confirmation des deux côtés.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+              color: AppTheme.textGrey,
             ),
           ),
         ],

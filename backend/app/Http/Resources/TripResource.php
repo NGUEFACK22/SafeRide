@@ -32,6 +32,8 @@ class TripResource extends JsonResource
             'distance_km' => $this->distance_km,
             'duration_seconds' => $this->duration_seconds,
             'end_method' => $this->end_method,
+            'fin_demandee_par' => $this->fin_demandee_par,
+            'fin_demandee_at' => $this->fin_demandee_at?->toIso8601String(),
             'passager' => new PassengerResource($this->whenLoaded('passager')),
             'transporteur' => new TransporteurResource($this->whenLoaded('transporteur')),
             'vehicle' => $this->whenLoaded('vehicle'),

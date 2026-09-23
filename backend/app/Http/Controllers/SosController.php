@@ -43,7 +43,7 @@ class SosController extends Controller
         if (! empty($data['trip_id'])) {
             $trip = Trip::where('id', $data['trip_id'])
                 ->where('passager_id', $request->user()->id)
-                ->where('statut', 'EN_COURS')
+                ->whereIn('statut', ['EN_COURS', 'FIN_EN_ATTENTE'])
                 ->first();
 
             if (! $trip) {

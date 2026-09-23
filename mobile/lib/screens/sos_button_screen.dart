@@ -79,10 +79,12 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     }
   }
 
-  /// Le trajet affiché est-il réellement EN_COURS (suivi GPS actif) ?
+  /// Le trajet affiché est-il réellement actif (suivi GPS en cours) ?
+  /// EN_COURS ou FIN_EN_ATTENTE (fin proposée mais pas encore confirmée).
   /// Un trajet SCANNE / EN_ATTENTE_TRANSPORTEUR est "en préparation" :
   /// l'alerte partirait sans infos transporteur — on le dit clairement.
-  bool get _tripEnCours => _trip != null && _trip!.statut == 'EN_COURS';
+  bool get _tripEnCours => _trip != null &&
+      (_trip!.statut == 'EN_COURS' || _trip!.statut == 'FIN_EN_ATTENTE');
 
   Future<void> _initVoiceprint() async {
     final available = await _voiceprint.ensureLoaded();
@@ -671,10 +673,14 @@ class _SosButtonScreenState extends State<SosButtonScreen> {
     );
   }
 
-  /// Le SOS n'est rattaché au trajet que si celui-ci est réellement EN_COURS.
+  /// Le SOS n'est rattaché au trajet que si celui-ci est réellement en cours
+  /// (EN_COURS ou FIN_EN_ATTENTE : fin proposée mais pas encore confirmée).
   /// Un trajet SCANNE / EN_ATTENTE_TRANSPORTEUR ne doit pas être envoyé comme
-  /// trip_id : le backend l'exigerait en statut EN_COURS (422).
-  Trip? _linkableTrip() => (_trip != null && _trip!.statut == 'EN_COURS') ? _trip : null;
+  /// trip_id : le backend l'exigerait en statut actif (422).
+  Trip? _linkableTrip() => (_trip != null &&
+          (_trip!.statut == 'EN_COURS' || _trip!.statut == 'FIN_EN_ATTENTE'))
+      ? _trip
+      : null;
   /// Le backend retourne la liste des contacts et le message SMS à envoyer.
   Future<void> _sendWhatsAppSos(Map<String, dynamic> data) async {
     try {

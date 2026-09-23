@@ -144,8 +144,14 @@ class TripFlowTest extends TestCase
         $this->assertNotEmpty($route['points']);
         $this->assertArrayHasKey('destination', $route);
 
-        // 8. Fin du trajet → TERMINE avec distance calculée.
-        $ended = $this->postJson("/api/v1/trips/{$start['id']}/end")
+        // 8. Fin à double confirmation : le passager propose…
+        $firstEnd = $this->actingAs($passager)->postJson("/api/v1/trips/{$start['id']}/end")
+            ->assertOk();
+        $this->assertEquals('FIN_EN_ATTENTE', $firstEnd->json('trip.statut'));
+        $this->assertEquals('waiting_other', $firstEnd->json('end_request'));
+
+        // …puis le transporteur confirme → TERMINE avec distance calculée.
+        $ended = $this->actingAs($transporteur)->postJson("/api/v1/trips/{$start['id']}/end")
             ->assertOk()->json('trip');
         $this->assertEquals('TERMINE', $ended['statut']);
         $this->assertNotNull($ended['distance_km']);
@@ -703,12 +709,151 @@ class TripFlowTest extends TestCase
             ])->assertCreated();
         }
 
-        $ended = $this->actingAs($passager)
+        $firstEnd = $this->actingAs($passager)
+            ->postJson("/api/v1/trips/{$trip->id}/end")
+            ->assertOk();
+        // 1er clic : demande enregistrée, trajet NON terminé.
+        $this->assertEquals('FIN_EN_ATTENTE', $firstEnd->json('trip.statut'));
+        $this->assertEquals('waiting_other', $firstEnd->json('end_request'));
+
+        // 2e clic par l'autre partie : TERMINE.
+        $ended = $this->actingAs($transporteur)
             ->postJson("/api/v1/trips/{$trip->id}/end")
             ->assertOk()
             ->json('trip');
 
         // Tous les segments < 10 m : distance quasi nulle (pas de km fantômes).
+        $this->assertEquals('TERMINE', $ended['statut']);
         $this->assertLessThan(0.05, (float) $ended['distance_km']);
+    }
+
+    public function test_end_requires_both_sides_to_confirm(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-791-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $trip = Trip::create([
+            'passager_id' => $passager->id,
+            'transporteur_id' => $transporteur->id,
+            'vehicle_id' => $vehicle['id'],
+            'start_latitude' => 3.8480,
+            'start_longitude' => 11.5021,
+            'started_at' => now()->subMinutes(20),
+            'statut' => 'EN_COURS',
+        ]);
+
+        // 1er clic (passager) : FIN_EN_ATTENTE + notif au transporteur.
+        $first = $this->actingAs($passager)
+            ->postJson("/api/v1/trips/{$trip->id}/end")
+            ->assertOk();
+        $this->assertEquals('FIN_EN_ATTENTE', $first->json('trip.statut'));
+        $this->assertEquals('passager', $first->json('trip.fin_demandee_par'));
+        $this->assertEquals('waiting_other', $first->json('end_request'));
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $transporteur->id,
+            'titre' => 'Fin de course à confirmer',
+        ]);
+
+        // 2e clic par la MÊME partie : idempotent, toujours en attente.
+        $again = $this->actingAs($passager)
+            ->postJson("/api/v1/trips/{$trip->id}/end")
+            ->assertOk();
+        $this->assertEquals('FIN_EN_ATTENTE', $again->json('trip.statut'));
+
+        // Clic par l'AUTRE partie : TERMINE.
+        $done = $this->actingAs($transporteur)
+            ->postJson("/api/v1/trips/{$trip->id}/end")
+            ->assertOk()
+            ->json('trip');
+        $this->assertEquals('TERMINE', $done['statut']);
+        $this->assertEquals('MANUEL', $done['end_method']);
+    }
+
+    public function test_unconfirmed_end_auto_closes_after_24h(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-792-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $trip = Trip::create([
+            'passager_id' => $passager->id,
+            'transporteur_id' => $transporteur->id,
+            'vehicle_id' => $vehicle['id'],
+            'start_latitude' => 3.8480,
+            'start_longitude' => 11.5021,
+            'started_at' => now()->subHours(26),
+            'statut' => 'EN_COURS',
+        ]);
+
+        // Demande du passager, puis voyage temporel : +25h sans réponse.
+        $this->actingAs($passager)->postJson("/api/v1/trips/{$trip->id}/end")->assertOk();
+        Trip::where('id', $trip->id)->update(['fin_demandee_at' => now()->subHours(25)]);
+
+        // Le poll status() déclenche la clôture auto paresseuse.
+        $status = $this->actingAs($passager)
+            ->getJson("/api/v1/trips/{$trip->id}/status")
+            ->assertOk()
+            ->json('trip');
+        $this->assertEquals('TERMINE', $status['statut']);
+        $this->assertEquals('AUTO_24H', $status['end_method']);
+    }
+
+    public function test_fin_en_attente_counts_as_active_trip(): void
+    {
+        Http::fake(['*' => Http::response('', 500)]);
+        config(['services.ai.enabled' => false]);
+
+        $transporteur = $this->user('transporteur@example.com', '690000010', 'transporteur');
+        $passager = $this->user('passager@example.com', '690000011', 'passager');
+
+        $vehicle = $this->actingAs($transporteur)->postJson('/api/v1/vehicles', [
+            'marque' => 'Toyota',
+            'modele' => 'Corolla',
+            'immatriculation' => 'LT-793-AB',
+            'type' => 'VOITURE',
+        ])->assertCreated()->json('vehicle');
+
+        $this->actingAs($transporteur)->postJson("/api/v1/vehicles/{$vehicle['id']}/position", [
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertOk();
+
+        Trip::create([
+            'passager_id' => $passager->id,
+            'transporteur_id' => $transporteur->id,
+            'vehicle_id' => $vehicle['id'],
+            'start_latitude' => 3.8480,
+            'start_longitude' => 11.5021,
+            'started_at' => now()->subMinutes(30),
+            'statut' => 'FIN_EN_ATTENTE',
+            'fin_demandee_par' => 'passager',
+            'fin_demandee_at' => now()->subMinutes(5),
+        ]);
+
+        // Un trajet en attente de co-confirmation bloque toujours un scan.
+        $this->actingAs($passager)->postJson('/api/v1/trips/start', [
+            'token' => $vehicle['qr_codes'][0]['token'],
+            'latitude' => 3.8480,
+            'longitude' => 11.5021,
+        ])->assertStatus(422);
     }
 }

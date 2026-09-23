@@ -29,7 +29,7 @@ class TripController extends Controller
     public const MAX_CONCURRENT_TRIPS_TRANSPORTEUR = 7;
 
     /** Statuts comptant comme "trajet réellement actif". */
-    public const ACTIVE_TRIP_STATUTS = ['CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'];
+    public const ACTIVE_TRIP_STATUTS = ['CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS', 'FIN_EN_ATTENTE'];
     public function __construct(
         private readonly RouteService $routeService,
         private readonly AiService $aiService,
@@ -58,6 +58,7 @@ class TripController extends Controller
             'DESTINATION_PROPOSEE',
             'DESTINATION_CONFIRMEE',
             'EN_COURS',
+            'FIN_EN_ATTENTE',
         ])->orderByDesc('id');
 
         $trip = $query->first();
@@ -113,9 +114,12 @@ class TripController extends Controller
         // ANNULE/AUTO_PURGE tout trajet "actif" sans mise à jour depuis
         // plus de 6h, AVANT le guard ci-dessous. Un vrai trajet en cours
         // reçoit des mises à jour régulières : 6h sans update = abandonné.
+        // EXCLU : FIN_EN_ATTENTE, gouverné par sa propre règle (clôture auto
+        // après 24h sans co-confirmation, voir maybeAutoCloseUnconfirmedEnd).
         $staleCutoff = now()->subHours(6);
         $staleCount = Trip::where('passager_id', $request->user()->id)
             ->whereIn('statut', $activeStatuts)
+            ->where('statut', '!=', 'FIN_EN_ATTENTE')
             ->where('updated_at', '<', $staleCutoff)
             ->update(['statut' => 'ANNULE', 'end_method' => 'AUTO_PURGE', 'ended_at' => now()]);
         if ($staleCount > 0) {
@@ -433,6 +437,10 @@ class TripController extends Controller
             })
             ->firstOrFail();
 
+        // Filet 24h : une fin proposée restée sans réponse est clôturée ici
+        // (le poll des deux apps passe par status toutes les quelques secondes).
+        $this->maybeAutoCloseUnconfirmedEnd($trip);
+
         return response()->json(['trip' => new TripResource($trip)]);
     }
 
@@ -588,6 +596,15 @@ class TripController extends Controller
     {
         $trip = $this->ownActiveTrip($request, $id);
 
+        // Filet 24h : chaque point GPS réévalue une fin restée sans réponse.
+        // Si le trajet vient d'être clôturé, on n'enregistre plus de point.
+        if ($this->maybeAutoCloseUnconfirmedEnd($trip)) {
+            return response()->json([
+                'message' => 'Trajet clôturé automatiquement (fin proposée depuis plus de 24h sans confirmation).',
+                'trip' => new TripResource($trip->load('passager', 'transporteur', 'vehicle')),
+            ]);
+        }
+
         $data = $request->validate([
             'latitude' => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
@@ -615,6 +632,16 @@ class TripController extends Controller
         return response()->json(['message' => 'Position enregistrée'], 201);
     }
 
+    /**
+     * Fin de trajet à DOUBLE confirmation (passager + transporteur).
+     * - 1er clic (EN_COURS) : le trajet passe en FIN_EN_ATTENTE, on mémorise
+     *   qui demande, et l'AUTRE partie est notifiée pour confirmer. Le trajet
+     *   n'est PAS terminé.
+     * - 2e clic par l'AUTRE partie : TERMINE (finalizeTrip, inchangé).
+     * - 2e clic par la MÊME partie : idempotent, toujours en attente.
+     * - Sans co-confirmation sous 24h : clôture automatique (AUTO_24H),
+     *   évaluée paresseusement (scheduler mort sur Render).
+     */
     public function end(Request $request, int $id): JsonResponse
     {
         $trip = $this->ownActiveTrip($request, $id);
@@ -623,18 +650,97 @@ class TripController extends Controller
         // démarré : avant EN_COURS, on passe par l'annulation (cancel) ou la
         // purge auto. Sinon TERMINE serait posé sans itinéraire, avec une
         // déviation aberrante (distance vers les coordonnées nulles).
-        if ($trip->statut !== 'EN_COURS') {
+        if (! in_array($trip->statut, ['EN_COURS', 'FIN_EN_ATTENTE'])) {
             return response()->json([
                 'message' => 'Impossible de terminer un trajet qui n\'a pas démarré. Annulez la demande de course à la place.',
             ], 422);
         }
 
+        // Filet 24h : une demande restée sans réponse est clôturée ici même.
+        if ($this->maybeAutoCloseUnconfirmedEnd($trip)) {
+            return response()->json([
+                'message' => 'Trajet clôturé automatiquement (fin proposée depuis plus de 24h sans confirmation).',
+                'trip' => new TripResource($trip->load('passager', 'transporteur', 'vehicle')),
+            ]);
+        }
+
+        $role = $request->user()->id === $trip->passager_id ? 'passager' : 'transporteur';
+
+        // 1re demande : EN_COURS → FIN_EN_ATTENTE + notification à l'autre.
+        if ($trip->statut === 'EN_COURS') {
+            $trip->update([
+                'statut' => 'FIN_EN_ATTENTE',
+                'fin_demandee_par' => $role,
+                'fin_demandee_at' => now(),
+            ]);
+
+            $asker = $request->user();
+            $otherId = $role === 'passager' ? $trip->transporteur_id : $trip->passager_id;
+            $otherLabel = $role === 'passager' ? 'votre transporteur' : 'votre passager';
+            Notification::create([
+                'user_id' => $otherId,
+                'type' => 'TRAJET',
+                'titre' => 'Fin de course à confirmer',
+                'message' => $asker->prenom . ' ' . $asker->nom . ' indique que la course est terminée. Confirmez-vous la fin du trajet ? Sans confirmation sous 24h, il sera clôturé automatiquement.',
+                'push' => true,
+            ]);
+
+            return response()->json([
+                'message' => 'Fin proposée. En attente de confirmation de ' . $otherLabel . ' (clôture auto après 24h sans réponse).',
+                'trip' => new TripResource($trip->fresh()->load('passager', 'transporteur', 'vehicle')),
+                'end_request' => 'waiting_other',
+            ]);
+        }
+
+        // FIN_EN_ATTENTE : même demandeur → idempotent ; autre partie → TERMINE.
+        if ($trip->fin_demandee_par === $role) {
+            return response()->json([
+                'message' => 'Fin déjà proposée. En attente de confirmation de l\'autre partie (clôture auto après 24h sans réponse).',
+                'trip' => new TripResource($trip->fresh()->load('passager', 'transporteur', 'vehicle')),
+                'end_request' => 'waiting_other',
+            ]);
+        }
+
         $finished = $this->finalizeTrip($trip, 'MANUEL');
 
         return response()->json([
-            'message' => 'Trajet terminé',
+            'message' => 'Trajet terminé (fin confirmée des deux côtés)',
             'trip' => new TripResource($finished),
         ]);
+    }
+
+    /**
+     * Clôture automatique d'une demande de fin restée sans co-confirmation
+     * depuis plus de 24h. Évaluation PARESSEUSE (appelée depuis status(),
+     * storeLocation() et end()) car le scheduler ne tourne pas forcément en
+     * production. Retourne true si elle a clôturé ($trip muté sur place).
+     */
+    protected function maybeAutoCloseUnconfirmedEnd(Trip $trip): bool
+    {
+        if ($trip->statut !== 'FIN_EN_ATTENTE') {
+            return false;
+        }
+
+        $askedAt = $trip->fin_demandee_at;
+        if (! $askedAt || $askedAt->gt(now()->subHours(24))) {
+            return false;
+        }
+
+        $this->finalizeTrip($trip, 'AUTO_24H');
+
+        foreach ([$trip->passager_id, $trip->transporteur_id] as $userId) {
+            Notification::create([
+                'user_id' => $userId,
+                'type' => 'TRAJET',
+                'titre' => 'Trajet clôturé automatiquement',
+                'message' => 'La fin du trajet, proposée depuis plus de 24h sans confirmation, a été clôturée automatiquement.',
+                'push' => false,
+            ]);
+        }
+
+        \Log::info('Clôture auto 24h d\'une fin non confirmée', ['trip_id' => $trip->id]);
+
+        return true;
     }
 
     /**

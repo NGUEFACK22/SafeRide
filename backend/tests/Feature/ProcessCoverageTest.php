@@ -104,11 +104,12 @@ class ProcessCoverageTest extends TestCase
         return [$passager, $transporteur, $trip];
     }
 
-    /** Trajet terminé (TERMINE). */
+    /** Trajet terminé (TERMINE) : double confirmation transporteur + passager. */
     private function doneTrip(): array
     {
         [$passager, $transporteur, $trip] = $this->ongoingTrip();
         $this->actingAs($transporteur)->postJson("/api/v1/trips/{$trip->id}/end")->assertOk();
+        $this->actingAs($passager)->postJson("/api/v1/trips/{$trip->id}/end")->assertOk();
 
         return [$passager, $transporteur, $trip];
     }

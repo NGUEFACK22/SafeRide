@@ -111,7 +111,7 @@ class SosAlert extends Model
             $trip->save();
         }
 
-        $actifs = ['SCANNE', 'EN_ATTENTE_TRANSPORTEUR', 'CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS'];
+        $actifs = ['SCANNE', 'EN_ATTENTE_TRANSPORTEUR', 'CONFIRME', 'DESTINATION_PROPOSEE', 'DESTINATION_CONFIRMEE', 'EN_COURS', 'FIN_EN_ATTENTE'];
         if (! in_array($trip->statut, $actifs)) {
             return null;
         }
