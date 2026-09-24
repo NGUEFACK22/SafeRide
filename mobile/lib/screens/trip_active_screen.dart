@@ -25,6 +25,7 @@ import '../services/alert_counter_service.dart';
 import '../services/whatsapp_service.dart';
 import '../services/weather_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/gps_drift.dart';
 import '../utils/root_message.dart';
 import '../services/language_service.dart';
 import '../widgets/emergency_contacts_gate.dart';
@@ -877,21 +878,23 @@ class _TripActiveScreenState extends State<TripActiveScreen>
   /// accumulé. Recentre + zoom précis (18) sur la position pour que
   /// l'utilisateur se voie clairement sur la route.
   ///
-  /// Filtre ANTI-DÉRIVE GPS : à l'arrêt, le capteur erre de ±15 m et chaque
-  /// tick dessinait un faux déplacement (spaghetti bleu + "il s'est déplacé
-  /// alors qu'il est sur place"). En dessous de 15 m ET sous 11 km/h, le
-  /// point est ignoré pour l'affichage (marqueur figé, pas de setState).
-  /// L'envoi serveur continue normalement (heartbeat pour la clôture auto).
-  static const double _driftThresholdM = 15;
-  static const double _movingSpeedKmh = 11;
-
+  /// Filtre ANTI-DÉRIVE GPS via GpsDrift (voir lib/utils/gps_drift.dart,
+  /// prouvé par test/gps_drift_test.dart) : à l'arrêt, le capteur erre de
+  /// ±15 m et chaque tick dessinait un faux déplacement (spaghetti bleu +
+  /// "il s'est déplacé alors qu'il est sur place"). Point rejeté =
+  /// marqueur figé, pas de setState. L'envoi serveur continue normalement
+  /// (heartbeat pour la clôture auto).
   void _updateLiveMap(LatLng position, {double speedKmh = 0}) {
     if (!mounted) return;
     final reference =
         _liveRoute.isNotEmpty ? _liveRoute.last : _livePosition;
     if (reference != null && _liveRoute.isNotEmpty) {
       final movedM = const Distance()(reference, position);
-      if (movedM < _driftThresholdM && speedKmh < _movingSpeedKmh) {
+      if (!GpsDrift.acceptPoint(
+        hasReference: true,
+        movedMeters: movedM,
+        speedKmh: speedKmh,
+      )) {
         return; // bruit de capteur à l'arrêt : on fige l'affichage
       }
     }
