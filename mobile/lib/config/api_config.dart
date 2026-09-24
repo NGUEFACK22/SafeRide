@@ -14,13 +14,14 @@ class ApiConfig {
   //   GOOGLE_ANDROID_CLIENT_ID→ OAuth client ID Android (optionnel sur Android,
   //                             auto-détecté via google-services.json s'il est présent)
   //
-  // IMPORTANT : Sans ces valeurs, le bouton Google affichera un message d'erreur.
-  // Build avec :
+  // La valeur par défaut ci-dessous est l'ID client Web du projet Firebase
+  // (même que google-services.json) : ce sont des IDENTIFIANTS publics, pas
+  // des secrets — le bouton Google fonctionne donc sans --dart-define.
+  // Build personnalisé possible avec :
   //   flutter run --dart-define=GOOGLE_CLIENT_ID=<web-client-id> --dart-define=GOOGLE_ANDROID_CLIENT_ID=<android-client-id>
-  // Les valeurs par défaut sont volontairement vides : aucun secret n'est versionné.
   static const String googleClientId = String.fromEnvironment(
     'GOOGLE_CLIENT_ID',
-    defaultValue: '',
+    defaultValue: '841219332616-ib3ge6r9a3n6nrpt9pp7q7u7ia5mi60a.apps.googleusercontent.com',
   );
 
   static const String googleAndroidClientId = String.fromEnvironment(
