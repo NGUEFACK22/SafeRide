@@ -21,6 +21,9 @@
   .fini{background:#fff3f3;border:1px solid #e8b4b4}
   #msgFin{display:none;text-align:center;font-weight:700;color:#b3261e}
   .voiture{background:#0f62fe;border:3px solid #fff;border-radius:50%;box-shadow:0 1px 6px rgba(0,0,0,.4)}
+  .depart{background:#16a34a;border:3px solid #fff;border-radius:50%;box-shadow:0 1px 6px rgba(0,0,0,.4)}
+  .dest-bubble{background:#fff;border:1px solid #f3b4b4;border-radius:8px;padding:3px 8px;font-size:11px;font-weight:700;color:#1b2f6b;white-space:nowrap;box-shadow:0 1px 5px rgba(0,0,0,.25)}
+  .dest-pin{width:14px;height:14px;margin:2px auto 0;background:#d32f2f;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4)}
 </style>
 </head>
 <body>
@@ -51,6 +54,9 @@ if (!window.L) {
 (function () {
   var token = <?= json_encode($token) ?>;
   var actif = <?= json_encode($actif) ?>;
+  var startPt = <?= json_encode($start ?? null) ?>;
+  var destPt = <?= json_encode($destination_point ?? null) ?>;
+  var destName = <?= json_encode($destination ?? '') ?>;
   // Vue par défaut sur Douala : sans elle, Leaflet démarre à [0,0] (océan)
   // tant qu'aucune position/itinéraire n'est reçu — "carte vide".
   var map = L.map('carte', { zoomControl: true }).setView([4.05, 9.7679], 12);
@@ -58,8 +64,49 @@ if (!window.L) {
     maxZoom: 19, attribution: '&copy; OpenStreetMap'
   }).addTo(map);
 
-  var markerVoiture = null, polyPrevu = null, polyReel = null, centre = false;
+  var markerVoiture = null, markerDepart = null, markerDest = null,
+      polyPrevu = null, polyReel = null, centre = false;
   var premierEchange = false;
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // Marqueurs STATIQUES immédiats : le départ est toujours connu, la
+  // destination souvent — la carte n'est jamais vide, même sans aucun
+  // point GPS posté (cas du partage à l'arrêt).
+  function staticMarkers(dName, dPt) {
+    if (startPt && !markerDepart) {
+      markerDepart = L.marker([startPt.lat, startPt.lng], {
+        icon: L.divIcon({ className: '', html: '<div class="depart" style="width:20px;height:20px"></div>', iconSize: [20, 20], iconAnchor: [10, 10] })
+      }).addTo(map).bindPopup('Départ');
+    }
+    var name = (dName !== undefined && dName !== null) ? dName : destName;
+    var pt = (dPt !== undefined && dPt !== null) ? dPt : destPt;
+    if (pt && name) {
+      var html = '<div class="dest-bubble">' + esc(name) + '</div><div class="dest-pin"></div>';
+      if (!markerDest) {
+        markerDest = L.marker([pt.lat, pt.lng], {
+          icon: L.divIcon({ className: '', html: html, iconSize: [150, 60], iconAnchor: [75, 60] })
+        }).addTo(map);
+      } else {
+        markerDest.setLatLng([pt.lat, pt.lng]);
+        markerDest.setIcon(L.divIcon({ className: '', html: html, iconSize: [150, 60], iconAnchor: [75, 60] }));
+      }
+    }
+  }
+
+  // Cadrage immédiat sur ce qu'on connaît déjà (pas d'attente du 1er fetch).
+  staticMarkers();
+  (function () {
+    var frame = [];
+    if (startPt) frame.push([startPt.lat, startPt.lng]);
+    if (destPt) frame.push([destPt.lat, destPt.lng]);
+    if (frame.length >= 2) { map.fitBounds(L.latLngBounds(frame).pad(0.2)); centre = true; }
+    else if (frame.length === 1) { map.setView(frame[0], 15); centre = true; }
+  })();
 
   function temps(iso) {
     if (!iso) return '—';
@@ -91,6 +138,9 @@ if (!window.L) {
         document.getElementById('trans').textContent = (d.transporteur || '—') + (d.vehicule ? ' • ' + d.vehicule : '');
         document.getElementById('dest').textContent = d.destination || '—';
         document.getElementById('statutTexte').textContent = 'En route • maj auto toutes les 7 s';
+        // La destination peut changer en cours de route : resynchroniser
+        // son marqueur + son nom avec les données fraîches.
+        try { staticMarkers(d.destination, d.destination_point); } catch (e) {}
         var pts = [];
         if (d.planned && d.planned.length) {
           if (!polyPrevu) polyPrevu = L.polyline([], { color: '#9db8f5', weight: 4, dashArray: '6 8' }).addTo(map);

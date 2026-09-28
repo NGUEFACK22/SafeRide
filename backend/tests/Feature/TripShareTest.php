@@ -177,6 +177,21 @@ class TripShareTest extends TestCase
             ->assertJsonPath('position.lng', 11.5222);
     }
 
+    public function test_data_expose_depart_et_destination_connus(): void
+    {
+        $trip = $this->trip($this->passager());
+
+        // Même sans aucun point GPS posté, le départ (toujours connu) et
+        // la destination sont exposés pour ancrer la carte.
+        $this->getJson('/api/v1/public/suivi/' . $trip->share_token . '/data')
+            ->assertOk()
+            ->assertJsonPath('actif', true)
+            ->assertJsonPath('start.lat', 3.8480)
+            ->assertJsonPath('start.lng', 11.5021)
+            ->assertJsonPath('destination_point.lat', 3.8700)
+            ->assertJsonPath('destination_point.lng', 11.5210);
+    }
+
     public function test_data_inclut_immatriculation_vehicule(): void
     {
         $trip = $this->trip($this->passager());

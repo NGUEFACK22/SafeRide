@@ -32,6 +32,12 @@ class TripShareController extends Controller
             'token' => $token,
             'actif' => in_array($trip->statut, self::ACTIFS),
             'destination' => $trip->destination_address ?? '',
+            'start' => $trip->start_latitude !== null && $trip->start_longitude !== null
+                ? ['lat' => (float) $trip->start_latitude, 'lng' => (float) $trip->start_longitude]
+                : null,
+            'destination_point' => $trip->destination_latitude !== null && $trip->destination_longitude !== null
+                ? ['lat' => (float) $trip->destination_latitude, 'lng' => (float) $trip->destination_longitude]
+                : null,
         ])->header('Cache-Control', 'no-store');
     }
 
@@ -104,6 +110,12 @@ class TripShareController extends Controller
             'transporteur' => trim(($trip->transporteur->prenom ?? '') . ' ' . ($trip->transporteur->nom ?? '')),
             'vehicule' => $trip->vehicle?->immatriculation ?? '',
             'destination' => $trip->destination_address,
+            'destination_point' => $trip->destination_latitude !== null && $trip->destination_longitude !== null
+                ? ['lat' => (float) $trip->destination_latitude, 'lng' => (float) $trip->destination_longitude]
+                : null,
+            'start' => $trip->start_latitude !== null && $trip->start_longitude !== null
+                ? ['lat' => (float) $trip->start_latitude, 'lng' => (float) $trip->start_longitude]
+                : null,
             'position' => $position,
             'trail' => $trail->map(fn ($l): array => [(float) $l->latitude, (float) $l->longitude])->values(),
             'planned' => $planned,
