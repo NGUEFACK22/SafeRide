@@ -107,8 +107,8 @@ class PredictionTest extends TestCase
                     'nb_trajets_analyses',
                     'heures_bouchons',
                     'heures_fluides',
-                    'zones_frequentes' => [['libelle', 'trajets']],
-                    'climats' => [['zone', 'description', 'temperature_c']],
+                    'zones_frequentes' => [['libelle', 'trajets', 'latitude', 'longitude']],
+                    'climats' => [['zone', 'libelle', 'description', 'temperature_c']],
                     'conseils',
                 ],
             ]);
@@ -133,6 +133,15 @@ class PredictionTest extends TestCase
         $this->assertSame('Averses', $prediction['climats'][0]['description']);
         $this->assertEquals(26.4, $prediction['climats'][0]['temperature_c']);
 
+        // Zones : nom réel (destination), position et climat rattaché.
+        $zones = $prediction['zones_frequentes'];
+        $this->assertNotEmpty($zones);
+        $this->assertSame('Bonabéri', $zones[0]['libelle']);
+        $this->assertEqualsWithDelta(3.8721, (float) $zones[0]['latitude'], 0.001);
+        $this->assertEqualsWithDelta(11.5174, (float) $zones[0]['longitude'], 0.001);
+        $this->assertSame('Bonabéri', $prediction['climats'][0]['libelle']);
+        $this->assertNotNull($prediction['climats'][0]['latitude']);
+
         // Conseils actionnables présents (mention des heures à éviter).
         $this->assertNotEmpty($prediction['conseils']);
         $joined = implode(' ', $prediction['conseils']);
@@ -140,6 +149,53 @@ class PredictionTest extends TestCase
 
         // Repli règle (IA désactivée).
         $this->assertSame('REGLE', $response->json('report.generateur'));
+    }
+
+    public function test_frequent_zones_limited_to_two_with_coordinates(): void
+    {
+        config(['services.ai.enabled' => false]);
+        $user = $this->passengerWithTrips();
+        Http::fake([
+            'api.open-meteo.com/*' => Http::response(['current' => ['temperature_2m' => 25, 'weather_code' => 0, 'precipitation_probability' => 10]], 200),
+        ]);
+
+        // 3e cluster (Deido, 2 départs) en plus des 2 du fixture.
+        $ref = Trip::where('passager_id', $user->id)->firstOrFail();
+        foreach ([[3.8500, 11.5100], [3.8501, 11.5102]] as [$lat, $lng]) {
+            Trip::create([
+                'passager_id' => $user->id,
+                'transporteur_id' => $ref->transporteur_id,
+                'vehicle_id' => $ref->vehicle_id,
+                'start_latitude' => $lat,
+                'start_longitude' => $lng,
+                'destination_address' => 'Deido',
+                'started_at' => now()->subDay(),
+                'ended_at' => now()->subDay()->addHour(),
+                'statut' => 'TERMINE',
+                'end_method' => 'MANUEL',
+            ]);
+        }
+
+        $prediction = $this->actingAs($user)
+            ->getJson('/api/v1/ai/prediction?refresh=1')
+            ->assertOk()
+            ->json('prediction');
+
+        // Max 2 zones même avec 3 clusters, triées (Bonanjo 4 en premier).
+        $zones = $prediction['zones_frequentes'];
+        $this->assertCount(2, $zones);
+        $this->assertSame(4, $zones[0]['trajets']);
+        foreach ($zones as $z) {
+            $this->assertArrayHasKey('latitude', $z);
+            $this->assertArrayHasKey('longitude', $z);
+            $this->assertNotEmpty($z['libelle']);
+        }
+        // Climat rattaché à chaque zone affichée.
+        $this->assertCount(2, $prediction['climats']);
+        foreach ($prediction['climats'] as $c) {
+            $this->assertNotEmpty($c['libelle']);
+            $this->assertArrayHasKey('latitude', $c);
+        }
     }
 
     public function test_prediction_is_cached_until_refresh(): void

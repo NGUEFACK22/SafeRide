@@ -360,13 +360,15 @@ class _PredictionScreenState extends State<PredictionScreen> {
           const Text('Effectuez quelques trajets pour que l’IA apprenne vos zones.',
               style: TextStyle(fontSize: 12, color: AppTheme.textGrey)));
     }
-    final maxTrajets = zones.fold<int>(1, (m, z) {
+    // 2 zones max (le backend borne déjà) + position + nom de l'emplacement.
+    final top = zones.take(2).toList();
+    final maxTrajets = top.fold<int>(1, (m, z) {
       final n = int.tryParse('${z['trajets'] ?? 0}') ?? 0;
       return n > m ? n : m;
     });
     return _card(lang.t('zones_title'), Icons.place_outlined, AppTheme.primaryBlue,
         Column(children: [
-          for (final z in zones)
+          for (final z in top)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Row(children: [
@@ -381,6 +383,11 @@ class _PredictionScreenState extends State<PredictionScreen> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('${z['libelle']}', maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+                    if (z['latitude'] != null && z['longitude'] != null)
+                      Text(
+                        'Lat ${_fmtCoord(z['latitude'])} • Lng ${_fmtCoord(z['longitude'])}',
+                        style: const TextStyle(fontSize: 10, color: AppTheme.textGrey),
+                      ),
                     const SizedBox(height: 4),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(4),
@@ -402,6 +409,12 @@ class _PredictionScreenState extends State<PredictionScreen> {
               ]),
             ),
         ]));
+  }
+
+  /// Coordonnée lisible (4 décimales ≈ 11 m).
+  static String _fmtCoord(dynamic v) {
+    final d = v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+    return d.toStringAsFixed(4);
   }
 
   Widget _conseilsCard(LanguageService lang) {

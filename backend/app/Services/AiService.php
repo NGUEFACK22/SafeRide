@@ -1040,7 +1040,7 @@ class AiService
     }
 
     /**
-     * Agrège l'historique de l'utilisateur : ses 3 zones les plus fréquentes
+     * Agrège l'historique de l'utilisateur : ses 2 zones les plus fréquentes
      * (cluster grille ~1,1 km via arrondi 2 décimales), la densité horaire de
      * ses départs, et la durée moyenne par tranche horaire.
      */
@@ -1068,7 +1068,7 @@ class AiService
                 ($clusters[$key]['hours'][(int) ($t->started_at?->hour ?? -1)] ?? 0) + 1;
         }
         arsort($clusters);
-        $topZones = array_slice($clusters, 0, 3, true);
+        $topZones = array_slice($clusters, 0, 2, true);
 
         // 2. Densité horaire globale + durée moyenne par heure (pics observés).
         $densite = array_fill(0, 24, 0);
@@ -1140,8 +1140,14 @@ class AiService
             if (! $c) {
                 continue;
             }
+            // Rattache chaque climat à SA zone (nom + position), pour un
+            // affichage "climat de chaque zone" côté app.
+            $zone = $data['zones'][$key] ?? null;
             $climats[] = [
                 'zone' => $key,
+                'libelle' => $zone['label'] ?? ('Zone ' . $key),
+                'latitude' => $zone['lat'] ?? null,
+                'longitude' => $zone['lng'] ?? null,
                 'temperature_c' => $c['temperature_2m'] ?? null,
                 'ressenti_c' => $c['apparent_temperature'] ?? null,
                 'pluie_prob' => $c['precipitation_probability'] ?? null,
@@ -1159,8 +1165,10 @@ class AiService
             'heures_bouchons' => array_map(fn ($h) => sprintf('%02dh00', $h), $creneaux),
             'heures_fluides' => array_map(fn ($h) => sprintf('%02dh00', $h), $fluides),
             'zones_frequentes' => array_map(fn ($k, $z) => [
-                'libelle' => $z['label'] ? $k : ('Zone ' . $k),
+                'libelle' => $z['label'] ?? ('Zone ' . $k),
                 'trajets' => $z['count'],
+                'latitude' => $z['lat'] ?? null,
+                'longitude' => $z['lng'] ?? null,
             ], array_keys($data['zones']), $data['zones']),
             'climats' => $climats,
             'conseils' => $conseils,
